@@ -22,6 +22,7 @@
   .btn { font-size: .85rem; padding: 8px 18px; }
   .img-grid { grid-template-columns: 1fr 1fr; }
   .img-card img { height: 120px; }
+  .finance-img-skeleton { height: 120px; }
   .lightbox-img { max-width: 100% !important; max-height: 90vh !important; }
   .container { padding: 16px 12px; }
   .login-card { padding: 28px 20px; }

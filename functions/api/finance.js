@@ -5,7 +5,8 @@ export async function handleGetFinance(env, user, department) {
   try {
     await env.DB.prepare("UPDATE finance SET fund_type = '流动资金库' WHERE fund_type IS NULL").run();
   } catch {}
-  let sql = 'SELECT * FROM finance';
+  // 列表瘦身：不返回 image_url 全文，只返回 has_image 标记（图片走 /api/finance/images?ids= 批量取）
+  let sql = "SELECT id, tags, notes, type, amount, status, created_by, completed_by, created_at, completed_at, department, fund_type, internal_activity, CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 ELSE 0 END AS has_image FROM finance";
   const params = [];
   if (user && !isAdmin(user)) {
     sql += ' WHERE department = ?';
@@ -17,6 +18,23 @@ export async function handleGetFinance(env, user, department) {
   sql += ' ORDER BY created_at DESC LIMIT 200';
   const rows = await env.DB.prepare(sql).bind(...params).all();
   return json(rows.results);
+}
+
+export async function handleGetFinanceImages(env, idsStr, user) {
+  if (!user) return error('需要登录', 401);
+  const ids = [...new Set(String(idsStr || '').split(',').map(s => Number(String(s).trim())).filter(n => Number.isInteger(n) && n > 0))];
+  if (ids.length === 0) return error('缺少财务记录 id');
+  if (ids.length > 50) return error('一次最多查询 50 条财务记录的图片');
+  let sql = `SELECT id, image_url FROM finance WHERE id IN (${ids.map(() => '?').join(',')})`;
+  const params = [...ids];
+  if (!isAdmin(user)) {
+    sql += ' AND department = ?';
+    params.push(user.department || '');
+  }
+  const rows = await env.DB.prepare(sql).bind(...params).all();
+  const map = {};
+  for (const r of rows.results) if (r.image_url) map[r.id] = r.image_url;
+  return json(map);
 }
 
 export async function handleCreateFinance(request, env, user) {

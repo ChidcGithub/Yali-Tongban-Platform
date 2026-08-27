@@ -797,7 +797,8 @@ async function loadAdminAnnouncements() {
         if (_activeListModal === 'announce') {
           document.getElementById('modalBody').innerHTML = renderAnnounceList();
         }
-      }
+      },
+      2 // 公告列表结构 v2（has_image 标记），旧格式缓存自动作废
     );
   } catch { document.getElementById('announceSummary').textContent = '加载失败'; }
 }
@@ -933,6 +934,7 @@ function confirmDeleteAnnounce(dataset) {
 
 // ──────── Admin Finance ────────
 let _financeList = [];
+const _financeImgCache = {};
 
 async function loadAdminFinance() {
   try {
@@ -943,8 +945,19 @@ async function loadAdminFinance() {
       const expense = data.filter(f => f.type !== '收入').reduce((s, f) => s + Number(f.amount || 0), 0);
       document.getElementById('financeCount').textContent = `（${count} 条）`;
       document.getElementById('financeSummary').innerHTML = count ? `<span style="color:var(--success)">+¥${income.toFixed(2)}</span><span style="color:var(--accent)">-¥${expense.toFixed(2)}</span>` : '暂无记录';
-    });
+    }, 2);
   } catch { document.getElementById('financeSummary').textContent = '加载失败'; }
+}
+
+// 列表瘦身后：批量回填财务图片（每批 10 条），供缩略图渲染
+async function loadAdminFinanceImages() {
+  const pending = _financeList.filter(f => f.has_image && !_financeImgCache[f.id]).map(f => f.id);
+  for (let i = 0; i < pending.length; i += 10) {
+    const batch = pending.slice(i, i + 10);
+    let map = {};
+    try { map = await apiGet(`/api/finance/images?ids=${batch.join(',')}`); } catch {}
+    for (const id of batch) if (map && map[id]) _financeImgCache[id] = map[id];
+  }
 }
 
 function renderFinanceList() {
@@ -953,9 +966,10 @@ function renderFinanceList() {
   }
   return _financeList.map(f => {
     const tags = (() => { try { return JSON.parse(f.tags || '[]'); } catch { return []; } })();
+    const thumb = _financeImgCache[f.id];
     return `
     <div class="admin-user-item" style="align-items:flex-start">
-      ${f.image_url && f.image_url.startsWith('data:') ? `<img class="admin-finance-thumb img-clickable" src="${attrEscape(f.image_url)}" alt="" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(f.image_url))}" onerror="this.style.display='none'">` : ''}
+      ${thumb ? `<img class="admin-finance-thumb img-clickable" src="${attrEscape(thumb)}" alt="" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(thumb))}" onerror="this.style.display='none'">` : ''}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${Badge(f.type || '支出', f.type === '收入' ? 'done' : 'pending')}
@@ -970,8 +984,9 @@ function renderFinanceList() {
   }).join('');
 }
 
-function openFinanceModal() {
+async function openFinanceModal() {
   _activeListModal = 'finance';
+  await loadAdminFinanceImages();
   openModal({
     title: '财务记录管理（全部）',
     body: renderFinanceList(),

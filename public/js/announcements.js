@@ -29,7 +29,8 @@ async function loadAnnouncements() {
   try {
     await fetchWithCache('/api/announcements',
       () => apiGet('/api/announcements'),
-      data => { allAnnouncements = data; renderAnnouncements(); }
+      data => { allAnnouncements = data; renderAnnouncements(); },
+      2 // 列表结构 v2（has_image 标记、无 image_url 全文）；版本不符自动作废旧缓存
     );
   } catch (err) {
     const el = document.getElementById('announceList');

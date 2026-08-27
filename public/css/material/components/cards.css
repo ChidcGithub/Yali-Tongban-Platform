@@ -134,6 +134,9 @@
 }
 .img-card:hover { box-shadow: var(--md-elevation-2); transform: translateY(-2px); }
 .img-card img { width: 100%; height: 200px; object-fit: cover; }
+/* 财务两段式加载：图片到达前的扫光占位，尺寸与 .img-card img 一致 */
+.finance-img-skeleton { height: 200px; }
+.finance-img-skeleton .g-skeleton { height: 100%; width: 100%; border-radius: 0; }
 .img-card-body { padding: 16px 20px; }
 .img-card-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
 .tag {

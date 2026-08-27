@@ -4,9 +4,9 @@ const API_BASE = '';
 const CACHE_PREFIX = 'yc_';
 const CACHE_TTL = 3 * 24 * 60 * 60 * 1000;
 
-function cacheSet(key, data, hash) {
+function cacheSet(key, data, hash, version) {
   try {
-    const v = JSON.stringify({ data, hash: hash || '', ts: Date.now() });
+    const v = JSON.stringify({ data, hash: hash || '', ts: Date.now(), v: version || 0 });
     if (v.length > 4 * 1024 * 1024) return;  // too large, skip caching
     localStorage.setItem(CACHE_PREFIX + key, v);
   } catch (e) {
@@ -23,17 +23,19 @@ function cacheSet(key, data, hash) {
       while (keys.length > 5) {
         localStorage.removeItem(keys.shift());
       }
-      const v = JSON.stringify({ data, hash: hash || '', ts: Date.now() });
+      const v = JSON.stringify({ data, hash: hash || '', ts: Date.now(), v: version || 0 });
       if (v.length <= 4 * 1024 * 1024) localStorage.setItem(CACHE_PREFIX + key, v);
     } catch {}
   }
 }
-function cacheGet(key) {
+function cacheGet(key, version) {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
     const entry = JSON.parse(raw);
     if (Date.now() - entry.ts > CACHE_TTL) { localStorage.removeItem(CACHE_PREFIX + key); return null; }
+    // 接口结构变更防御：缓存版本与调用方要求不符时视为未命中（避免旧格式数据静默复用）
+    if (version && entry.v !== version) { localStorage.removeItem(CACHE_PREFIX + key); return null; }
     return entry;
   } catch { return null; }
 }
@@ -54,8 +56,8 @@ function isAdmin(user) {
 
 let _fetchCount = 0;
 
-async function fetchWithCache(key, fetchFn, renderFn) {
-  const cached = cacheGet(key);
+async function fetchWithCache(key, fetchFn, renderFn, version) {
+  const cached = cacheGet(key, version);
   if (cached) renderFn(cached.data);
   if (_fetchCount === 0) showNavLoading('加载中...');
   _fetchCount++;
@@ -65,17 +67,17 @@ async function fetchWithCache(key, fetchFn, renderFn) {
     const pr = res.pages[key];
     if (pr && pr.changed) {
       const freshData = await fetchFn();
-      if (freshData !== undefined) { cacheSet(key, freshData, pr.hash); }
+      if (freshData !== undefined) { cacheSet(key, freshData, pr.hash, version); }
       renderFn(freshData);
     } else if (!cached) {
       const freshData = await fetchFn();
-      if (freshData !== undefined) { cacheSet(key, freshData, ''); }
+      if (freshData !== undefined) { cacheSet(key, freshData, '', version); }
       renderFn(freshData);
     }
   } catch (e) {
     if (!cached) {
       const freshData = await fetchFn();
-      if (freshData !== undefined) { cacheSet(key, freshData, ''); }
+      if (freshData !== undefined) { cacheSet(key, freshData, '', version); }
       renderFn(freshData);
     }
   } finally {

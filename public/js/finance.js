@@ -7,6 +7,9 @@ let _typeFilter = null;
 let _pendingFilter = false;
 let _deptList = [];
 let _financeCaptcha = null;
+// 列表接口瘦身后：图片走 /api/finance/images?ids= 按需拉取，内存缓存
+const financeImgCache = {};
+const FIN_IMG_FALLBACK = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22200%22><rect fill=%22%23e8eaed%22 width=%22240%22 height=%22200%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%237f8c8d%22 font-size=%2214%22>图片加载失败</text></svg>";
 
 function getMonthLabel(y, m) {
   return `${y}年${String(m).padStart(2, '0')}月`;
@@ -112,6 +115,7 @@ async function uploadFinance(dataset, target) {
       ...(_financeCaptcha ? _financeCaptcha.getData() : {}),
     });
     allFinance.unshift(data);
+    if (data && data.image_url) financeImgCache[data.id] = data.image_url;
     applyCurrentFilter();
     target.reset();
     document.getElementById('previewImg').style.display = 'none';
@@ -135,12 +139,43 @@ async function loadFinance() {
         allFinance = data;
         buildDeptTabs();
         applyCurrentFilter();
-      }
+        loadFinanceImagesLazy();
+      },
+      2 // 列表结构 v2（has_image 标记、无 image_url 全文）
     );
   } catch (err) {
     document.getElementById('financeGrid').innerHTML =
       `<div style="grid-column:1/-1">${EmptyState('', '加载失败：' + err.message)}</div>`;
   }
+}
+
+// 分批拉取图片（每批 8 条），单图解码就绪后替换扫光占位
+async function loadFinanceImagesLazy() {
+  const pending = allFinance.filter(f => f.has_image && !financeImgCache[f.id]).map(f => f.id);
+  for (let i = 0; i < pending.length; i += 8) {
+    const batch = pending.slice(i, i + 8);
+    let map = {};
+    try {
+      map = await apiGet(`/api/finance/images?ids=${batch.join(',')}`);
+    } catch {}
+    for (const id of batch) {
+      const url = map && map[id] ? map[id] : '';
+      const holder = document.querySelector(`.img-card[data-id="${id}"] .finance-img-skeleton`);
+      if (!url) { if (holder) holder.remove(); continue; }
+      financeImgCache[id] = url;
+      if (holder) replaceFinanceImgSkeleton(holder, url);
+    }
+  }
+}
+
+// 图片就绪后再替换骨架，避免闪烁
+function replaceFinanceImgSkeleton(holder, url) {
+  const img = new Image();
+  img.onload = () => {
+    holder.outerHTML = `<img class="img-clickable" src="${url}" alt="财务图片" loading="lazy" data-fullsrc="${url}" onerror="this.src='${FIN_IMG_FALLBACK}'">`;
+  };
+  img.onerror = () => { holder.remove(); };
+  img.src = url;
 }
 
 function toggleTypeFilter(type) {
@@ -251,16 +286,19 @@ async function renderFinance(filteredList) {
   }
 
   el.innerHTML = '';
-  const lightboxItems = list.map(f => ({ src: f.image_url }));
   await progressiveRender(el, list, (f, i) => {
     let tags = [];
     try { tags = JSON.parse(f.tags || '[]'); } catch { tags = (f.tags || '').split(',').filter(Boolean); }
     const statusLabel = f.status === '已报销' ? '已报销' : (f.status === '已完成' ? '已完成' : '待完成');
     const statusBadgeCls = f.status === '已报销' ? 'badge-pass' : (f.status === '已完成' ? 'badge-done' : 'badge-pending');
     const isReimbursed = f.status === '已报销';
+    const imgSrc = financeImgCache[f.id];
+    const imgArea = imgSrc
+      ? `<img class="img-clickable" src="${imgSrc}" alt="财务图片" loading="lazy" data-lb-index="${i}" data-fullsrc="${imgSrc}" onerror="this.src='${FIN_IMG_FALLBACK}'">`
+      : (f.has_image ? '<div class="finance-img-skeleton"><div class="g-skeleton"></div></div>' : '');
     return `
     <div class="img-card" data-id="${f.id}">
-      <img class="img-clickable img-lazy" data-src="${f.image_url}" src="${IMG_PLACEHOLDER}" alt="财务图片" loading="lazy" data-lb-index="${i}" data-fullsrc="${f.image_url}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22200%22><rect fill=%22%23e8eaed%22 width=%22240%22 height=%22200%22/><text x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%237f8c8d%22 font-size=%2214%22>图片加载失败</text></svg>'">
+      ${imgArea}
       <div class="img-card-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
           ${Badge((f.type === '收入' ? icon('trending-up') : icon('trending-down')) + ' ' + f.type, f.type === '收入' ? 'done' : 'pending')}
@@ -279,15 +317,19 @@ async function renderFinance(filteredList) {
       </div>
     </div>`;
   });
-  lazyLoadImages(el);
 
-  el.querySelectorAll('.img-clickable').forEach(img => {
-    img.addEventListener('click', function () {
-      const parentCard = this.closest('.img-card');
-      const idx = Array.from(el.querySelectorAll('.img-card')).indexOf(parentCard);
-      openLightbox(lightboxItems[idx].src, lightboxItems);
+  // 灯箱用容器级事件委托：懒加载替换出的新 img 无需重复绑定
+  if (!el.dataset.lbBound) {
+    el.dataset.lbBound = '1';
+    el.addEventListener('click', function (ev) {
+      const img = ev.target.closest('.img-clickable');
+      if (!img || !el.contains(img)) return;
+      const src = img.dataset.fullsrc || img.dataset.src || '';
+      if (!src) return;
+      const items = Array.from(el.querySelectorAll('.img-clickable')).map(im => ({ src: im.dataset.fullsrc || im.dataset.src || '' }));
+      openLightbox(src, items);
     });
-  });
+  }
 
   // Update active state on summary cards and ratio card
   document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active'));
@@ -332,6 +374,7 @@ async function deleteFinanceItem(dataset) {
     try {
       await apiDel(`/api/finance/${dataset.id}`);
       allFinance = allFinance.filter(x => x.id !== dataset.id);
+      delete financeImgCache[dataset.id];
       applyCurrentFilter();
       toast('已删除', 'success');
     } catch (err) {

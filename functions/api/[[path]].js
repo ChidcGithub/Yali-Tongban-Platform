@@ -3,7 +3,7 @@ import { handleLogin, handleRegister, handleMe, handleCheckName, handleChangePas
 import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDeleteIssue } from './issues.js';
 import { handleCreateFeedback, handleGetFeedback, handleDeleteFeedback } from './feedback.js';
 import { handleGetAnnouncements, handleGetAnnouncementImages, handleCreateAnnouncement, handleDeleteAnnouncement, handleUpdateAnnouncement, handleReviewAnnouncement, handleAddAnnouncementImage } from './announcements.js';
-import { handleGetFinance, handleCreateFinance, handleCompleteFinance, handleReimburseFinance, handleUnreimburseFinance, handleDeleteFinance } from './finance.js';
+import { handleGetFinance, handleGetFinanceImages, handleCreateFinance, handleCompleteFinance, handleReimburseFinance, handleUnreimburseFinance, handleDeleteFinance } from './finance.js';
 import { handleGetReviews, handleCreateReview, handleReviewItem, handleDeleteReview } from './reviews.js';
 import { handleGetActivities, handleCreateActivity, handleDeleteActivity, handleSignupVolunteer, handleUnsignupVolunteer, handleGetActivityVolunteers } from './activities.js';
 import { handleGetHallBookings, handleCreateHallBooking, handleWithdrawHallBooking, handleDeleteHallBooking, handleReviewHallBooking, handleGetHallPendingWithConflicts } from './halls.js';
@@ -59,6 +59,7 @@ const routes = [
   { p: /^\/api\/announcements\/(\d+)\/status$/, m: 'PUT', h: c => handleReviewAnnouncement(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/announcements\/(\d+)\/images$/, m: 'POST', h: c => handleAddAnnouncementImage(c.request, c.env, c.m[1], c.user) },
   // Finance
+  { p: '/api/finance/images', m: 'GET', h: c => handleGetFinanceImages(c.env, c.url.searchParams.get('ids'), c.user) },
   { p: '/api/finance', m: 'GET', h: c => handleGetFinance(c.env, c.user, c.url.searchParams.get('department')) },
   { p: '/api/finance', m: 'POST', h: c => handleCreateFinance(c.request, c.env, c.user) },
   { p: /^\/api\/finance\/(\d+)\/complete$/, m: 'PUT', h: c => handleCompleteFinance(c.request, c.env, c.m[1], c.user) },
