@@ -1,4 +1,4 @@
-import { json, error, safeParse, checkRateLimit, parseBody, getClientIP, isValidClass, isAdmin, getUserFromRequest, insertChatSystemMessage, verifyCaptcha } from './_utils.js';
+import { json, error, safeParse, checkRateLimit, parseBody, getClientIP, isValidClass, isAdmin, getUserFromRequest, insertChatSystemMessage, verifyCaptcha, COMMON_HEADERS } from './_utils.js';
 
 export async function handleGetPolls(env) {
   const rows = await env.DB.prepare('SELECT * FROM polls ORDER BY created_at DESC LIMIT 200').all();
@@ -193,10 +193,7 @@ export async function handleExportPollResults(env, id, user) {
     headers: {
       'Content-Type': 'text/csv; charset=utf-8',
       'Content-Disposition': `attachment; filename="poll_${id}_results.csv"`,
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:;",
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cache-Control': 'no-cache',
+      ...COMMON_HEADERS,
     },
   });
 }

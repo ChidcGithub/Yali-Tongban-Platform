@@ -12,6 +12,7 @@ pending asks.txt
 _backups/
 .workbuddy/
 .check/
+.check-*/
 examples/
 debug.log
 *.log

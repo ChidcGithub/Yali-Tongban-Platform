@@ -8,6 +8,14 @@ export const NAME_MIN = 2;
 export const NAME_MAX = 20;
 export const DEPARTMENTS = ['书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室'];
 
+// 公共安全响应头（json / error / CSV 导出共用，安全策略修改只需改这一处）
+export const COMMON_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': "frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:;",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Cache-Control': 'no-cache',
+};
+
 export const ACH_NAMES = {
   read_all_changelog: '真的会有人看这个吗？', color_freak: '五彩斑斓的黑', night_owl: '夜猫子',
   early_bird: '早起的鸟儿', high_five: '击掌！', collector: '收藏家', chatty: '社交恐怖分子',
@@ -82,10 +90,7 @@ export function json(data, status = 200, extraHeaders = {}) {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:;",
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cache-Control': 'no-cache',
+      ...COMMON_HEADERS,
       ...extraHeaders,
     },
   });
@@ -96,10 +101,7 @@ export function error(msg, status = 400) {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'X-Content-Type-Options': 'nosniff',
-      'Content-Security-Policy': "frame-ancestors 'none'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:;",
-      'Referrer-Policy': 'strict-origin-when-cross-origin',
-      'Cache-Control': 'no-cache',
+      ...COMMON_HEADERS,
     },
   });
 }
@@ -224,6 +226,15 @@ export async function checkSiteClosed(request, env) {
 }
 
 export async function initDB(env) {
+  // P0 优化：短路检查提前到最开头。已初始化（_db_init_done 存在）则跳过下方全部迁移语句，
+  // 每次请求只做 1 条探活，省约 39 次 D1 往返（冷启动 + 边缘延迟的主要来源）。
+  // 首次部署时 settings 表不存在，该 SELECT 抛错被捕获，继续走下方全量迁移。
+  try {
+    const done = await env.DB.prepare("SELECT value FROM settings WHERE key='_db_init_done'").first();
+    if (done) return;
+  } catch {
+    // settings 表不存在（首次部署），继续执行迁移
+  }
   try {
     await env.DB.prepare("SELECT 1 FROM settings LIMIT 1").first();
     try { await env.DB.prepare("CREATE TABLE IF NOT EXISTS activities (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT DEFAULT '', time TEXT NOT NULL, departments TEXT DEFAULT '', need_volunteers INTEGER NOT NULL DEFAULT 0, created_by TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')))").run(); } catch {}
@@ -265,8 +276,6 @@ export async function initDB(env) {
     try { await env.DB.prepare("CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, type TEXT NOT NULL, title TEXT NOT NULL, body TEXT DEFAULT '', link TEXT DEFAULT '', icon TEXT DEFAULT '', is_read INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now')))").run(); } catch {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at)").run(); } catch {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_features_key ON features(key)").run(); } catch {}
-    const done = await env.DB.prepare("SELECT value FROM settings WHERE key='_db_init_done'").first();
-    if (done) return;
     try { await env.DB.prepare("ALTER TABLE announcements ADD COLUMN image_url TEXT DEFAULT ''").run(); } catch {}
     try { await env.DB.prepare("ALTER TABLE announcements ADD COLUMN status TEXT DEFAULT '已通过'").run(); } catch {}
     try { await env.DB.prepare("ALTER TABLE announcements ADD COLUMN reviewed_by TEXT DEFAULT ''").run(); } catch {}
