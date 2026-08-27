@@ -1,5 +1,19 @@
 var CHANGELOG_ENTRIES = [
   {
+    date: '2026-08-27',
+    version: 'v3.0.0',
+    items: [
+      { type: 'feature', text: '新增隐藏成就「你也要学绿泡泡吗」：点击本条目中的神秘句子即可解锁' },
+      { type: 'easter', text: '你也要学绿泡泡吗', ach: 'green_bubble' },
+      { type: 'feature', text: '投票详情页、值日页、值日管理页加载时显示扫光骨架屏，等待体验更顺滑' },
+      { type: 'fix', text: '修复列表页数据加载完成后扫光骨架屏残留的问题（渐进渲染改为先清空容器再追加）' },
+      { type: 'fix', text: '修复管理后台确认弹窗标题中 SVG 图标显示为源码的问题，改为纯文本警告符号' },
+      { type: 'fix', text: '修复维护模式下验证码无法加载、导致管理员无法登录解除关闭的死锁问题' },
+      { type: 'perf', text: '数据库初始化检查提前到请求最前，每次请求减少约 39 次数据库往返，冷启动明显提速' },
+      { type: 'refactor', text: '安全响应头提取为公共常量，CSP 策略改为单一来源维护' },
+    ]
+  },
+  {
     date: '2026-08-26',
     version: 'v2.6.3.1',
     items: [

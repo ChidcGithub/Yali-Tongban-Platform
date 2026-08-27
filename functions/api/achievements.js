@@ -1,6 +1,6 @@
 import { json, error, safeParse, parseBody, signTokenForUser, respondWithToken, addAchievementBatchEntry } from './_utils.js';
 
-const ACH_DEFS = ['read_all_changelog', 'color_freak', 'night_owl', 'early_bird', 'high_five', 'collector', 'chatty', 'commenter', 'proposer', 'time_traveler', 'intruder', 'reset_master', 'locked_out', 'reader', 'power', 'extrovert', 'introvert', 'lightning', 'archaeologist', 'ocd', 'night_owl2', 'novice', 'pigeon', 'dev', 'easter_egg', 'screenshot', 'frequent_404', 'attendance', 'moonlight', 'anniversary', 'super_graphic', 'cookie_monster', 'feedback_first', 'feedback_tenth'];
+const ACH_DEFS = ['read_all_changelog', 'color_freak', 'night_owl', 'early_bird', 'high_five', 'collector', 'chatty', 'commenter', 'proposer', 'time_traveler', 'intruder', 'reset_master', 'locked_out', 'reader', 'power', 'extrovert', 'introvert', 'lightning', 'archaeologist', 'ocd', 'night_owl2', 'novice', 'pigeon', 'dev', 'easter_egg', 'screenshot', 'frequent_404', 'attendance', 'moonlight', 'anniversary', 'super_graphic', 'cookie_monster', 'feedback_first', 'feedback_tenth', 'green_bubble'];
 
 // 计数型成就仅能通过 handleCheckCounts 自动解锁，禁止客户端手动解锁
 const COUNT_BASED = ['chatty', 'commenter', 'proposer', 'extrovert'];

@@ -784,6 +784,7 @@ const ACHIEVEMENT_DEFS = [
   { id: 'cookie_monster', title: '浏览器吃下了所有饼干', desc: '接受了 Cookie 告知', icon: 'cookie' },
   { id: 'feedback_first', title: '我有话要说', desc: '首次提交反馈', icon: 'message-square' },
   { id: 'feedback_tenth', title: '反馈反馈反馈反馈！', desc: '累计提交10次反馈', icon: 'message-square' },
+  { id: 'green_bubble', title: '你也要学绿泡泡吗', desc: '点击更新日志 v3.0.0 中的神秘句子', icon: 'message-circle' },
 ];
 function getAchievements() {
   const u = getUser();

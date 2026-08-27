@@ -1,6 +1,6 @@
 {
   "name": "yali-tongban",
-  "version": "2.6.0.0-beta",
+  "version": "3.0.0",
   "private": true,
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {

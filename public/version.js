@@ -1,2 +1,2 @@
-var APP_VERSION = '2.6.3.1';
-var APP_DEPLOYED = '2026-08-26 12:00';
+var APP_VERSION = '3.0.0';
+var APP_DEPLOYED = '2026-08-27 17:00';

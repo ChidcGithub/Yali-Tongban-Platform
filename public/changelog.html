@@ -14,6 +14,9 @@
     .changelog-card.collapsed .changelog-header { margin-bottom: 0 !important; padding-top: 6px !important; padding-bottom: 6px !important; }
     .changelog-card.collapsed .changelog-header strong { font-size: .85rem; }
     .changelog-card.collapsed .changelog-chevron { font-size: .9rem !important; }
+    .changelog-ach { cursor: pointer; color: var(--md-primary) !important; font-weight: 500; text-decoration: underline dotted; text-underline-offset: 3px; transition: opacity .15s; border-radius: 4px; }
+    .changelog-ach:hover { opacity: .75; }
+    .changelog-ach:focus-visible { outline: 2px solid var(--md-primary); outline-offset: 2px; }
   </style>
   <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
 </head>
@@ -49,6 +52,8 @@
       ui: { text: 'UI', class: 'badge-pending' },
       security: { text: '安全', class: 'badge-reject' },
       refactor: { text: '重构', class: 'badge-processing' },
+      perf: { text: '性能', class: 'badge-processing' },
+      easter: { text: '彩蛋', class: 'badge-pending' },
     };
 
     const el = document.getElementById('changelogList');
@@ -68,7 +73,7 @@
             ${e.items.map(item => `
               <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--md-outline-variant);font-size:.9rem">
                 <span class="badge ${typeLabels[item.type]?.class || 'badge-pending'}" style="flex-shrink:0;font-size:.72rem;padding:1px 8px">${typeLabels[item.type]?.text || item.type}</span>
-                <span style="color:var(--md-on-surface);line-height:1.5">${escapeHtml(item.text)}</span>
+                <span${item.ach ? ` class="changelog-ach" data-ach="${item.ach}" role="button" tabindex="0"` : ''} style="color:var(--md-on-surface);line-height:1.5">${escapeHtml(item.text)}</span>
               </div>
             `).join('')}
           </div>
@@ -107,6 +112,24 @@
         _achCheck();
       }
     }
+
+    // ── Achievement: green_bubble（点击神秘句子解锁）──
+    function _unlockChangelogAch(el) {
+      const id = el.dataset.ach;
+      if (!id) return;
+      unlockAchievement(id).then(done => {
+        if (done) showAchievementToast(id);
+      });
+    }
+    document.querySelectorAll('.changelog-ach').forEach(el => {
+      el.addEventListener('click', () => _unlockChangelogAch(el));
+      el.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          _unlockChangelogAch(el);
+        }
+      });
+    });
   </script>
 </body>
 </html>
