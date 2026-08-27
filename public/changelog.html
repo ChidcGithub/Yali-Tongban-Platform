@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>更新日志 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <style>
+    .changelog-card.collapsed { margin-bottom: 6px !important; }
+    .changelog-card.collapsed .changelog-header { margin-bottom: 0 !important; padding-top: 6px !important; padding-bottom: 6px !important; }
+    .changelog-card.collapsed .changelog-header strong { font-size: .85rem; }
+    .changelog-card.collapsed .changelog-chevron { font-size: .9rem !important; }
+  </style>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/changelog-data.js"></script>
+  <script>
+    renderNav('about');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>更新日志</h1>
+      <p>雅礼团委-通办 版本历史</p>
+    </div>
+
+    <div class="section" id="changelogList"></div>
+  </div>
+
+  <script>
+    const entries = CHANGELOG_ENTRIES;
+
+    const typeLabels = {
+      add: { text: '新增', class: 'badge-pending' },
+      change: { text: '改进', class: 'badge-processing' },
+      fix: { text: '修复', class: 'badge-done' },
+      ui: { text: 'UI', class: 'badge-pending' },
+      security: { text: '安全', class: 'badge-reject' },
+      refactor: { text: '重构', class: 'badge-processing' },
+    };
+
+    const el = document.getElementById('changelogList');
+    el.innerHTML = entries.map((e, i) => {
+      const folded = i >= 3;
+      return `
+      <div class="card changelog-card${folded ? ' collapsed' : ''}" style="margin-bottom:20px">
+        <div class="card-header changelog-header" onclick="toggleChangelog(this)" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;cursor:pointer;user-select:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="changelog-chevron" style="display:inline-flex;transition:transform .3s cubic-bezier(.4,0,.2,1);font-size:1.1rem;transform:rotate(${folded ? 0 : 90}deg)">${icon('chevron-right')}</span>
+            <strong style="font-size:1.05rem">${e.version}</strong>
+          </div>
+          <span style="font-size:.85rem;color:var(--md-on-surface-variant)">${e.date}</span>
+        </div>
+        <div class="card-body changelog-body" style="padding:0;margin-top:0;overflow:hidden;transition:max-height .35s cubic-bezier(.4,0,.2,1),opacity .25s;max-height:${folded ? 0 : 2000}px;opacity:${folded ? 0 : 1}">
+          <div style="padding-top:12px">
+            ${e.items.map(item => `
+              <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--md-outline-variant);font-size:.9rem">
+                <span class="badge ${typeLabels[item.type]?.class || 'badge-pending'}" style="flex-shrink:0;font-size:.72rem;padding:1px 8px">${typeLabels[item.type]?.text || item.type}</span>
+                <span style="color:var(--md-on-surface);line-height:1.5">${escapeHtml(item.text)}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `}).join('');
+
+    // ── Achievement: read_all_changelog ──
+    let _achOpened = 0;
+    const _achTotal = document.querySelectorAll('.changelog-card.collapsed').length;
+    let _achTimer = null;
+    function _achCheck() {
+      if (_achTimer || _achOpened < _achTotal) return;
+      _achTimer = setTimeout(async () => {
+        if (await unlockAchievement('read_all_changelog')) {
+          showAchievementToast('read_all_changelog');
+        }
+      }, 30000);
+    }
+
+    function toggleChangelog(header) {
+      const card = header.closest('.changelog-card');
+      const body = card.querySelector('.changelog-body');
+      const ch = card.querySelector('.changelog-chevron');
+      const isCollapsed = card.classList.toggle('collapsed');
+      if (isCollapsed) {
+        body.style.maxHeight = '0';
+        body.style.opacity = '0';
+        ch.style.transform = 'rotate(0deg)';
+      } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.style.opacity = '1';
+        ch.style.transform = 'rotate(90deg)';
+        setTimeout(() => { if (!card.classList.contains('collapsed')) body.style.maxHeight = '2000px'; }, 400);
+        _achOpened++;
+        _achCheck();
+      }
+    }
+  </script>
+</body>
+</html>

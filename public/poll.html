@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投票详情 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/captcha.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('polls');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div id="pollDetail"></div>
+  </div>
+
+  <script src="/js/lightbox.js"></script>
+  <script src="/js/poll.js"></script>
+</body>
+</html>

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个性化 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=UnifrakturCook:wght@700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&family=UnifrakturCook:wght@700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav();
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>个性化</h1>
+      <p>自定义你的浏览体验</p>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <div class="card-header"><strong>主题</strong></div>
+        <div class="card-body">
+          <div class="personalize-section">
+            <div class="personalize-row">
+              <div><label>外观模式</label><div class="desc">选择浅色、深色或跟随系统</div></div>
+              <div class="theme-options" id="themeOptions">
+                <button class="theme-btn theme-btn-light" data-theme="light" title="浅色"></button>
+                <button class="theme-btn theme-btn-dark" data-theme="dark" title="深色"></button>
+                <button class="theme-btn theme-btn-auto" data-theme="auto" title="跟随系统"></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="personalize-section">
+            <div class="personalize-row">
+              <div><label>强调色</label><div class="desc">选择界面主色调</div></div>
+              <div class="color-options" id="colorOptions"></div>
+            </div>
+          </div>
+
+          <div class="personalize-section">
+            <div class="personalize-row">
+              <div><label for="fontSlider">字体大小</label><div class="desc">调整正文字体大小</div></div>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+                <span style="font-size:.78rem;color:var(--md-on-surface-variant)">A</span>
+                <input type="range" class="font-slider" id="fontSlider" min="13" max="20" value="15">
+                <span style="font-size:1.1rem;color:var(--md-on-surface-variant)">A</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-header"><strong>动画</strong></div>
+        <div class="card-body">
+          <div class="personalize-section">
+            <div class="personalize-row">
+              <div><label>华丽的动画效果</label><div class="desc">关闭后页面切换为淡入淡出，减少装饰动画</div></div>
+              <label class="switch"><input type="checkbox" id="animationToggle" checked><span class="slider"></span></label>
+            </div>
+            <div class="personalize-row" id="stackRow">
+              <div><label>公告卡片图片堆叠</label><div class="desc">多图公告显示为层叠效果</div></div>
+              <label class="switch"><input type="checkbox" id="stackToggle"><span class="slider"></span></label>
+            </div>
+            <div class="personalize-row" id="noAnimationRow" style="display:none">
+              <div><label>关闭所有动态效果</label><div class="desc">适用于老旧设备，完全禁用所有动画与过渡</div></div>
+              <label class="switch"><input type="checkbox" id="noAnimationToggle"><span class="slider"></span></label>
+            </div>
+            <div class="personalize-row" id="superGraphicRow" style="display:none">
+              <div><label>Super Graphic Effects for fun</label><div class="desc">???</div></div>
+              <label class="switch"><input type="checkbox" id="superGraphicToggle"><span class="slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="card-body" style="text-align:center">
+          <button class="btn btn-error" id="resetBtn">重置所有设置</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const COLORS = [
+      { name: '雅礼深蓝', val: '#0D2137' },
+      { name: '中国红', val: '#C41E24' },
+      { name: '翡翠绿', val: '#0D7C3F' },
+      { name: '琥珀橙', val: '#E67E22' },
+      { name: '罗兰紫', val: '#6C3483' },
+      { name: '青瓷', val: '#1A8A8A' },
+    ];
+
+    function setCookie(val) {
+      document.cookie = 'personalize=' + encodeURIComponent(val) + ';path=/;max-age=31536000';
+    }
+    function loadPrefs() {
+      try { return JSON.parse(localStorage.getItem('personalize') || '{}'); } catch { return {}; }
+    }
+    function savePrefs(prefs) {
+      const val = JSON.stringify(prefs);
+      localStorage.setItem('personalize', val);
+      setCookie(val);
+    }
+    function applyTheme(theme) {
+      if (theme === 'dark') document.documentElement.classList.add('dark');
+      else if (theme === 'light') document.documentElement.classList.remove('dark');
+      else document.documentElement.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches);
+    }
+    function applyColor(color) {
+      document.documentElement.style.setProperty('--md-primary', color);
+      const r = parseInt(color.slice(1,3), 16), g = parseInt(color.slice(3,5), 16), b = parseInt(color.slice(5,7), 16);
+      document.documentElement.style.setProperty('--md-primary-dim', `rgba(${r},${g},${b},.8)`);
+    }
+    function applyFontSize(size) {
+      document.documentElement.style.fontSize = size + 'px';
+    }
+    function applyAnimation(enabled) {
+      document.documentElement.classList.toggle('reduce-animation', !enabled);
+    }
+    function applyNoAnimation(enabled) {
+      document.documentElement.classList.toggle('no-animation', enabled);
+    }
+    function applySuperGraphic(enabled) {
+      document.documentElement.classList.toggle('super-graphic', enabled);
+      if (enabled) {
+        if (!document.getElementById('sgCss')) {
+          const link = document.createElement('link');
+          link.id = 'sgCss';
+          link.rel = 'stylesheet';
+          link.href = '/css/graphic.css';
+          document.head.appendChild(link);
+        }
+        if (!document.getElementById('sgJs')) {
+          const script = document.createElement('script');
+          script.id = 'sgJs';
+          script.src = '/js/graphic.js';
+          document.head.appendChild(script);
+        }
+      } else {
+        const link = document.getElementById('sgCss');
+        if (link) link.remove();
+        const script = document.getElementById('sgJs');
+        if (script) script.remove();
+        if (window._sgDestroy) window._sgDestroy();
+        document.querySelectorAll('.sg-particle, .sg-firework-canvas').forEach(function (el) { el.remove(); });
+      }
+    }
+
+    const prefs = loadPrefs();
+
+    // ── Achievement: 五彩斑斓的黑 ──
+    let _colorClickCount = 0;
+    let _colorClickTimer = null;
+    function _trackColorClick() {
+      _colorClickCount++;
+      if (!_colorClickTimer) {
+        _colorClickTimer = setTimeout(() => {
+          _colorClickTimer = null;
+          _colorClickCount = 0;
+        }, 10000);
+      }
+      if (_colorClickCount > 6) {
+        clearTimeout(_colorClickTimer);
+        _colorClickTimer = null;
+        _colorClickCount = 0;
+        unlockAchievement('color_freak').then(done => { if (done) showAchievementToast('color_freak'); });
+      }
+    }
+
+    const themeOpts = document.getElementById('themeOptions');
+    themeOpts.querySelectorAll('.theme-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        themeOpts.querySelector('.active')?.classList.remove('active');
+        btn.classList.add('active');
+        applyTheme(btn.dataset.theme);
+        savePrefs({ ...loadPrefs(), theme: btn.dataset.theme });
+        // 黑白无常: theme switches
+        const ocdCount = parseInt(localStorage.getItem('_ocdCount') || '0') + 1;
+        localStorage.setItem('_ocdCount', String(ocdCount));
+        if (ocdCount >= 20) unlockAchievement('ocd').then(d => { if (d) showAchievementToast('ocd'); });
+      });
+    });
+    if (prefs.theme) themeOpts.querySelector(`[data-theme="${prefs.theme}"]`)?.classList.add('active');
+    else themeOpts.querySelector('[data-theme="light"]')?.classList.add('active');
+
+    const colorEl = document.getElementById('colorOptions');
+    COLORS.forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = 'color-btn' + (prefs.color === c.val ? ' active' : '');
+      btn.style.background = c.val;
+      btn.title = c.name;
+      btn.addEventListener('click', () => {
+        _trackColorClick();
+        colorEl.querySelector('.active')?.classList.remove('active');
+        btn.classList.add('active');
+        applyColor(c.val);
+        savePrefs({ ...loadPrefs(), color: c.val });
+      });
+      colorEl.appendChild(btn);
+    });
+    if (prefs.color) applyColor(prefs.color);
+
+    const fontSlider = document.getElementById('fontSlider');
+    fontSlider.value = prefs.fontSize || 15;
+    fontSlider.step = 0.1;
+    applyFontSize(Number(fontSlider.value));
+    fontSlider.addEventListener('input', () => {
+      applyFontSize(Number(fontSlider.value));
+      savePrefs({ ...loadPrefs(), fontSize: Number(fontSlider.value) });
+    });
+    fontSlider.addEventListener('change', () => {
+      const snapped = Math.round(Number(fontSlider.value));
+      fontSlider.value = snapped;
+      applyFontSize(snapped);
+      savePrefs({ ...loadPrefs(), fontSize: snapped });
+    });
+
+    const stackToggle = document.getElementById('stackToggle');
+    const noAnimationToggle = document.getElementById('noAnimationToggle');
+    const superGraphicToggle = document.getElementById('superGraphicToggle');
+    function updateChildVisibility(animOn) {
+      const stackRow = document.getElementById('stackRow');
+      const noRow = document.getElementById('noAnimationRow');
+      const sgRow = document.getElementById('superGraphicRow');
+      if (animOn) {
+        stackRow.style.display = '';
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+          stackToggle.checked = false;
+          stackToggle.disabled = true;
+          stackRow.title = '移动端暂不支持堆叠效果';
+        } else {
+          stackToggle.checked = prefs.stack === true;
+          stackToggle.disabled = false;
+          stackRow.title = '';
+        }
+        if (noAnimationToggle.checked) {
+          noAnimationToggle.checked = false;
+          applyNoAnimation(false);
+          savePrefs({ ...loadPrefs(), noAnimation: false });
+        }
+        noRow.style.display = 'none';
+        sgRow.style.display = '';
+        superGraphicToggle.checked = prefs.superGraphic === true;
+      } else {
+        stackRow.style.display = 'none';
+        stackToggle.checked = false;
+        noRow.style.display = '';
+        noAnimationToggle.checked = prefs.noAnimation === true;
+        sgRow.style.display = 'none';
+        if (superGraphicToggle.checked) {
+          superGraphicToggle.checked = false;
+          applySuperGraphic(false);
+          savePrefs({ ...loadPrefs(), superGraphic: false });
+        }
+      }
+    }
+    stackToggle.addEventListener('change', () => {
+      if (stackToggle.disabled) return;
+      savePrefs({ ...loadPrefs(), stack: stackToggle.checked });
+    });
+    noAnimationToggle.addEventListener('change', () => {
+      const val = noAnimationToggle.checked;
+      applyNoAnimation(val);
+      savePrefs({ ...loadPrefs(), noAnimation: val });
+    });
+    superGraphicToggle.addEventListener('change', () => {
+      const val = superGraphicToggle.checked;
+      if (val) {
+        confirmAction('Super Graphic Effects 包含快速闪烁的粒子和烟花动画，可能诱发光敏性癫痫。开启即表示你已了解并愿意承担风险。<br><br><strong>是否继续开启？</strong>', ok => {
+          if (!ok) { superGraphicToggle.checked = false; return; }
+          applySuperGraphic(true);
+          if (window._sgFirework) {
+            window._sgFirework();
+          } else {
+            window._sgPendingFirework = true;
+          }
+          savePrefs({ ...loadPrefs(), superGraphic: true });
+          unlockAchievement('super_graphic').then(d => { if (d) showAchievementToast('super_graphic'); });
+        }, true);
+      } else {
+        applySuperGraphic(false);
+        savePrefs({ ...loadPrefs(), superGraphic: false });
+      }
+    });
+
+    const animationToggle = document.getElementById('animationToggle');
+    animationToggle.checked = prefs.animation !== false;
+    applyAnimation(animationToggle.checked);
+    updateChildVisibility(animationToggle.checked);
+    animationToggle.addEventListener('change', () => {
+      const val = animationToggle.checked;
+      applyAnimation(val);
+      updateChildVisibility(val);
+      savePrefs({ ...loadPrefs(), animation: val });
+    });
+
+    applyTheme(prefs.theme || 'light');
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      confirmAction('确定要重置所有个性化设置吗？', ok => {
+        if (!ok) return;
+        localStorage.removeItem('personalize');
+        document.cookie = 'personalize=;path=/;max-age=0';
+        document.documentElement.classList.remove('dark');
+        document.documentElement.classList.remove('reduce-animation');
+        document.documentElement.classList.remove('no-animation');
+        document.documentElement.classList.remove('super-graphic');
+        const sgCss = document.getElementById('sgCss'); if (sgCss) sgCss.remove();
+        const sgJs = document.getElementById('sgJs'); if (sgJs) sgJs.remove();
+        if (window._sgDestroy) window._sgDestroy();
+        document.documentElement.style.removeProperty('--md-primary');
+        document.documentElement.style.removeProperty('--md-primary-dim');
+        document.documentElement.style.fontSize = '';
+        themeOpts.querySelector('.active')?.classList.remove('active');
+        themeOpts.querySelector('[data-theme="auto"]')?.classList.add('active');
+        styleOpts.querySelector('.active')?.classList.remove('active');
+        styleOpts.querySelector('[data-style="default"]')?.classList.add('active');
+        colorEl.querySelector('.active')?.classList.remove('active');
+        fontSlider.value = 15;
+        stackToggle.checked = false;
+        animationToggle.checked = true;
+        noAnimationToggle.checked = false;
+        superGraphicToggle.checked = false;
+        applyTheme('light');
+        unlockAchievement('reset_master').then(d => { if (d) showAchievementToast('reset_master'); });
+      });
+    });
+  </script>
+</body>
+</html>

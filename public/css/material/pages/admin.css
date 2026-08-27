@@ -1,0 +1,171 @@
+/* ═══════════════════════════════════════
+    Admin · Accordion, Toggle, Vote, Feature Card
+   ═══════════════════════════════════════ */
+/* ── ADMIN ACCORDION ── */
+.set-group {
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.set-group:last-child { border-bottom: none; }
+.set-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 0; cursor: pointer; user-select: none;
+  font-size: 1rem; font-weight: 600;
+  color: var(--md-on-surface);
+  transition: opacity .2s;
+}
+.set-group-header:hover { opacity: .7; }
+.set-group-header .chevron {
+  transition: transform .25s; flex-shrink: 0;
+  display: inline-flex; font-size: 1rem;
+  color: var(--md-on-surface-variant);
+}
+.set-group-header.expanded .chevron { transform: rotate(90deg); }
+.set-group-body {
+  overflow: hidden; max-height: 0;
+  transition: max-height .3s, opacity .25s;
+  opacity: 0; padding: 0 0 0 24px;
+}
+.set-group-body.expanded {
+  max-height: 400px; opacity: 1; padding-bottom: 16px;
+}
+.admin-section-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--md-primary);
+}
+.admin-section-icon svg { width: 18px; height: 18px; }
+#memberSummary, #issueSummary, #announceSummary, #financeSummary, #reviewSummary {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .9rem; color: var(--md-on-surface-variant);
+}
+
+
+.admin-user-item, .admin-reg-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--md-outline-variant); gap: 12px; }
+.admin-user-item:last-child, .admin-reg-item:last-child { border-bottom: none; }
+.admin-finance-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: var(--md-shape-sm); flex-shrink: 0; cursor: pointer; }
+.admin-toggle { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; }
+.admin-toggle-slider {
+  position: absolute; inset: 0;
+  background: var(--md-outline);
+  border-radius: 28px;
+  cursor: pointer;
+  transition: .3s;
+}
+.admin-toggle-slider::before {
+  content: '';
+  position: absolute; left: 3px; top: 3px;
+  width: 22px; height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: .3s;
+}
+.admin-toggle input:checked + .admin-toggle-slider { background: var(--accent); }
+.admin-toggle input:checked + .admin-toggle-slider::before { transform: translateX(24px); }
+
+.vote-success-overlay {
+  position: fixed; top: var(--nav-height); left: 0; right: 0; bottom: 0;
+  z-index: var(--z-overlay);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: rgba(13,33,55,.88);
+  color: #fff;
+  animation: voteSuccessIn .45s cubic-bezier(.2,0,0,1) forwards;
+}
+.vote-success-overlay.vote-success-out {
+  animation: voteSuccessOut .35s cubic-bezier(.4,0,1,1) forwards;
+}
+@keyframes voteSuccessIn {
+  from { opacity: 0; transform: scale(.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes voteSuccessOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(.85); }
+}
+.vote-success-overlay .vote-success-icon {
+  width: 72px; height: 72px;
+  margin-bottom: 20px;
+  animation: voteSuccessBounce .6s cubic-bezier(.2,0,0,1) forwards;
+}
+@keyframes voteSuccessBounce {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.vote-success-overlay .vote-success-text {
+  font-size: 1.5rem; font-weight: 600;
+  letter-spacing: .03em;
+}
+
+@media (max-width: 700px) {
+  .admin-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+  .admin-grid.cols-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .modal-overlay { padding: 0; align-items: stretch; }
+  .modal-overlay .modal {
+    max-width: 100%; max-height: 100vh; border-radius: 0;
+    padding: 24px 16px; animation: slideUp .3s;
+  }
+  .admin-grid.cols-3 { grid-template-columns: 1fr; }
+  .admin-user-item { flex-wrap: wrap; gap: 8px; padding: 10px 0; }
+  .admin-user-item .btn-group { width: 100%; justify-content: flex-end; }
+  .admin-reg-item .btn-group { flex-wrap: wrap; }
+}
+
+/* ── 功能开关卡片（admin，与 .card 风格一致）── */
+.feature-card {
+  background: var(--md-surface-container-low, var(--md-surface-container));
+  border-radius: var(--md-shape-xl);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: box-shadow .3s cubic-bezier(.4,0,.2,1), transform .3s cubic-bezier(.4,0,.2,1);
+  position: relative;
+}
+.feature-card:hover { box-shadow: var(--md-elevation-2); transform: translateY(-2px); }
+.feature-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.feature-card-icon {
+  width: 40px; height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--md-shape-full);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.feature-card-info { flex: 1; min-width: 0; }
+.feature-card-name {
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.feature-card-key {
+  font-size: .76rem;
+  color: var(--md-on-surface-variant);
+  font-family: monospace;
+}
+.feature-card-desc {
+  font-size: .85rem;
+  color: var(--md-on-surface-variant);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.feature-card-stats {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.feature-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

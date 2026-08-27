@@ -1,0 +1,116 @@
+/* ═══════════════════════════════════════
+    M3 Design Tokens · 亮色主题 (Light)
+    雅礼深蓝 · 默认主题
+   ═══════════════════════════════════════ */
+
+:root {
+  /* Primary */
+  --md-primary: #0D2137;
+  --md-on-primary: #FFFFFF;
+  --md-primary-container: #D6E3FF;
+  --md-on-primary-container: #001D36;
+  --md-primary-dim: #1A3C5E;
+  --md-primary-light: #3B6B9E;
+
+  /* Secondary */
+  --md-secondary: #535F70;
+  --md-secondary-container: #D7E3F7;
+  --md-on-secondary-container: #101C2B;
+
+  /* Tertiary */
+  --md-tertiary: #6E5676;
+  --md-tertiary-container: #F8D9FF;
+  --md-on-tertiary-container: #1C0A22;
+
+  /* Surface */
+  --md-surface: #FAFCFF;
+  --md-surface-dim: #DDE3EB;
+  --md-surface-container-low: #F4F7FC;
+  --md-surface-container: #EEF2F8;
+  --md-surface-container-high: #E8ECF4;
+  --md-surface-container-highest: #E2E6EF;
+  --md-on-surface: #191C20;
+  --md-on-surface-variant: #43474E;
+
+  /* Outline */
+  --md-outline: #C4C6D0;
+  --md-outline-variant: #DEE3EB;
+
+  /* Error */
+  --md-error: #BA1A1A;
+  --md-on-error: #FFFFFF;
+  --md-error-container: #FFDAD6;
+  --md-on-error-container: #410002;
+  --md-surface-variant: #E0E2EC;
+
+  /* Custom semantic (keeping original names for compatibility) */
+  --accent: #C62828;
+  --success: #1B7D4A;
+  --success-light: #D4F5E2;
+  --warning: #E67E22;
+  --warning-light: #FDEBD0;
+  --info: var(--md-primary-light);
+  --info-light: var(--md-primary-container);
+
+  /* Elevation */
+  --md-elevation-0: none;
+  --md-elevation-1: 0 1px 3px rgba(13,33,55,.08), 0 1px 2px rgba(13,33,55,.06);
+  --md-elevation-2: 0 2px 8px rgba(13,33,55,.1), 0 1px 3px rgba(13,33,55,.06);
+  --md-elevation-3: 0 4px 16px rgba(13,33,55,.12), 0 2px 6px rgba(13,33,55,.08);
+  --md-elevation-4: 0 8px 30px rgba(13,33,55,.14), 0 3px 10px rgba(13,33,55,.1);
+  --md-elevation-5: 0 12px 40px rgba(13,33,55,.18);
+
+  /* Shape */
+  --md-shape-xs: 4px;
+  --md-shape-sm: 8px;
+  --md-shape-md: 12px;
+  --md-shape-lg: 16px;
+  --md-shape-xl: 24px;
+  --md-shape-full: 56px;
+
+  /* Typography - M3 expressive scale */
+  --md-font-display: 'Noto Serif SC', 'Source Han Serif SC', 'STSong', serif;
+  --md-font-body: 'Google Sans Flex', 'Noto Sans SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+
+  /* Legacy vars (maps to M3) */
+  --primary: var(--md-primary);
+  --primary-light: var(--md-primary-light);
+  --primary-lighter: var(--md-primary-container);
+  --primary-dark: var(--md-primary);
+  --bg: var(--md-surface);
+  --bg-card: var(--md-surface-container);
+  --text: var(--md-on-surface);
+  --text-secondary: var(--md-on-surface-variant);
+  --text-light: var(--md-outline);
+  --border: var(--md-outline-variant);
+  --shadow: var(--md-elevation-1);
+  --shadow-lg: var(--md-elevation-3);
+  --radius: var(--md-shape-sm);
+  --radius-sm: var(--md-shape-xs);
+  --radius-lg: var(--md-shape-md);
+  --nav-height: 64px;
+  --max-width: 1100px;
+  --font: var(--md-font-body);
+
+  /* Z-index scale */
+  --z-base: 0;
+  --z-nav: 1000;
+  --z-overlay: 9999;
+  --z-modal: 9999;
+  --z-toast: 3000;
+  --z-fab: 900;
+  --z-lightbox: 5000;
+  --z-ach-toast: 100000;
+  --z-top: 100000;
+
+  /* Badge & button semantic colors */
+  --badge-pending-text: #7B5A00;
+  --badge-done-text: #0D5E3A;
+  --badge-review-bg: #F0E6F6;
+  --badge-review-text: #5B3A70;
+  --badge-expiring-bg: #FFF0E0;
+  --badge-expiring-text: #A35000;
+  --btn-success-hover: #15653E;
+  --btn-danger-hover: #8F1313;
+  --btn-warning-hover: #C96B14;
+}

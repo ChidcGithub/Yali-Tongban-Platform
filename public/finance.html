@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>财务 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/captcha.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('finance');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>财务</h1>
+      <p>团委财务记录与公示</p>
+    </div>
+
+    <!-- 月度收支总览 -->
+    <div class="finance-summary" id="financeSummary" style="margin-bottom:20px">
+      <div class="summary-card summary-income" onclick="toggleTypeFilter('收入')" style="cursor:pointer">
+        <div class="summary-icon"><svg viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
+        <div class="summary-label">总收入</div>
+        <div class="summary-value" id="summaryIncome" style="color:var(--success)">¥0.00</div>
+      </div>
+      <div class="summary-card summary-expense" onclick="toggleTypeFilter('支出')" style="cursor:pointer">
+        <div class="summary-icon"><svg viewBox="0 0 24 24" width="1.2em" height="1.2em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></div>
+        <div class="summary-label">总支出</div>
+        <div class="summary-value" id="summaryExpense" style="color:var(--accent)">¥0.00</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:16px;margin-bottom:20px;display:none;cursor:pointer" id="reimburseRatioCard" onclick="togglePendingFilter()">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:.9rem;color:var(--md-on-surface-variant)">近30天已报销</span>
+        <span style="font-weight:600;font-size:1.1rem" id="reimburseRatioText">0 / 0 (0%)</span>
+      </div>
+      <div style="margin-top:8px;height:6px;border-radius:3px;background:var(--md-surface-variant);overflow:hidden">
+        <div style="height:100%;border-radius:3px;background:var(--md-primary);transition:width .3s" id="reimburseRatioBar"></div>
+      </div>
+    </div>
+
+    <!-- 部门选项卡 -->
+    <div id="deptTabs" style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap"></div>
+
+
+
+    <!-- 财务列表 -->
+    <div class="section">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span id="financeSectionTitle">全部记录</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:.85rem;font-weight:400;color:var(--md-on-surface-variant)" id="financeCount"></span>
+          <button class="btn btn-sm btn-outline" onclick="openMonthPicker()"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> 历史</button>
+        </div>
+      </div>
+      <div id="financeGrid" class="img-grid">
+      </div>
+    </div>
+  </div>
+
+
+
+  <script src="/js/lightbox.js"></script>
+  <script src="/js/finance.js"></script>
+  <!-- 浮动加号按钮 -->
+  <button class="fab" id="fabBtn" onclick="openFinanceModal()" aria-label="上传财务记录" style="display:none">+</button>
+</body>
+</html>

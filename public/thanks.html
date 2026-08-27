@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>鸣谢 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('about');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>鸣谢</h1>
+      <p>感谢以下开源库与服务的支持</p>
+    </div>
+
+    <div class="section">
+      <div class="card" style="background:var(--md-primary-container)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="about-icon" data-icon="star" style="color:var(--md-primary)"></span>
+          <div>
+            <h3 style="font-size:1rem;font-weight:500;color:var(--md-primary);margin-bottom:2px">特别鸣谢</h3>
+            <p style="font-size:.9rem;color:var(--md-on-surface-variant)">感谢 李昂 同学提出搭建本平台的构想</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">开源运行时库</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="package"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">bcryptjs</strong>
+                <span class="badge badge-done" style="font-size:.7rem">MIT</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">密码哈希加密</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="package"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">jose</strong>
+                <span class="badge badge-done" style="font-size:.7rem">MIT</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">JWT 令牌签发与验证</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">开源外部资源</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="file-text"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">Google Fonts / Noto Sans SC</strong>
+                <span class="badge badge-done" style="font-size:.7rem">OFL</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">无衬线中文字体</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="file-text"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">Google Fonts / Noto Serif SC</strong>
+                <span class="badge badge-done" style="font-size:.7rem">OFL</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">衬线中文字体</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="cube"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">Three.js</strong>
+                <span class="badge badge-done" style="font-size:.7rem">MIT</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">3D 图片选择器渲染</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="file-text"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">Google Fonts / Google Sans Flex</strong>
+                <span class="badge badge-done" style="font-size:.7rem">OFL</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">可变字体（GSF.ttf，weight 100-900）</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">闭源 / 专有服务</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="cloud"></span>
+            <div>
+              <strong style="font-size:.95rem">Cloudflare Pages</strong>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">静态托管与函数部署</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="zap"></span>
+            <div>
+              <strong style="font-size:.95rem">Cloudflare Workers</strong>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">无服务器后端运行环境</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="database"></span>
+            <div>
+              <strong style="font-size:.95rem">Cloudflare D1</strong>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">SQLite 关系数据库</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="hard-drive"></span>
+            <div>
+              <strong style="font-size:.95rem">Cloudflare R2</strong>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">对象存储（上传图片）</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">开发工具</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="wrench"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">wrangler</strong>
+                <span class="badge badge-done" style="font-size:.7rem">MIT / Apache-2.0</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">Cloudflare Pages CLI 部署工具</p>
+            </div>
+          </div>
+          <div class="thanks-item" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon" data-icon="wrench"></span>
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <strong style="font-size:.95rem">esbuild</strong>
+                <span class="badge badge-done" style="font-size:.7rem">MIT</span>
+              </div>
+              <p style="font-size:.85rem;color:var(--text-secondary);margin-top:2px">JavaScript 打包器</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="text-align:center;padding-bottom:24px">
+      <p style="font-size:.8rem;color:var(--text-light)">长沙市雅礼中学团委 通办 &copy; 2026 <span id="thanksVersion" style="opacity:.5"></span></p>
+    </div>
+  </div>
+  <script src="/version.js"></script>
+  <script>
+    var _tv = document.getElementById('thanksVersion');
+    if (_tv && typeof APP_VERSION !== 'undefined') _tv.textContent = 'v' + APP_VERSION;
+    document.querySelectorAll('.about-icon[data-icon]').forEach(function(el) {
+      el.innerHTML = icon(el.getAttribute('data-icon'));
+    });
+  </script>
+</body>
+</html>

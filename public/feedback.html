@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反馈 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/captcha.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/version.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav("feedback");
+    checkSiteClosed();
+
+    let feedbackCaptcha = null;
+    window.addEventListener("load", () => {
+      feedbackCaptcha = new CaptchaWidget('captchaBox');
+      const el = document.getElementById("feedbackVersion");
+      if (el && typeof APP_VERSION !== "undefined") el.textContent = APP_VERSION;
+    });
+
+    async function submitFeedback(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const btn = document.getElementById("feedbackBtn");
+      btn.disabled = true; btn.textContent = "发送中...";
+      try {
+        await apiPost("/api/feedback", {
+          content: fd.get("content"),
+          contact: fd.get("contact") || "",
+          page: window.location.pathname,
+          section: fd.get("section") || "",
+          version: typeof APP_VERSION !== "undefined" ? APP_VERSION : "",
+          ...feedbackCaptcha.getData(),
+        });
+        toast("反馈已发送，感谢你的意见", "success");
+        var _fc = Number(localStorage.getItem('_fc') || 0) + 1;
+        localStorage.setItem('_fc', _fc);
+        if (_fc === 1) {
+          unlockAchievement('feedback_first').then(function(d) { if (d) showAchievementToast('feedback_first'); });
+        } else if (_fc === 10) {
+          unlockAchievement('feedback_tenth').then(function(d) { if (d) showAchievementToast('feedback_tenth'); });
+        }
+        e.target.reset();
+        feedbackCaptcha.refresh();
+      } catch (err) {
+        toast(err.message, "error");
+        feedbackCaptcha.refresh();
+      } finally {
+        btn.disabled = false; btn.textContent = "发送反馈";
+      }
+    }
+  </script>
+  <div class="container">
+    <div class="page-header">
+      <h1>反馈</h1>
+      <p>告诉我们你的想法</p>
+    </div>
+    <div class="section">
+      <div class="card">
+        <div class="card-body">
+          <form id="feedbackForm" onsubmit="submitFeedback(event)">
+            <div class="form-group">
+              <label class="form-label">反馈内容 <span class="required">*</span></label>
+              <textarea class="form-textarea" name="content" placeholder="请详细描述你的建议或问题" required maxlength="2000" rows="5"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">联系方式</label>
+              <input class="form-input" name="contact" placeholder="选填，方便我们联系你" maxlength="100">
+            </div>
+            <div class="form-group">
+              <label class="form-label">反馈版块</label>
+              <select class="form-input" name="section">
+                <option value="">未指定</option>
+                <option value="动态">动态</option>
+                <option value="公告">公告</option>
+                <option value="投票">投票</option>
+                <option value="财务">财务</option>
+                <option value="活动">活动</option>
+                <option value="其它">其它</option>
+              </select>
+            </div>
+            <div class="form-group" id="captchaBox"></div>
+            <div class="form-group" style="font-size:.8rem;color:var(--md-on-surface-variant)">
+              版本：<span id="feedbackVersion"></span>
+            </div>
+            <button type="submit" class="btn btn-primary" id="feedbackBtn">发送反馈</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

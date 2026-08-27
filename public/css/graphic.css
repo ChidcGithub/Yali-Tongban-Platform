@@ -1,0 +1,207 @@
+/* ── Super Graphic Effects ── */
+.super-graphic {
+  --sg-glow: 0 0 12px rgba(98,91,113,0.25);
+  --sg-glow: 0 0 12px color-mix(in srgb, var(--md-primary) 25%, transparent);
+  --sg-glow-strong: 0 0 24px rgba(98,91,113,0.4);
+  --sg-glow-strong: 0 0 24px color-mix(in srgb, var(--md-primary) 40%, transparent);
+}
+
+/* ===== Card Entrance ===== */
+.super-graphic .card,
+.super-graphic .img-card,
+.super-graphic .announce-card,
+.super-graphic .summary-card,
+.super-graphic .activity-card,
+.super-graphic .admin-card {
+  animation: sgCardEnter .5s cubic-bezier(.34,1.56,.64,1) both,
+             sgIdleFloat 6s .5s ease-in-out infinite;
+}
+.super-graphic .issue-item,
+.super-graphic .fab {
+  animation: sgCardEnter .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+.super-graphic .card:nth-child(2),
+.super-graphic .img-card:nth-child(2),
+.super-graphic .announce-card:nth-child(2),
+.super-graphic .issue-item:nth-child(2),
+.super-graphic .summary-card:nth-child(2),
+.super-graphic .activity-card:nth-child(2),
+.super-graphic .admin-card:nth-child(2) { animation-delay: .08s; }
+.super-graphic .card:nth-child(3),
+.super-graphic .img-card:nth-child(3),
+.super-graphic .announce-card:nth-child(3),
+.super-graphic .issue-item:nth-child(3),
+.super-graphic .summary-card:nth-child(3),
+.super-graphic .activity-card:nth-child(3),
+.super-graphic .admin-card:nth-child(3) { animation-delay: .16s; }
+.super-graphic .card:nth-child(4),
+.super-graphic .img-card:nth-child(4),
+.super-graphic .announce-card:nth-child(4),
+.super-graphic .issue-item:nth-child(4),
+.super-graphic .summary-card:nth-child(4),
+.super-graphic .activity-card:nth-child(4),
+.super-graphic .admin-card:nth-child(4) { animation-delay: .24s; }
+.super-graphic .card:nth-child(5),
+.super-graphic .img-card:nth-child(5),
+.super-graphic .announce-card:nth-child(5),
+.super-graphic .issue-item:nth-child(5),
+.super-graphic .summary-card:nth-child(5),
+.super-graphic .activity-card:nth-child(5),
+.super-graphic .admin-card:nth-child(5) { animation-delay: .32s; }
+.super-graphic .card:nth-child(6),
+.super-graphic .img-card:nth-child(6),
+.super-graphic .announce-card:nth-child(6),
+.super-graphic .issue-item:nth-child(6),
+.super-graphic .summary-card:nth-child(6),
+.super-graphic .activity-card:nth-child(6),
+.super-graphic .admin-card:nth-child(6) { animation-delay: .4s; }
+@keyframes sgCardEnter {
+  from { opacity: 0; transform: translateY(30px) rotateX(8deg) scale(.95); }
+  70% { transform: translateY(-4px) rotateX(0) scale(1.01); }
+  to { opacity: 1; transform: translateY(0) rotateX(0) scale(1); }
+}
+@keyframes sgIdleFloat {
+  0%, 100% { transform: perspective(400px) rotateX(0deg) rotateY(0deg) translateY(0); }
+  25% { transform: perspective(400px) rotateX(3deg) rotateY(-4deg) translateY(-3px); }
+  50% { transform: perspective(400px) rotateX(-2deg) rotateY(3deg) translateY(-1.5px); }
+  75% { transform: perspective(400px) rotateX(4deg) rotateY(-2deg) translateY(-4px); }
+}
+
+/* ===== Hover Effects ===== */
+.super-graphic .card,
+.super-graphic .img-card,
+.super-graphic .announce-card,
+.super-graphic .summary-card,
+.super-graphic .activity-card,
+.super-graphic .admin-card {
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1), box-shadow .35s !important;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+}
+.super-graphic .card:hover,
+.super-graphic .img-card:hover,
+.super-graphic .announce-card:hover,
+.super-graphic .summary-card:hover,
+.super-graphic .activity-card:hover,
+.super-graphic .admin-card:hover {
+  animation-play-state: running, paused;
+  transform: perspective(400px) rotateX(var(--ry, 0)) rotateY(var(--rx, 0)) translateY(-3px) !important;
+  box-shadow: var(--sg-glow), var(--md-elevation-2) !important;
+}
+
+.super-graphic .btn:hover {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: var(--sg-glow-strong);
+  transition: transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+}
+
+.super-graphic .btn:active {
+  transform: scale(.94);
+  transition-duration: .08s;
+}
+
+.super-graphic .fab {
+  animation: sgFloat 3s ease-in-out infinite;
+}
+@keyframes sgFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.super-graphic .fab:hover {
+  animation: sgFloatHover .4s cubic-bezier(.34,1.56,.64,1) forwards;
+  box-shadow: var(--sg-glow-strong);
+}
+@keyframes sgFloatHover {
+  from { transform: translateY(-6px); }
+  to { transform: translateY(-3px) scale(1.1); }
+}
+
+/* ===== Nav Hover ===== */
+.super-graphic .nav-link:hover svg,
+.super-graphic .tab-cap-item:hover svg {
+  transform: scale(1.2) rotate(-5deg);
+  transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+}
+
+/* ===== Title Glow ===== */
+.super-graphic h1,
+.super-graphic .page-header h1 {
+  background: linear-gradient(135deg, var(--md-primary), var(--md-primary-light), var(--md-primary));
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: sgRainbow 4s ease-in-out infinite;
+}
+@keyframes sgRainbow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ===== Badge Pulse ===== */
+.super-graphic .badge-pending,
+.super-graphic .badge-processing,
+.super-graphic .badge-expiring {
+  animation: sgBadgePulse 2s ease-in-out infinite;
+}
+@keyframes sgBadgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+
+/* ===== Toast Enhancement ===== */
+.super-graphic .toast {
+  animation: sgToastIn .4s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: var(--sg-glow);
+}
+@keyframes sgToastIn {
+  from { opacity: 0; transform: translateY(20px) scale(.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ===== Button Shard Effect ===== */
+@keyframes sgCardShake {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  15% { transform: translateX(-8px) rotate(-1.5deg); }
+  30% { transform: translateX(7px) rotate(1.2deg); }
+  45% { transform: translateX(-5px) rotate(-0.8deg); }
+  60% { transform: translateX(4px) rotate(0.5deg); }
+  75% { transform: translateX(-2px); }
+}
+.sg-btn-shard {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 100000;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sg-shard-small {
+  position: fixed;
+  pointer-events: none;
+  z-index: 100000;
+}
+/* ===== Particle Style ===== */
+.sg-particle {
+  position: fixed;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 100000;
+  animation: sgParticleFall .6s ease-out forwards;
+}
+@keyframes sgParticleFall {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0); }
+}
+
+/* ===== Firework Canvas Container ===== */
+.sg-firework-canvas {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99999;
+}

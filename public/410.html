@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>410 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; background: var(--md-surface); display: flex; align-items: center; justify-content: center; font-family: var(--md-font-body); overflow: hidden; position: relative; padding: 24px; }
+
+    .bg-410 { position: fixed; right: -20px; bottom: -40px; font-size: 50vw; font-weight: 900; line-height: 1; color: var(--md-primary); letter-spacing: -.08em; pointer-events: none; z-index: 0; user-select: none; opacity: .04; }
+    @media (min-width: 768px) { .bg-410 { font-size: 36vw; right: -40px; bottom: -60px; } }
+
+    .deco-line { position: fixed; background: var(--md-primary); z-index: 0; pointer-events: none; opacity: .06; }
+    .deco-line:nth-child(2) { width: 2px; height: 50vh; left: 10%; top: 0; }
+    .deco-line:nth-child(3) { width: 35vw; height: 1px; right: 5%; top: 30%; }
+    .deco-line:nth-child(4) { width: 1px; height: 30vh; right: 25%; top: 5%; opacity: .03; }
+
+    .dot { position: fixed; border-radius: 50%; background: var(--md-primary); z-index: 0; pointer-events: none; }
+    .dot:nth-child(5) { width: 8px; height: 8px; left: 20%; top: 20%; opacity: .08; animation: dotFloat 6s ease-in-out infinite; }
+    .dot:nth-child(6) { width: 5px; height: 5px; right: 15%; top: 55%; opacity: .06; animation: dotFloat 8s ease-in-out infinite reverse; }
+    .dot:nth-child(7) { width: 12px; height: 12px; left: 8%; bottom: 25%; opacity: .05; animation: dotFloat 7s ease-in-out infinite 1s; }
+
+    @keyframes dotFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
+
+    .card-410 { position: relative; z-index: 1; max-width: 480px; width: 100%; animation: fadeUp .7s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    .card-410 .label { font-size: .72rem; font-weight: 700; letter-spacing: .12em; color: var(--md-outline); margin-bottom: 12px; }
+    .card-410 .label span { display: inline-block; width: 20px; height: 2px; background: var(--md-outline); vertical-align: middle; margin-right: 8px; border-radius: 1px; }
+    .card-410 h1 { font-family: var(--md-font-display); font-size: 7rem; font-weight: 900; line-height: 1; color: var(--md-primary); letter-spacing: -.06em; margin-bottom: 4px; }
+    .card-410 h1 .zero { color: var(--md-primary-light); }
+    .card-410 .question { font-size: 1.1rem; font-weight: 600; color: var(--md-on-surface); margin-bottom: 4px; line-height: 1.5; }
+    .card-410 .hint { font-size: .88rem; font-weight: 500; color: var(--md-on-surface-variant); margin-bottom: 32px; line-height: 1.5; }
+    .card-410 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .card-410 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px; border-radius: var(--md-shape-full); font-size: .88rem; font-weight: 500; font-family: inherit; text-decoration: none; cursor: pointer; border: none; transition: transform .15s, box-shadow .15s; }
+    .card-410 .btn:hover { transform: translateY(-2px); }
+    .card-410 .btn-primary { background: var(--md-primary); color: var(--md-on-primary); }
+    .card-410 .btn-primary:hover { box-shadow: var(--md-elevation-3); }
+
+    .ill { position: fixed; left: 6%; bottom: 6%; z-index: 0; pointer-events: none; width: 100px; height: 140px; color: var(--md-primary); }
+    .ill svg { width: 100%; height: 100%; opacity: .1; }
+
+    @media (max-width: 600px) {
+      .card-410 h1 { font-size: 5rem; }
+      .bg-410 { font-size: 60vw; right: -10px; bottom: -20px; }
+      .ill { display: none; }
+    }
+  </style>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div class="bg-410">410</div>
+  <div class="deco-line"></div>
+  <div class="deco-line"></div>
+  <div class="deco-line"></div>
+  <div class="dot"></div>
+  <div class="dot"></div>
+  <div class="dot"></div>
+
+  <div class="ill">
+    <svg viewBox="0 0 100 140" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="50" cy="48" r="20"/>
+      <path d="M50 58v7"/>
+      <circle cx="50" cy="70" r="2" fill="currentColor" stroke="none"/>
+      <path d="M10 96c0-14 10-24 24-24h32c14 0 24 10 24 24" opacity=".3"/>
+    </svg>
+  </div>
+
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;color:var(--md-on-primary);font-family:var(--md-font-body);text-align:center;padding:24px"><div><h1 style="font-size:1.5rem;font-weight:600;margin:0 0 4px;color:var(--md-on-primary)">雅礼团委 · 通办</h1><p style="font-size:.85rem;opacity:.6;margin:0">加载中...</p></div></div>
+<script src="/js/modal.js"></script>
+<script src="/js/api.js"></script>
+<script>
+(async()=>{
+  try{
+    const r=await fetch('/api/settings'),d=await r.json();
+    if(!d.success||!d.data.site_closed||(u=>{try{const u=JSON.parse(localStorage.getItem('user'));return u&&(u.role==='admin'||u.role==='owner')}catch{return false}})()){
+      document.getElementById('sco').remove();return
+    }
+    const el=document.getElementById('sco');
+    el.style.cssText='position:fixed;inset:0;z-index:99999;background:var(--md-primary);display:flex;align-items:center;justify-content:center;color:var(--md-on-primary);font-family:var(--md-font-body);text-align:center;padding:24px;opacity:1;pointer-events:auto';
+    const msg=d.data.site_closed_message||'雅礼团委-通办暂时关闭';
+    el.innerHTML='<div style="width:100%;max-width:340px"><h1 style="font-size:1.6rem;margin:0 0 8px;font-weight:700;color:var(--md-on-primary)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.15em;margin-right:6px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0l-3.8 3.8Z"/><path d="M8.5 9.5 3 15v4h4l5.5-5.5"/><circle cx="17.5" cy="6.5" r=".5" fill="currentColor"/></svg>网站维护中</h1><p id="scoMsg" style="opacity:.7;margin:0 0 28px;font-size:.9rem;color:var(--md-on-primary);opacity:.7"></p><div style="border-top:1px solid rgba(255,255,255,.2);padding-top:24px"><p style="font-size:.85rem;opacity:.6;margin:0 0 12px;color:var(--md-on-primary)">管理员登录</p><input class="form-input" id="aln" placeholder="管理员姓名" style="margin:0 0 8px" autocomplete="username"><input class="form-input" type="password" id="alp" placeholder="密码" style="margin:0 0 12px" autocomplete="current-password"><button class="btn btn-primary btn-block" id="alb">登录</button><p id="ale" style="font-size:.82rem;color:var(--md-error);margin:8px 0 0;display:none"></p></div></div>';
+    document.getElementById('scoMsg').textContent=msg;
+    document.getElementById('alb').onclick=async()=>{
+      const n=document.getElementById('aln').value.trim(),p=document.getElementById('alp').value,b=document.getElementById('alb');
+      if(!n||!p){const e=document.getElementById('ale');e.textContent='请输入姓名和密码';e.style.display='';return}
+      b.disabled=true;b.textContent='登录中...';document.getElementById('ale').style.display='none';
+      try{
+        const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,password:p})});
+        const d=await r.json();
+        if(!d.success)throw new Error(d.error);
+        if(d.data.user.role!=='admin'&&d.data.user.role!=='owner')throw new Error('仅管理员可在维护期间登录');
+        localStorage.setItem('user',JSON.stringify(d.data.user));
+        el.remove();location.reload();
+      }catch(e){const er=document.getElementById('ale');er.textContent=e.message;er.style.display='';b.disabled=false;b.textContent='登录'}
+    };
+  }catch(e){try{document.getElementById('sco').remove()}catch(e){}}
+})();
+</script>
+
+  <div class="card-410">
+    <div class="label"><span></span>ERROR 410</div>
+    <h1>4<span class="zero">1</span>0</h1>
+    <p class="question" id="q410">这个页面已经被删除</p>
+    <p class="hint" id="h410">页面可能曾经存在，但已被永久删除</p>
+    <div class="actions">
+      <a href="/services.html" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        返回首页
+      </a>
+      <button class="btn btn-ghost" onclick="history.back()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        上一页
+      </button>
+    </div>
+    <p style="font-size:.82rem;color:var(--md-outline);margin-top:24px">如果有疑问，请<a href="/feedback" style="color:var(--md-primary);text-decoration:none;font-weight:500">点击此处</a>反馈</p>
+  </div>
+
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var from = p.get('from');
+  if (from) {
+    document.getElementById('q410').textContent = '你访问的 ' + from + ' 页面已被永久删除';
+    document.getElementById('h410').textContent = '此页面已不存在，请检查链接是否正确';
+  }
+  const _410c = parseInt(localStorage.getItem('_410count') || '0') + 1;
+  localStorage.setItem('_410count', String(_410c));
+  if (_410c >= 3) { try { unlockAchievement('frequent_410').then(function(d){ if(d) showAchievementToast('frequent_410'); }); } catch(e){} }
+})();
+</script>
+</body>
+</html>

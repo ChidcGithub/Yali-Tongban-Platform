@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/captcha.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>renderNav('login');checkSiteClosed();</script>
+
+  <div class="login-page">
+    <div class="login-card">
+      <h1>雅礼团委 · 通办</h1>
+      <p class="subtitle">成员登录 / 注册申请</p>
+
+      <div class="login-tabs">
+        <button class="login-tab active" id="tabLogin" onclick="switchTab('login')">登录</button>
+        <button class="login-tab" id="tabRegister" onclick="switchTab('register')">注册</button>
+      </div>
+
+      <!-- 登录表单 -->
+      <div class="login-form-wrap" id="loginFormWrap"><form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label">姓名</label>
+          <input class="form-input" name="name" placeholder="输入你的姓名" required autocomplete="username" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input class="form-input" type="password" name="password" placeholder="输入密码" required autocomplete="current-password" maxlength="50">
+        </div>
+        <div class="form-group" id="loginCaptchaBox"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="loginBtn">登录</button>
+        <p id="loginError" class="text-center mt-8" style="color:var(--accent);font-size:.85rem;display:none"></p>
+      </form></div>
+
+      <!-- 注册表单 -->
+      <div class="login-form-wrap" id="registerFormWrap" style="display:none"><form id="registerForm" onsubmit="handleRegister(event)">
+        <div class="form-group">
+          <label class="form-label">姓名</label>
+          <input class="form-input" name="name" id="regName" placeholder="输入你的姓名" required autocomplete="off" maxlength="20" oninput="checkName(this.value)">
+          <p id="nameCheckMsg" style="font-size:.78rem;margin-top:4px;display:none"></p>
+        </div>
+        <div class="form-group">
+          <label class="form-label">班级 <span class="required">*</span></label>
+          <input class="form-input" name="class_name" id="regClass" placeholder="如 2501" required maxlength="4" autocomplete="off" inputmode="numeric" pattern="[0-9]{4}" oninput="checkClass(this.value)">
+          <p id="classCheckMsg" style="font-size:.78rem;margin-top:4px;display:none"></p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regDepartment">所属部门</label>
+          <select class="form-input" id="regDepartment" style="appearance:auto">
+            <option value="">未选择</option>
+            <option value="书记处">书记处</option>
+            <option value="团总支">团总支</option>
+            <option value="社团部">社团部</option>
+            <option value="记者站">记者站</option>
+            <option value="宣传部">宣传部</option>
+            <option value="组织部">组织部</option>
+            <option value="青志协">青志协</option>
+            <option value="办公室">办公室</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码</label>
+          <input class="form-input" type="password" name="password" placeholder="设置密码（至少6位，含字母和数字）" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认密码</label>
+          <input class="form-input" type="password" name="confirm" placeholder="再次输入密码" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="form-group" id="registerCaptchaBox"></div>
+        <button type="submit" class="btn btn-primary btn-block" id="registerBtn">提交注册申请</button>
+        <p id="registerMsg" class="text-center mt-8" style="font-size:.85rem;display:none"></p>
+      </form></div>
+    </div>
+  </div>
+
+  <script>
+    let currentTab = 'login';
+    const loginCaptcha = new CaptchaWidget('loginCaptchaBox');
+    const registerCaptcha = new CaptchaWidget('registerCaptchaBox');
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+      document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+      const loginWrap = document.getElementById('loginFormWrap');
+      const registerWrap = document.getElementById('registerFormWrap');
+      if (tab === 'login') {
+        registerWrap.classList.add('form-exit');
+        setTimeout(() => {
+          registerWrap.style.display = 'none';
+          registerWrap.classList.remove('form-exit');
+          loginWrap.style.display = '';
+          requestAnimationFrame(() => loginWrap.classList.add('form-enter'));
+          setTimeout(() => loginWrap.classList.remove('form-enter'), 300);
+        }, 250);
+      } else {
+        loginWrap.classList.add('form-exit');
+        setTimeout(() => {
+          loginWrap.style.display = 'none';
+          loginWrap.classList.remove('form-exit');
+          registerWrap.style.display = '';
+          requestAnimationFrame(() => registerWrap.classList.add('form-enter'));
+          setTimeout(() => registerWrap.classList.remove('form-enter'), 300);
+        }, 250);
+      }
+      document.getElementById('loginError').style.display = 'none';
+      document.getElementById('registerMsg').style.display = 'none';
+    }
+
+    async function checkName(val) {
+      const el = document.getElementById('nameCheckMsg');
+      if (!val || val.length < 2) { el.style.display = 'none'; return; }
+      try {
+        const data = await apiGet('/api/auth/check-name?name=' + encodeURIComponent(val));
+        if (data.available) { el.textContent = '✓ 该姓名可用'; el.style.color = 'var(--success)'; }
+        else { el.textContent = '该姓名已被注册'; el.style.color = 'var(--accent)'; }
+        el.style.display = '';
+      } catch { el.style.display = 'none'; }
+    }
+
+    function checkClass(val) {
+      const el = document.getElementById('classCheckMsg');
+      if (!val) { el.style.display = 'none'; return; }
+      if (!/^\d{4}$/.test(val)) { el.textContent = '请输入4位数字'; el.style.color = 'var(--accent)'; el.style.display = ''; return; }
+      if (isValidClass(val)) { el.textContent = '✓ 有效班级'; el.style.color = 'var(--success)'; el.style.display = ''; }
+      else { el.textContent = '班级编号不在允许范围内'; el.style.color = 'var(--accent)'; el.style.display = ''; }
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('loginBtn');
+      btn.disabled = true; btn.textContent = '登录中...';
+      document.getElementById('loginError').style.display = 'none';
+
+      try {
+        const fd = new FormData(e.target);
+        const data = await apiPost('/api/auth/signin', {
+          name: fd.get('name'),
+          password: fd.get('password'),
+          ...loginCaptcha.getData(),
+        });
+        localStorage.removeItem('_loginFail');
+        localStorage.setItem('user', JSON.stringify(data.user));
+        // 鸽子: check if last login was >31 days ago
+        const lastLogin = localStorage.getItem('_lastLogin');
+        if (lastLogin) {
+          const diff = (Date.now() - Number(lastLogin)) / 86400000;
+          if (diff > 31) unlockAchievement('pigeon').then(d => { if (d) showAchievementToast('pigeon'); });
+        }
+        localStorage.setItem('_lastLogin', String(Date.now()));
+        // 全勤奖: consecutive daily logins
+        const today = new Date().toDateString();
+        const loginDates = JSON.parse(localStorage.getItem('_loginDates') || '[]');
+        const lastDate = loginDates.length ? loginDates[loginDates.length - 1] : null;
+        if (lastDate !== today) {
+          if (lastDate && (Date.now() - new Date(lastDate).getTime()) / 86400000 <= 1.5) {
+            loginDates.push(today);
+            if (loginDates.length > 7) loginDates.shift();
+            if (loginDates.length >= 7) unlockAchievement('attendance').then(d => { if (d) showAchievementToast('attendance'); });
+          } else {
+            loginDates.length = 0;
+            loginDates.push(today);
+          }
+          localStorage.setItem('_loginDates', JSON.stringify(loginDates));
+        }
+        // 月光族: last day of month
+        const now = new Date();
+        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        if (now.getDate() === lastDay) unlockAchievement('moonlight').then(d => { if (d) showAchievementToast('moonlight'); });
+        // 周年庆: registration anniversary
+        const regDate = data.user.created_at || localStorage.getItem('_regDate');
+        if (regDate) {
+          const regD = new Date(regDate.endsWith('Z') ? regDate : regDate + 'Z');
+          if (!isNaN(regD.getTime()) && now.getMonth() === regD.getMonth() && now.getDate() === regD.getDate()) unlockAchievement('anniversary').then(d => { if (d) showAchievementToast('anniversary'); });
+        }
+        localStorage.setItem('_regDate', data.user.created_at || String(Date.now()));
+        if (data.password_reset) {
+          alert('你的账号密码已重置，初始密码为 Yali@1234，请及时修改密码');
+        }
+        // merge local achievements to server
+        const localAch = (() => { try { return JSON.parse(localStorage.getItem('achievements') || '[]'); } catch { return []; } })();
+        if (localAch.length) {
+          const serverAch = data.user.achievements || [];
+          const merged = localAch.filter(a => !serverAch.includes(a));
+          for (const id of merged) {
+            try { await apiPost('/api/achievements/unlock', { id }); } catch {}
+          }
+          localStorage.removeItem('achievements');
+          try { const me = await api('/api/auth/me'); if (me) { localStorage.setItem('user', JSON.stringify(me)); data.user = me; } } catch {}
+        }
+        try { await checkCountAchievements(); } catch {}
+        window.location.href = 'services.html';
+      } catch (err) {
+        const el = document.getElementById('loginError');
+        el.textContent = err.message;
+        el.style.display = '';
+        loginCaptcha.refresh();
+        // track failed login for achievement
+        let fails = Number(localStorage.getItem('_loginFail') || 0) + 1;
+        localStorage.setItem('_loginFail', fails);
+        if (fails >= 3) {
+          localStorage.removeItem('_loginFail');
+          unlockAchievement('locked_out').then(d => { if (d) showAchievementToast('locked_out'); });
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '登录';
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      if (fd.get('password') !== fd.get('confirm')) {
+        const el = document.getElementById('registerMsg');
+        el.textContent = '两次密码输入不一致';
+        el.style.color = 'var(--accent)';
+        el.style.display = '';
+        return;
+      }
+      const cls = fd.get('class_name');
+      if (!isValidClass(cls)) {
+        const el = document.getElementById('registerMsg');
+        el.textContent = '班级格式无效，请输入4位班级编号（如2501）';
+        el.style.color = 'var(--accent)';
+        el.style.display = '';
+        return;
+      }
+
+      const btn = document.getElementById('registerBtn');
+      btn.disabled = true; btn.textContent = '提交中...';
+      document.getElementById('registerMsg').style.display = 'none';
+
+      try {
+        const data = await apiPost('/api/auth/register', {
+          name: fd.get('name'),
+          password: fd.get('password'),
+          class_name: cls,
+          department: document.getElementById('regDepartment').value || '',
+          ...registerCaptcha.getData(),
+        });
+        const el = document.getElementById('registerMsg');
+        el.textContent = data.message + '，请等待管理员审核';
+        el.style.color = 'var(--success)';
+        el.style.display = '';
+        e.target.reset();
+        registerCaptcha.refresh();
+        setTimeout(() => switchTab('login'), 2000);
+      } catch (err) {
+        const el = document.getElementById('registerMsg');
+        el.textContent = err.message;
+        el.style.color = 'var(--accent)';
+        el.style.display = '';
+        registerCaptcha.refresh();
+      } finally {
+        btn.disabled = false; btn.textContent = '提交注册申请';
+      }
+    }
+  </script>
+</body>
+</html>

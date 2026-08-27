@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════
+    Login Page
+   ═══════════════════════════════════════ */
+/* ── LOGIN PAGE ── */
+.login-page {
+  min-height: calc(100vh - 64px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 16px 80px;
+}
+.login-card {
+  background: var(--md-surface-container-low, var(--md-surface-container));
+  border-radius: var(--md-shape-xl);
+  padding: 40px 36px;
+  max-width: 420px;
+  width: 100%;
+}
+.login-card h1 {
+  font-family: var(--md-font-display);
+  font-size: 1.6rem;
+  text-align: center;
+  color: var(--md-primary);
+  margin-bottom: 4px;
+}
+.login-card .subtitle {
+  text-align: center;
+  color: var(--md-on-surface-variant);
+  font-size: .88rem;
+  margin-bottom: 28px;
+}
+.login-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--md-outline-variant);
+  margin-bottom: 24px;
+}
+.login-tab {
+  flex: 1;
+  padding: 10px 0;
+  text-align: center;
+  font-size: .92rem;
+  font-weight: 500;
+  color: var(--md-on-surface-variant);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  position: relative;
+  transition: color .2s;
+}
+.login-tab.active { color: var(--md-primary); }
+.login-tab.active::after {
+  content: '';
+  position: absolute; bottom: -2px; left: 0; right: 0;
+  height: 2px;
+  background: var(--md-primary);
+}
+
+.form-card { background: var(--md-surface-container-low, var(--md-surface-container)); border-radius: var(--md-shape-xl); padding: 20px; position: relative; }
+.form-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--md-primary-light), var(--md-primary));
+  border-radius: 0 2px 2px 0;
+}
+
+/* login / register form switch */
+.login-form-wrap {
+  margin-top: 24px;
+  transition: opacity .25s, transform .25s;
+}
+.login-form-wrap.form-enter {
+  animation: slideUp .3s cubic-bezier(.2,0,0,1);
+}
+.login-form-wrap.form-exit {
+  animation: slideDown .25s cubic-bezier(.4,0,1,1) forwards;
+}

@@ -1,0 +1,410 @@
+/* ═══════════════════════════════════════
+    Hall Bookings
+   ═══════════════════════════════════════ */
+/* ──────── HALL BOOKINGS ──────── */
+.hall-section-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.hall-section-tab { flex: 1; }
+.hall-section-tab.hall-tab-active {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+
+.hall-review-panel {
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-lg);
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+.hall-review-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 500;
+  color: var(--md-on-surface);
+  transition: background .2s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.hall-review-header:hover { background: var(--md-surface-container-hover, var(--md-surface-container-high)); }
+.hall-review-badge {
+  background: var(--md-error);
+  color: #fff;
+  font-size: .7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+.hall-review-body { padding: 0 16px 16px; }
+.hall-review-item {
+  background: var(--md-surface);
+  border-radius: var(--md-shape-md);
+  padding: 12px;
+  margin-bottom: 10px;
+}
+.hall-review-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.hall-review-meta {
+  font-size: .82rem;
+  color: var(--md-on-surface-variant);
+}
+.hall-review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Gantt chart */
+.hall-gantt {
+  position: relative;
+  height: 24px;
+  margin: 8px 0;
+  border-radius: var(--md-shape-sm);
+  overflow: hidden;
+}
+.hall-gantt-bar {
+  position: absolute;
+  height: 100%;
+  border-radius: var(--md-shape-sm);
+  min-width: 4px;
+}
+.hall-gantt-self { background: rgba(98,91,113,0.4); background: color-mix(in srgb, var(--md-primary) 40%, transparent); }
+.hall-gantt-approved { background: var(--md-error); opacity: .7; }
+.hall-gantt-pending { background: #f0a030; opacity: .7; }
+.hall-gantt-label {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: .6rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #fff;
+  font-weight: 500;
+  pointer-events: none;
+}
+.hall-gantt-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: .6rem;
+  color: var(--md-on-surface-variant);
+}
+
+/* Calendar */
+.hall-cal-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 16px;
+}
+.hall-cal {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+}
+.hall-cal-day {
+  flex-shrink: 0;
+  width: 64px;
+  padding: 10px 0;
+  border-radius: var(--md-shape-lg);
+  background: var(--md-surface-container-low);
+  text-align: center;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .2s;
+}
+.hall-cal-day:hover { transform: translateY(-2px); }
+.hall-cal-day.hall-cal-active {
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+}
+.hall-cal-day.hall-cal-today {
+  border: 2px solid var(--md-primary);
+}
+.hall-cal-weekday {
+  font-size: .65rem;
+  opacity: .7;
+  margin-bottom: 4px;
+}
+.hall-cal-date {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.hall-cal-month {
+  font-size: .6rem;
+  opacity: .6;
+  margin-top: 2px;
+}
+
+/* Timeline */
+.hall-timeline {
+  display: flex;
+  max-height: 72vh;
+  overflow-y: auto;
+  border-radius: var(--md-shape-lg);
+  background: var(--md-surface);
+}
+.hall-timeline-ruler {
+  flex-shrink: 0;
+  width: 56px;
+  position: relative;
+  background: var(--md-surface-container);
+  z-index: 1;
+}
+.hall-timeline-ruler-hour {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .72rem;
+  font-weight: 700;
+  color: var(--md-on-surface-variant);
+  transform: translateY(-50%);
+  letter-spacing: .02em;
+}
+.hall-timeline-ruler-hour::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  background: var(--md-primary);
+  border-radius: 0 2px 2px 0;
+  transform: translateY(-50%);
+  opacity: .5;
+}
+.hall-timeline-grid {
+  flex: 1;
+  position: relative;
+  cursor: crosshair;
+  user-select: none;
+}
+.hall-timeline-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--md-outline-variant);
+}
+.hall-timeline-line-half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--md-outline-variant);
+  opacity: .3;
+}
+/* Card container */
+.hall-timeline-card {
+  position: absolute;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .2s;
+  z-index: 2;
+  box-shadow: var(--md-elevation-1);
+  display: flex;
+  align-items: stretch;
+}
+.hall-timeline-card:hover { transform: scale(1.02); box-shadow: var(--md-elevation-3); z-index: 3; }
+.hall-timeline-card-touch-left {
+  border-left: none !important;
+}
+.hall-timeline-card-touch-right {
+  border-right: none !important;
+}
+
+/* Status — applied to the card (background + border) */
+.hall-timeline-card-others {
+  background: var(--md-surface, #fff);
+  background: color-mix(in srgb, var(--md-error) 14%, var(--md-surface));
+  border: 1px solid rgba(186,26,26,0.35);
+  border: 1px solid color-mix(in srgb, var(--md-error) 35%, transparent);
+}
+.hall-timeline-card-self {
+  background: var(--md-surface, #fff);
+  background: color-mix(in srgb, var(--md-primary) 14%, var(--md-surface));
+  border: 1px solid rgba(98,91,113,0.35);
+  border: 1px solid color-mix(in srgb, var(--md-primary) 35%, transparent);
+}
+.hall-timeline-card-pending {
+  background: var(--md-surface, #fff);
+  background: color-mix(in srgb, #f0a030 10%, var(--md-surface));
+  border: 1px solid rgba(240,160,48,0.25);
+  border: 1px solid color-mix(in srgb, #f0a030 25%, transparent);
+  opacity: .75;
+}
+.hall-timeline-card-cancelled {
+  background: var(--md-surface-variant);
+  border: 1px solid var(--md-outline-variant);
+  opacity: .4;
+  filter: grayscale(1);
+}
+.hall-detail-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+  font-size: .85rem;
+}
+.hall-detail-row:last-child { border-bottom: none; }
+.hall-detail-label {
+  flex-shrink: 0;
+  width: 64px;
+  color: var(--md-on-surface-variant);
+}
+.hall-timeline-tag-cancelled { background: var(--md-outline); color: var(--md-on-surface-variant); }
+.hall-timeline-card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+}
+.hall-timeline-card-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid rgba(128,128,128,0.1);
+  border-left: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  padding: 0 6px;
+}
+.hall-timeline-card-del {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--md-error);
+  cursor: pointer;
+  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  line-height: 1;
+}
+.hall-timeline-card-del:hover { background: rgba(186,26,26,0.12); background: color-mix(in srgb, var(--md-error) 12%, transparent); }
+.hall-timeline-title {
+  font-size: .82rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hall-timeline-time {
+  font-size: .65rem;
+  opacity: .6;
+  margin-top: 1px;
+  font-weight: 500;
+}
+.hall-timeline-purpose {
+  font-size: .7rem;
+  opacity: .8;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hall-timeline-tag {
+  display: inline-block;
+  font-size: .58rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--md-shape-sm);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.hall-timeline-tag-approved { background: var(--md-primary); color: var(--md-on-primary); }
+.hall-timeline-tag-pending { background: var(--md-surface-variant); color: var(--md-on-surface-variant); }
+.hall-timeline-btn-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.hall-timeline-btn-row button {
+  font-size: .6rem;
+  padding: 2px 8px;
+  border: none;
+  border-radius: var(--md-shape-sm);
+  cursor: pointer;
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  transition: background .15s;
+}
+.hall-timeline-btn-row button:hover { background: var(--md-surface-variant); }
+
+
+
+/* Selection overlay */
+.hall-timeline-selection {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  background: rgba(98,91,113,0.18);
+  background: color-mix(in srgb, var(--md-primary) 18%, transparent);
+  border: 2px solid var(--md-primary);
+  border-radius: var(--md-shape-md);
+  z-index: 4;
+  pointer-events: none;
+  transition: opacity .12s;
+}
+.hall-timeline-selection-label {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--md-on-primary);
+  background: var(--md-primary);
+  padding: 3px 12px;
+  border-radius: var(--md-shape-sm);
+  white-space: nowrap;
+  box-shadow: var(--md-elevation-2);
+  letter-spacing: .02em;
+}
+.hall-timeline-selection-label::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--md-primary);
+}
+
+.hall-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--md-surface-container-low);
+  border-radius: var(--md-shape-lg);
+}
+.hall-custom-row select {
+  padding: 6px 8px;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm);
+  background: var(--md-surface);
+  color: var(--md-on-surface);
+  font-size: .82rem;
+}
+.hall-custom-row .btn { flex-shrink: 0; }
+/* ──────── END HALL BOOKINGS ──────── */

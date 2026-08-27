@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>公告 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('announcements');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>公告</h1>
+      <p>查看团委最新公告</p>
+    </div>
+
+    <div class="section">
+      <div id="announceList">
+        <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果替换 -->
+        <div class="card g-skeleton" aria-hidden="true">
+          <div class="g-skeleton-line" style="width:45%;height:18px"></div>
+          <div class="g-skeleton-line" style="width:92%"></div>
+          <div class="g-skeleton-line" style="width:78%"></div>
+          <div class="g-skeleton-line" style="width:25%;height:12px;margin-top:14px"></div>
+        </div>
+        <div class="card g-skeleton" aria-hidden="true">
+          <div class="g-skeleton-line" style="width:60%;height:18px"></div>
+          <div class="g-skeleton-line" style="width:96%"></div>
+          <div class="g-skeleton-line" style="width:82%"></div>
+          <div class="g-skeleton-line" style="width:30%;height:12px;margin-top:14px"></div>
+        </div>
+        <div class="card g-skeleton" aria-hidden="true">
+          <div class="g-skeleton-line" style="width:38%;height:18px"></div>
+          <div class="g-skeleton-line" style="width:88%"></div>
+          <div class="g-skeleton-line" style="width:72%"></div>
+          <div class="g-skeleton-line" style="width:22%;height:12px;margin-top:14px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/lightbox.js"></script>
+  <script src="/js/announcements.js"></script>
+  <!-- 浮动加号按钮 -->
+  <button class="fab" id="fabBtn" onclick="openAnnounceModal()" aria-label="发布公告" style="display:none">+</button>
+</body>
+</html>

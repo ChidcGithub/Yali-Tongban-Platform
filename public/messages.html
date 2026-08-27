@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>消息 - 雅礼团委·通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/version.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav("messages");
+    checkSiteClosed();
+  </script>
+  <div class="container">
+    <div class="page-header">
+      <h1>消息</h1>
+      <p id="msgUnreadHint">加载中...</p>
+    </div>
+
+    <!-- 筛选标签 -->
+    <div class="msg-tabs" id="msgTabs">
+      <button class="tab-btn msg-tab active" data-type="all">全部</button>
+      <button class="tab-btn msg-tab" data-type="system">系统</button>
+      <button class="tab-btn msg-tab" data-type="announcement">公告</button>
+      <button class="tab-btn msg-tab" data-type="review_result">审核</button>
+      <button class="tab-btn msg-tab" data-type="issue_status">报修</button>
+      <button class="tab-btn msg-tab" data-type="finance_update">财务</button>
+      <button class="tab-btn msg-tab" data-type="comment_reply">评论</button>
+      <button class="tab-btn msg-tab" data-type="activity_invite">活动</button>
+      <button class="tab-btn msg-tab" data-type="duty">值日</button>
+    </div>
+
+    <!-- 操作栏 -->
+    <div class="btn-group" id="msgToolbar" style="display:none;margin-bottom:12px">
+      <button class="btn btn-outline btn-sm" onclick="markAllRead()">全部已读</button>
+      <button class="btn btn-text btn-sm" onclick="clearRead()">清空已读</button>
+    </div>
+
+    <!-- 消息列表 -->
+    <div id="msgList" class="msg-list">
+      <div class="msg-empty">加载中...</div>
+    </div>
+
+    <!-- 加载更多 -->
+    <div id="msgLoadMore" style="display:none;text-align:center;padding:16px">
+      <button class="btn btn-outline" onclick="loadMore()">加载更多</button>
+    </div>
+  </div>
+  <script src="/js/messages.js"></script>
+</body>
+</html>

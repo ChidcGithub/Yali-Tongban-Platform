@@ -1,0 +1,8 @@
+name = "yali-tongban"
+pages_build_output_dir = "public"
+compatibility_date = "2025-04-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "yali-tongban-db"
+database_id = "a7fb5f2d-4ea5-4727-9253-137845ae7835"

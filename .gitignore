@@ -1,0 +1,17 @@
+node_modules/
+.wrangler/
+.idea/
+dist/
+.env
+*.local
+.DS_Store
+Thumbs.db
+pending asks.txt
+
+# 本地备份与参考素材（不进仓库）
+_backups/
+.workbuddy/
+.check/
+examples/
+debug.log
+*.log

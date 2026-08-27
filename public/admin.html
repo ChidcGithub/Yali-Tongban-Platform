@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script src="/js/lightbox.js"></script>
+  <script>
+    renderNav('admin');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+      <div>
+        <h1>管理面板</h1>
+        <p>管理员专区 · 管理网站全部数据</p>
+      </div>
+      <button class="btn btn-outline btn-sm" id="syncBtn" onclick="syncAll()" style="flex-shrink:0">
+        <span id="syncIcon"></span>
+        <span id="syncLabel">同步</span>
+      </button>
+    </div>
+
+    <div id="adminAccordion">
+      <!-- 网站状态 (owner only) -->
+      <div class="set-group" id="ownerSection" style="display:none">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="1"/><path d="M3 13h18"/></svg></span>
+          <span>网站状态</span>
+        </div>
+        <div class="set-group-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span id="siteStatusDot" style="width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--success);flex-shrink:0"></span>
+              <span id="siteStatusLabel" style="font-weight:600;font-size:1.05rem">运行中</span>
+            </div>
+            <label class="admin-toggle">
+              <input type="checkbox" id="siteToggle" onchange="toggleSiteClosed()">
+              <span class="admin-toggle-slider"></span>
+            </label>
+          </div>
+          <div id="siteClosedDetails" style="display:none;padding:8px 0;border-top:1px solid var(--md-outline-variant)">
+            <div style="display:flex;justify-content:space-between;font-size:.82rem">
+              <span style="color:var(--md-on-surface-variant)">关闭者</span>
+              <span id="siteClosedBy" style="font-weight:500">-</span>
+            </div>
+            <p id="siteClosedMsgDisplay" style="font-size:.8rem;color:var(--md-on-surface-variant);margin-top:4px"></p>
+          </div>
+          <div style="font-size:.78rem;margin-top:8px;padding-top:8px;border-top:1px solid var(--md-outline-variant)">
+            <span style="color:var(--md-on-surface-variant)">最后清理</span>
+            <div id="lastCleanupInfo" style="font-weight:500;margin-top:1px">-</div>
+          </div>
+          <div style="font-size:.75rem;color:var(--md-on-surface-variant);display:flex;justify-content:space-between">
+            <span id="statusHint">关闭后仅管理员可访问</span>
+            <span id="lastStatusCheck">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 存储用量 (owner only) -->
+      <div class="set-group" id="storageSection" style="display:none">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+          <span>存储用量</span>
+        </div>
+        <div class="set-group-body">
+          <div id="storageInfo">
+          </div>
+        </div>
+      </div>
+
+      <!-- 注册审批 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg></span>
+          <span>注册审批</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)"><span id="regCount"></span></span>
+        </div>
+        <div class="set-group-body">
+          <div id="registrationList">
+          </div>
+        </div>
+      </div>
+
+      <!-- 成员管理 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <span>成员管理</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="memberCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="memberSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px">点击查看详细</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm btn-outline" onclick="openMemberModal()">查看详情</button>
+            <button class="btn btn-sm btn-outline" id="batchImportBtn" onclick="event.stopPropagation()">批量导入</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 问题反馈 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>
+          <span>问题反馈</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="issueCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="issueSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px">点击查看详细</div>
+          <button class="btn btn-sm btn-outline" onclick="openIssueModal()">查看详情</button>
+        </div>
+      </div>
+
+      <!-- 公告审核 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg></span>
+          <span>公告审核</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="announceCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="announceSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px">点击查看详细</div>
+          <button class="btn btn-sm btn-outline" onclick="openAnnounceModal()">查看详情</button>
+        </div>
+      </div>
+
+      <!-- 财务记录 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+          <span>财务记录</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="financeCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="financeSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px">点击查看详细</div>
+          <button class="btn btn-sm btn-outline" onclick="openFinanceModal()">查看详情</button>
+        </div>
+      </div>
+
+      <!-- 审核记录 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+          <span>审核记录</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="reviewCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="reviewSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px">点击查看详细</div>
+          <button class="btn btn-sm btn-outline" onclick="openReviewModal()">查看详情</button>
+        </div>
+      </div>
+
+      <!-- 用户反馈 -->
+      <div class="set-group">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+          <span>用户反馈</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="feedbackCount"></span>
+        </div>
+        <div class="set-group-body">
+          <div id="feedbackSummary" style="color:var(--md-on-surface-variant);font-size:.9rem;margin-bottom:12px"></div>
+          <button class="btn btn-sm btn-outline" onclick="openFeedbackModal()">查看反馈</button>
+        </div>
+      </div>
+
+      <!-- 功能开关 (owner only) -->
+      <div class="set-group" id="featuresSection" style="display:none">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg></span>
+          <span>功能开关</span>
+          <span style="margin-left:auto;font-size:.82rem;font-weight:400;color:var(--md-on-surface-variant)" id="featuresCount"></span>
+        </div>
+        <div class="set-group-body">
+          <p style="font-size:.9rem;color:var(--md-on-surface-variant);margin-bottom:12px">选择要启用的测试性功能，邀请用户参与体验</p>
+          <div id="featuresList"></div>
+        </div>
+      </div>
+
+      <!-- 危险操作 (owner only) -->
+      <div class="set-group" id="dangerSection" style="display:none">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          <span class="admin-section-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 21h20L12 3z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+          <span>危险操作</span>
+        </div>
+        <div class="set-group-body">
+          <p style="font-size:.9rem;color:var(--md-on-surface-variant);margin-bottom:16px">以下操作不可撤销，请谨慎使用</p>
+          <button class="btn btn-danger btn-block" onclick="confirmClearAll()">清空全部数据</button>
+          <p style="font-size:.8rem;color:var(--md-on-surface-variant);margin-top:8px">将删除所有问题、公告、财务记录、审核记录和成员账号</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/admin.js"></script>
+</body>
+</html>

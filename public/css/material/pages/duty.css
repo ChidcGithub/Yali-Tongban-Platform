@@ -1,0 +1,285 @@
+/* ═══════════════════════════════════════
+    Duty Check-in & Department Stats
+   ═══════════════════════════════════════ */
+/* ========== Calendar Navigation ========== */
+.cal-nav { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.cal-nav-title { font-family: var(--md-font-display); font-size: 1.05rem; font-weight: 600; color: var(--md-primary); flex: 1; text-align: center; }
+.cal-nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-full);
+  background: var(--md-surface-container-low);
+  color: var(--md-on-surface-variant);
+  cursor: pointer; transition: background .2s, color .2s, border-color .2s;
+  font-family: inherit;
+}
+.cal-nav-btn:hover { background: var(--md-primary-container); color: var(--md-on-primary-container); border-color: var(--md-primary); }
+.cal-nav-btn:active { transform: scale(.95); }
+.cal-nav-btn svg { width: 20px; height: 20px; }
+
+/* ========== Calendar Grid ========== */
+.cal-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 4px;
+  table-layout: fixed;
+}
+.cal-grid th {
+  padding: 8px 0;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--md-on-surface-variant);
+  text-align: center;
+}
+.cal-grid td { padding: 0; }
+.cal-day {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1.5px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-low);
+  color: var(--md-on-surface);
+  cursor: pointer;
+  transition: background .2s, border-color .2s, transform .15s;
+  font-family: inherit;
+  padding: 4px;
+  position: relative;
+  overflow: hidden;
+}
+.cal-day:hover { background: var(--md-primary-container); color: var(--md-on-primary-container); border-color: var(--md-primary); }
+.cal-day:active { transform: scale(.96); }
+.cal-day > span:first-child { font-size: 1rem; font-weight: 600; line-height: 1; }
+.cal-day-initials {
+  font-size: .62rem;
+  color: var(--md-on-surface-variant);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.1;
+}
+.cal-day-today {
+  border-color: var(--md-primary);
+  background: var(--md-primary-container);
+  color: var(--md-on-primary-container);
+  font-weight: 700;
+}
+.cal-day-today .cal-day-initials { color: var(--md-on-primary-container); }
+.cal-day-weekend { color: var(--md-error); }
+.cal-day-weekend .cal-day-initials { color: var(--md-error); opacity: .8; }
+.cal-day-disabled {
+  opacity: .35;
+  cursor: default;
+  pointer-events: none;
+}
+@media (max-width: 480px) {
+  .cal-grid { border-spacing: 2px; }
+  .cal-grid th { font-size: .7rem; padding: 4px 0; }
+  .cal-day > span:first-child { font-size: .85rem; }
+  .cal-day-initials { font-size: .55rem; }
+}
+
+/* ========== Duty Check-in ========== */
+.duty-table {
+  width: 100%;
+  font-size: .88rem;
+}
+.duty-table-header,
+.duty-table-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 1fr auto;
+  align-items: center;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+.duty-table-header {
+  background: var(--md-surface-container);
+  font-weight: 600;
+  font-size: .82rem;
+  color: var(--md-on-surface-variant);
+  padding: 10px 12px;
+  position: sticky;
+  top: 0;
+}
+.duty-table-row {
+  padding: 8px 12px;
+  transition: background .2s;
+}
+.duty-table-row:hover {
+  background: var(--md-surface-container-high);
+}
+.duty-table-row:last-child {
+  border-bottom: none;
+}
+.duty-table-header span,
+.duty-table-row span {
+  padding: 2px 4px;
+}
+.duty-col-period {
+  font-weight: 500;
+}
+.duty-period-label {
+  font-size: .82rem;
+  color: var(--md-on-surface);
+}
+.duty-col-name {
+  text-align: center;
+}
+.duty-col-score {
+  text-align: right;
+  font-weight: 600;
+  font-size: .82rem;
+}
+.duty-btn {
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: .78rem;
+  font-weight: 600;
+  border: 1.5px solid transparent;
+  transition: all .2s;
+  line-height: 1.3;
+  min-width: 60px;
+}
+.duty-btn:disabled {
+  opacity: .6;
+}
+.duty-btn-pending {
+  background: var(--md-surface);
+  color: var(--md-on-surface-variant);
+  border-color: var(--md-outline);
+}
+.dark .duty-btn-pending {
+  background: var(--md-surface-container-high);
+}
+.duty-btn-pending:hover:not(:disabled) {
+  background: var(--md-primary-container);
+  color: var(--md-primary);
+  border-color: var(--md-primary);
+}
+.duty-btn-active {
+  background: #FFF3CD;
+  color: #856404;
+  border-color: #FFC107;
+  animation: dutyPulse 1.5s infinite;
+}
+.dark .duty-btn-active {
+  background: #3D2E00;
+  color: #FFE082;
+  border-color: #FFC107;
+}
+.duty-btn-done {
+  background: var(--success-light);
+  color: var(--success);
+  border-color: var(--success);
+}
+.dark .duty-btn-done {
+  background: #1B5E20;
+  color: #81C784;
+  border-color: var(--success);
+}
+.duty-btn-warn {
+  background: var(--md-error-container);
+  color: var(--md-error);
+  border-color: var(--md-error);
+}
+.dark .duty-btn-warn {
+  background: #B71C1C;
+  color: #EF9A9A;
+  border-color: var(--md-error);
+}
+.duty-btn-absent {
+  background: var(--md-surface-container-high, #f5f5f5);
+  color: var(--md-on-surface-variant, #999);
+  border-color: var(--md-outline-variant, #ddd);
+}
+.dark .duty-btn-absent {
+  background: #424242;
+  color: #BDBDBD;
+  border-color: #616161;
+}
+.duty-timer {
+  font-variant-numeric: tabular-nums;
+}
+.duty-score-cell {
+  font-weight: 600;
+}
+@keyframes dutyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 193, 7, .4); }
+  50% { box-shadow: 0 0 0 6px rgba(255, 193, 7, 0); }
+}
+
+@media (max-width: 480px) {
+  .duty-table-header,
+  .duty-table-row {
+    grid-template-columns: 70px 1fr 1fr auto;
+    font-size: .78rem;
+    padding: 6px 6px;
+  }
+  .duty-col-period { font-size: .72rem; }
+  .duty-btn { font-size: .7rem; padding: 4px 8px; min-width: 44px; }
+}
+
+/* ── Department stats bar (M3 Expressive) ── */
+.dept-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+.dept-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.dept-stat-label {
+  min-width: 72px;
+  font-size: .88rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+}
+.dept-stat-track {
+  flex: 1;
+  height: 14px;
+  background: var(--md-surface-container-high);
+  border-radius: var(--md-shape-full);
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-outline-variant) 30%, transparent);
+}
+.dept-stat-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--md-primary) 0%, var(--md-tertiary) 100%);
+  border-radius: var(--md-shape-full);
+  animation: deptBarGrow .8s cubic-bezier(.34, 1.56, .64, 1) forwards;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--md-primary) 40%, transparent);
+}
+.dept-stat-score {
+  min-width: 56px;
+  text-align: right;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--md-primary);
+  font-variant-numeric: tabular-nums;
+}
+.dept-stat-count {
+  font-size: .72rem;
+  color: var(--md-on-surface-variant);
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes deptBarGrow {
+  from { width: 0; }
+  to { width: 100%; }
+}
+@media (max-width: 480px) {
+  .dept-stat-label { min-width: 56px; font-size: .8rem; }
+  .dept-stat-score { min-width: 44px; font-size: .88rem; }
+  .dept-stat-count { min-width: 32px; }
+  .dept-stat-track { height: 12px; }
+}

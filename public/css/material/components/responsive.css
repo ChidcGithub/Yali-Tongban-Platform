@@ -1,0 +1,59 @@
+/* ═══════════════════════════════════════
+    Responsive · Global Mobile Media Queries
+   ═══════════════════════════════════════ */
+
+@media (max-width: 600px) {
+  .section-title { font-size: 1.1rem; }
+  .finance-summary { gap: 8px; }
+  .summary-card { padding: 16px 12px; }
+  .summary-icon { font-size: 1.3rem; }
+  .summary-value { font-size: 1.1rem; }
+  .form-card { padding: 22px 20px; }
+  .card { padding: 20px; }
+  .empty-state { padding: 40px 16px; }
+  .empty-state::before { width: 80px; height: 80px; }
+  .empty-state-icon { font-size: 2.6rem; }
+}
+
+@media (max-width: 480px) {
+  .nav-brand { font-size: .92rem; }
+  .filter-tabs { gap: 6px; }
+  .filter-tab { font-size: .8rem; padding: 5px 14px; }
+  .btn { font-size: .85rem; padding: 8px 18px; }
+  .img-grid { grid-template-columns: 1fr 1fr; }
+  .img-card img { height: 120px; }
+  .lightbox-img { max-width: 100% !important; max-height: 90vh !important; }
+  .container { padding: 16px 12px; }
+  .login-card { padding: 28px 20px; }
+  .page-header h1 { font-size: 1.4rem; }
+
+  /* Finance mobile optimization */
+  .finance-summary { flex-direction: column; gap: 6px; }
+  .summary-card { padding: 14px 12px; }
+  .summary-icon { font-size: 1.1rem; margin-bottom: 2px; }
+  .summary-label { font-size: .7rem; }
+  .summary-value { font-size: .95rem; word-break: break-all; }
+  .img-card-body { padding: 8px 12px 10px; }
+  .img-card-body > div:first-child { flex-wrap: wrap; gap: 4px; }
+  .img-card-body .badge { font-size: .72rem; padding: 2px 8px; }
+  .img-card-body strong { font-size: .95rem !important; }
+  .img-card-tags { margin-top: 4px; }
+  .img-card-tags .tag { font-size: .7rem; padding: 1px 8px; }
+  .img-card-notes { font-size: .78rem; margin-top: 4px; line-height: 1.5; }
+  .img-card-footer { font-size: .72rem; gap: 6px; }
+  .img-card-footer .badge { font-size: .68rem; padding: 1px 7px; }
+  .img-card .btn { font-size: .78rem; padding: 6px 12px; margin-top: 6px !important; }
+  #reimburseRatioCard { padding: 12px !important; }
+  #reimburseRatioCard div:first-child { flex-wrap: wrap; gap: 4px; }
+  #reimburseRatioCard div:first-child span:first-child { font-size: .78rem !important; }
+  #reimburseRatioText { font-size: .9rem !important; }
+  #quickMonths { gap: 4px; }
+  #quickMonths .btn-sm { font-size: .75rem; padding: 4px 10px; }
+}
+
+@media (max-width: 380px) {
+  .img-grid { grid-template-columns: 1fr; }
+  .finance-summary { gap: 4px; }
+  .summary-card { padding: 10px 4px; }
+  .summary-value { font-size: .88rem; }
+}

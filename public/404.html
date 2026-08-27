@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800;900&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; background: var(--md-surface); display: flex; align-items: center; justify-content: center; font-family: var(--md-font-body); overflow: hidden; position: relative; padding: 24px; }
+
+    .bg-404 { position: fixed; right: -20px; bottom: -40px; font-size: 50vw; font-weight: 900; line-height: 1; color: var(--md-primary); letter-spacing: -.08em; pointer-events: none; z-index: 0; user-select: none; opacity: .04; }
+    @media (min-width: 768px) { .bg-404 { font-size: 36vw; right: -40px; bottom: -60px; } }
+
+    .deco-line { position: fixed; background: var(--md-primary); z-index: 0; pointer-events: none; opacity: .06; }
+    .deco-line:nth-child(2) { width: 2px; height: 50vh; left: 10%; top: 0; }
+    .deco-line:nth-child(3) { width: 35vw; height: 1px; right: 5%; top: 30%; }
+    .deco-line:nth-child(4) { width: 1px; height: 30vh; right: 25%; top: 5%; opacity: .03; }
+
+    .dot { position: fixed; border-radius: 50%; background: var(--md-primary); z-index: 0; pointer-events: none; }
+    .dot:nth-child(5) { width: 8px; height: 8px; left: 20%; top: 20%; opacity: .08; animation: dotFloat 6s ease-in-out infinite; }
+    .dot:nth-child(6) { width: 5px; height: 5px; right: 15%; top: 55%; opacity: .06; animation: dotFloat 8s ease-in-out infinite reverse; }
+    .dot:nth-child(7) { width: 12px; height: 12px; left: 8%; bottom: 25%; opacity: .05; animation: dotFloat 7s ease-in-out infinite 1s; }
+
+    @keyframes dotFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-24px); } }
+
+    .card-404 { position: relative; z-index: 1; max-width: 480px; width: 100%; animation: fadeUp .7s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+    .card-404 .label { font-size: .72rem; font-weight: 700; letter-spacing: .12em; color: var(--md-outline); margin-bottom: 12px; }
+    .card-404 .label span { display: inline-block; width: 20px; height: 2px; background: var(--md-outline); vertical-align: middle; margin-right: 8px; border-radius: 1px; }
+    .card-404 h1 { font-family: var(--md-font-display); font-size: 7rem; font-weight: 900; line-height: 1; color: var(--md-primary); letter-spacing: -.06em; margin-bottom: 4px; }
+    .card-404 h1 .zero { color: var(--md-primary-light); }
+    .card-404 .question { font-size: 1.1rem; font-weight: 600; color: var(--md-on-surface); margin-bottom: 4px; line-height: 1.5; }
+    .card-404 .hint { font-size: .88rem; font-weight: 500; color: var(--md-on-surface-variant); margin-bottom: 32px; line-height: 1.5; }
+    .card-404 .hint-intrusion { display: none; }
+    .card-404 .intr-seq { display: none; }
+    .card-404 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .card-404 .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px; border-radius: var(--md-shape-full); font-size: .88rem; font-weight: 500; font-family: inherit; text-decoration: none; cursor: pointer; border: none; transition: transform .15s, box-shadow .15s; }
+    .card-404 .btn:hover { transform: translateY(-2px); }
+    .card-404 .btn-primary { background: var(--md-primary); color: var(--md-on-primary); }
+    .card-404 .btn-primary:hover { box-shadow: var(--md-elevation-3); }
+
+    .ill { position: fixed; left: 6%; bottom: 6%; z-index: 0; pointer-events: none; width: 100px; height: 140px; color: var(--md-primary); }
+    .ill svg { width: 100%; height: 100%; opacity: .1; }
+
+    @media (max-width: 600px) {
+      .card-404 h1 { font-size: 5rem; }
+      .bg-404 { font-size: 60vw; right: -10px; bottom: -20px; }
+      .ill { display: none; }
+      #intrSeqLine1 { font-size: 1.6rem !important; }
+      #intrSeqLine2 { font-size: 1rem !important; }
+      #intrSeqContent { max-width: 90vw; }
+      #intrSeqIcon { font-size: 2.6rem !important; }
+    }
+  </style>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div class="bg-404">404</div>
+  <div class="deco-line"></div>
+  <div class="deco-line"></div>
+  <div class="deco-line"></div>
+  <div class="dot"></div>
+  <div class="dot"></div>
+  <div class="dot"></div>
+
+  <div class="ill">
+    <svg viewBox="0 0 100 140" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="50" cy="48" r="20"/>
+      <path d="M50 58v7"/>
+      <circle cx="50" cy="70" r="2" fill="currentColor" stroke="none"/>
+      <path d="M10 96c0-14 10-24 24-24h32c14 0 24 10 24 24" opacity=".3"/>
+    </svg>
+  </div>
+
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;color:var(--md-on-primary);font-family:var(--md-font-body);text-align:center;padding:24px"><div><h1 style="font-size:1.5rem;font-weight:600;margin:0 0 4px;color:var(--md-on-primary)">雅礼团委 · 通办</h1><p style="font-size:.85rem;opacity:.6;margin:0">加载中...</p></div></div>
+<script src="/js/modal.js"></script>
+<script src="/js/api.js"></script>
+<script>
+(async()=>{
+  try{
+    const r=await fetch('/api/settings'),d=await r.json();
+    if(!d.success||!d.data.site_closed||(u=>{try{const u=JSON.parse(localStorage.getItem('user'));return u&&(u.role==='admin'||u.role==='owner')}catch{return false}})()){
+      document.getElementById('sco').remove();return
+    }
+    const el=document.getElementById('sco');
+    el.style.cssText='position:fixed;inset:0;z-index:99999;background:var(--md-primary);display:flex;align-items:center;justify-content:center;color:var(--md-on-primary);font-family:var(--md-font-body);text-align:center;padding:24px;opacity:1;pointer-events:auto';
+    const msg=d.data.site_closed_message||'雅礼团委-通办暂时关闭';
+    el.innerHTML='<div style="width:100%;max-width:340px"><h1 style="font-size:1.6rem;margin:0 0 8px;font-weight:700;color:var(--md-on-primary)"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-.15em;margin-right:6px"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a1 1 0 0 0 0-1.4l-1.6-1.6a1 1 0 0 0-1.4 0l-3.8 3.8Z"/><path d="M8.5 9.5 3 15v4h4l5.5-5.5"/><circle cx="17.5" cy="6.5" r=".5" fill="currentColor"/></svg>网站维护中</h1><p id="scoMsg" style="opacity:.7;margin:0 0 28px;font-size:.9rem;color:var(--md-on-primary);opacity:.7"></p><div style="border-top:1px solid rgba(255,255,255,.2);padding-top:24px"><p style="font-size:.85rem;opacity:.6;margin:0 0 12px;color:var(--md-on-primary)">管理员登录</p><input class="form-input" id="aln" placeholder="管理员姓名" style="margin:0 0 8px" autocomplete="username"><input class="form-input" type="password" id="alp" placeholder="密码" style="margin:0 0 12px" autocomplete="current-password"><button class="btn btn-primary btn-block" id="alb">登录</button><p id="ale" style="font-size:.82rem;color:var(--md-error);margin:8px 0 0;display:none"></p></div></div>';
+    document.getElementById('scoMsg').textContent=msg;
+    document.getElementById('alb').onclick=async()=>{
+      const n=document.getElementById('aln').value.trim(),p=document.getElementById('alp').value,b=document.getElementById('alb');
+      if(!n||!p){const e=document.getElementById('ale');e.textContent='请输入姓名和密码';e.style.display='';return}
+      b.disabled=true;b.textContent='登录中...';document.getElementById('ale').style.display='none';
+      try{
+        const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:n,password:p})});
+        const d=await r.json();
+        if(!d.success)throw new Error(d.error);
+        if(d.data.user.role!=='admin'&&d.data.user.role!=='owner')throw new Error('仅管理员可在维护期间登录');
+        localStorage.setItem('user',JSON.stringify(d.data.user));
+        el.remove();location.reload();
+      }catch(e){const er=document.getElementById('ale');er.textContent=e.message;er.style.display='';b.disabled=false;b.textContent='登录'}
+    };
+  }catch(e){try{document.getElementById('sco').remove()}catch(e){}}
+})();
+</script>
+
+  <div class="card-404">
+    <div class="label"><span></span>ERROR 404</div>
+    <h1>4<span class="zero">0</span>4</h1>
+    <p class="question">嗯？这个页面好像不存在……</p>
+    <p class="hint">它可能被移除了，或者你输错了地址</p>
+    <div class="actions">
+      <a href="/services.html" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        返回首页
+      </a>
+      <button class="btn btn-ghost" onclick="history.back()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        上一页
+      </button>
+    </div>
+  </div>
+
+<div id="intrSeq" style="display:none;position:fixed;inset:0;z-index:99998;background:#5c0e0e;color:#ffb3b3;font-family:var(--md-font-body);align-items:center;justify-content:center;text-align:center;padding:32px;flex-direction:column;opacity:0">
+  <div id="intrTerm" style="position:absolute;inset:0;overflow-y:scroll;z-index:-1;padding:20px 24px;font-family:Consolas,'Courier New',monospace;font-size:.72rem;line-height:1.5;color:rgba(255,179,179,.25);text-align:left;white-space:pre;pointer-events:none;user-select:none"></div>
+  <div id="intrSeqContent" style="max-width:600px">
+    <div id="intrSeqIcon" style="font-size:4rem;margin-bottom:24px;opacity:.7">
+      <svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 21h20L12 3z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div id="intrSeqLine1" style="font-size:3.125rem;font-weight:800;line-height:1.3;opacity:0;transform:translateY(16px)"></div>
+    <div id="intrSeqLine2" style="font-size:1.5rem;font-weight:600;line-height:1.4;margin-top:20px;opacity:0;transform:translateY(16px);color:rgba(255,179,179,.6)"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var p = new URLSearchParams(location.search);
+  var from = p.get('from');
+  if (!from) return;
+  var seq = document.getElementById('intrSeq');
+  var line1 = document.getElementById('intrSeqLine1');
+  var line2 = document.getElementById('intrSeqLine2');
+  var icon = document.getElementById('intrSeqIcon');
+  var bodyEl = document.body;
+
+  function animate(el, keyframes, opts) {
+    if (el.animate) return el.animate(keyframes, opts).finished;
+    return new Promise(function(r){ setTimeout(r, opts.duration || 300); });
+  }
+
+  function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  function generateDeviceLines() {
+    var lines = [];
+    function ts() { var d=new Date();return d.toISOString().replace('T',' ').slice(0,19)+'.'+String(d.getMilliseconds()).padStart(3,'0'); }
+    function hex(n){return n.toString(16).toUpperCase();}
+    var ua = navigator.userAgent;
+    var os = 'Unknown'; if(ua.indexOf('Windows NT')>-1) os='Windows'; else if(ua.indexOf('Mac OS X')>-1) os='macOS'; else if(ua.indexOf('Linux')>-1) os='Linux'; else if(ua.indexOf('Android')>-1) os='Android'; else if(ua.indexOf('iPhone')>-1||ua.indexOf('iPad')>-1) os='iOS';
+    var browser = 'Unknown'; var bv='?'; var m; if((m=ua.match(/Edg\/([\d.]+)/))){browser='Edge';bv=m[1]}else if((m=ua.match(/Chrome\/([\d.]+)/))){browser='Chrome';bv=m[1]}else if((m=ua.match(/Firefox\/([\d.]+)/))){browser='Firefox';bv=m[1]}else if((m=ua.match(/Safari\/([\d.]+)/))){browser='Safari';bv=m[1]}
+    var engine = ua.indexOf('Gecko')>-1?'Gecko':ua.indexOf('WebKit')>-1?'WebKit':'Blink';
+    var cpuCores = navigator.hardwareConcurrency;
+    var deviceMem = navigator.deviceMemory;
+    var con = navigator.connection;
+    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    var tzOff = -new Date().getTimezoneOffset()/60;
+    var lang = navigator.language;
+    var langs = navigator.languages||[];
+    var plugins = Array.from(navigator.plugins);
+    var canvasFp = 'unavailable';
+    try {
+      var c = document.createElement('canvas');
+      c.width = 256; c.height = 256;
+      var ctx = c.getContext('2d');
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillStyle = '#f60';
+      ctx.fillRect(0,0,256,256);
+      ctx.fillStyle = '#fff';
+      ctx.font = '18px Arial';
+      ctx.fillText('Cwm fjordbank glyphs vext quiz 0123456789', 2, 2);
+      ctx.fillStyle = '#333';
+      ctx.font = '16px Times New Roman';
+      ctx.fillText('Sphinx of black quartz, judge my vow!', 4, 30);
+      ctx.fillRect(50,60,100,60);
+      ctx.fillStyle = '#00f';
+      ctx.font = 'bold 20px Georgia';
+      ctx.fillText('AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz', 2, 80);
+      canvasFp = hex(c.toDataURL().length) + hex(c.toDataURL().charCodeAt(100));
+    } catch(e){}
+    var wglRenderer = 'unavailable';
+    var wglVendor = 'unavailable';
+    try {
+      var wc = document.createElement('canvas');
+      var gl = wc.getContext('webgl') || wc.getContext('experimental-webgl');
+      if (gl) { wglRenderer = gl.getParameter(gl.RENDERER); wglVendor = gl.getParameter(gl.VENDOR); }
+    } catch(e){}
+    var sessionId = hex(Date.now()%1000000)+'-'+hex(Math.floor(Math.random()*65536));
+    var batchId = hex(Math.floor(Math.random()*16777216)).padStart(6,'0');
+    function L(t,p){lines.push({text:t,pause:p||1});}
+    L('[ '+ts()+' ] === SYSTEM AUDIT INITIATED ===',300);
+    L('[ '+ts()+' ] AUDIT v5.0.0 | Session: '+sessionId+' | Batch: '+batchId,200);
+    L('[ '+ts()+' ] Target: '+location.hostname+location.pathname);
+    L('[ '+ts()+' ] Referrer: '+(document.referrer||'(none/direct)'));
+    L('[ '+ts()+' ] Page loaded: '+new Date().toISOString());
+    L('[ '+ts()+' ] === NETWORK INFORMATION ===',250);
+    L('[ '+ts()+' ] Online status: '+(navigator.onLine?'CONNECTED':'OFFLINE'));
+    L('[ '+ts()+' ] Connection type: '+(con?con.effectiveType:'unavailable'));
+    L('[ '+ts()+' ] Round-trip time: '+(con?con.rtt+'ms':'unavailable'));
+    L('[ '+ts()+' ] Downlink speed: '+(con?con.downlink+' Mbps':'unavailable'));
+    L('[ '+ts()+' ] Data saver: '+(con&&con.saveData?'active':'inactive'));
+    L('[ '+ts()+' ] === HARDWARE IDENTIFICATION ===',250);
+    L('[ '+ts()+' ] Operating system: '+os);
+    L('[ '+ts()+' ] Platform: '+(navigator.platform||'unknown'));
+    L('[ '+ts()+' ] CPU architecture: '+(ua.indexOf('x64')>-1||ua.indexOf('Win64')>-1?'x86-64':ua.indexOf('ARM')>-1?'ARM':'x86')+(os==='macOS'?' (Apple Silicon)':''));
+    L('[ '+ts()+' ] Logical processors: '+cpuCores+' cores');
+    L('[ '+ts()+' ] Device memory: '+(deviceMem?deviceMem+' GB':'unavailable'));
+    L('[ '+ts()+' ] Max touch points: '+navigator.maxTouchPoints);
+    L('[ '+ts()+' ] === BROWSER IDENTIFICATION ===',250);
+    L('[ '+ts()+' ] Browser: '+browser+' '+bv);
+    L('[ '+ts()+' ] Engine: '+engine);
+    L('[ '+ts()+' ] User-Agent: '+ua,500);
+    L('[ '+ts()+' ] WebDriver active: '+(navigator.webdriver?'yes':'no'));
+    L('[ '+ts()+' ] PDF viewer: '+(navigator.pdfViewerEnabled?'enabled':'disabled'));
+    L('[ '+ts()+' ] Do Not Track: '+(navigator.doNotTrack||'unspecified'));
+    L('[ '+ts()+' ] Cookie enabled: '+(navigator.cookieEnabled?'yes':'no'));
+    L('[ '+ts()+' ] Plugins ('+plugins.length+'): '+(plugins.length?plugins.map(function(p){return p.name}).join(', '):'none'),200);
+    L('[ '+ts()+' ] === DISPLAY INFORMATION ===',250);
+    L('[ '+ts()+' ] Resolution: '+screen.width+'x'+screen.height);
+    L('[ '+ts()+' ] Color depth: '+(screen.colorDepth||24)+'-bit');
+    L('[ '+ts()+' ] Pixel depth: '+(screen.pixelDepth||24)+'-bit');
+    L('[ '+ts()+' ] Available space: '+screen.availWidth+'x'+screen.availHeight);
+    L('[ '+ts()+' ] Device pixel ratio: '+(window.devicePixelRatio||1).toFixed(2)+'x');
+    L('[ '+ts()+' ] Viewport: '+window.innerWidth+'x'+window.innerHeight);
+    L('[ '+ts()+' ] Orientation: '+(screen.orientation?screen.orientation.type:'unavailable'));
+    L('[ '+ts()+' ] Color gamut: '+(window.matchMedia('(color-gamut:p3)').matches?'Display P3':'sRGB'));
+    L('[ '+ts()+' ] HDR: '+(window.matchMedia('(dynamic-range:high)').matches?'supported':'standard'));
+    L('[ '+ts()+' ] === TIME & LOCALE ===',250);
+    L('[ '+ts()+' ] Time zone: '+tz+' (UTC'+(tzOff>=0?'+':'')+tzOff+')');
+    L('[ '+ts()+' ] System time: '+new Date().toLocaleString('en-US',{hour12:false,timeZoneName:'short'}));
+    L('[ '+ts()+' ] UTC time: '+new Date().toUTCString());
+    L('[ '+ts()+' ] Language: '+lang);
+    L('[ '+ts()+' ] Accepted languages: '+langs.join(', '));
+    L('[ '+ts()+' ] === STORAGE SCAN ===',250);
+    L('[ '+ts()+' ] Cookies: '+document.cookie.length+' bytes');
+    L('[ '+ts()+' ] localStorage: '+localStorage.length+' entries');
+    for(var i=0;i<Math.min(localStorage.length,10);i++){(function(k,v){L('[ '+ts()+' ]   > '+k+' = '+v.slice(0,80));})(localStorage.key(i),localStorage.getItem(localStorage.key(i))||'');}
+    L('[ '+ts()+' ] sessionStorage: '+sessionStorage.length+' entries');
+    L('[ '+ts()+' ] === FINGERPRINT ANALYSIS ===',300);
+    L('[ '+ts()+' ] Canvas fingerprint: '+canvasFp+' ('+(canvasFp!=='unavailable'?'256x256 render':'failed')+')',200);
+    L('[ '+ts()+' ] WebGL renderer: '+wglRenderer,200);
+    L('[ '+ts()+' ] WebGL vendor: '+wglVendor);
+    L('[ '+ts()+' ] === ENVIRONMENT SCAN ===',250);
+    L('[ '+ts()+' ] Service worker: '+(navigator.serviceWorker?'registered':'not registered'));
+    L('[ '+ts()+' ] Touch support: '+('ontouchstart' in window?'yes ('+navigator.maxTouchPoints+' points)':'no'));
+    L('[ '+ts()+' ] Battery: '+(navigator.getBattery?'API available':'unsupported'));
+    L('[ '+ts()+' ] Geolocation: '+('geolocation' in navigator?'API available':'unsupported'));
+    L('[ '+ts()+' ] Clipboard: '+('clipboard' in navigator?'API available':'unsupported'));
+    L('[ '+ts()+' ] Bluetooth: '+('bluetooth' in navigator?'API available':'unsupported'));
+    L('[ '+ts()+' ] USB: '+('usb' in navigator?'API available':'unsupported'));
+    L('[ '+ts()+' ] WebGL: '+('WebGLRenderingContext' in window?'supported':'unsupported'));
+    L('[ '+ts()+' ] WebAssembly: '+('WebAssembly' in window?'supported':'unsupported'));
+    L('[ '+ts()+' ] Web Workers: '+('Worker' in window?'supported':'unsupported'));
+    L('[ '+ts()+' ] WebSocket: '+('WebSocket' in window?'supported':'unsupported'));
+    L('[ '+ts()+' ] WebRTC: '+('RTCPeerConnection' in window?'supported':'unsupported'));
+    L('[ '+ts()+' ] === ACTIVE MONITORS ===',250);
+    L('[ '+ts()+' ] CSS media queries evaluated');
+    L('[ '+ts()+' ]   > Prefers color scheme: '+(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+    L('[ '+ts()+' ]   > Prefers contrast: '+(window.matchMedia('(prefers-contrast:more)').matches?'more':window.matchMedia('(prefers-contrast:less)').matches?'less':'no-preference'));
+    L('[ '+ts()+' ]   > Prefers reduced motion: '+(window.matchMedia('(prefers-reduced-motion:reduce)').matches?'reduce':'no-preference'));
+    L('[ '+ts()+' ]   > Prefers reduced transparency: '+(window.matchMedia('(prefers-reduced-transparency:reduce)').matches?'reduce':'no-preference'));
+    L('[ '+ts()+' ]   > Inverted colors: '+(window.matchMedia('(inverted-colors:inverted)').matches?'yes':'no'));
+    L('[ '+ts()+' ] === DATA PACKAGING ===',250);
+    var cookieBytes=document.cookie.length;
+    var lsBytes=0;for(var j=0;j<localStorage.length;j++){var k2=localStorage.key(j);lsBytes+=(k2?k2.length:0)+(localStorage.getItem(k2)||'').length;}
+    var totalSize=cookieBytes+lsBytes+ua.length+4096;
+    L('[ '+ts()+' ] Collected parameters: '+lines.length+' data points');
+    L('[ '+ts()+' ] Payload size: ~'+totalSize+' bytes');
+    L('[ '+ts()+' ] Checksum (SHA-256): '+hex(totalSize*1000).padStart(8,'0')+hex(lines.length*500).padStart(8,'0')+hex(cpuCores||0).padStart(8,'0')+hex(Date.now()%100000000).padStart(8,'0'),400);
+    L('[ '+ts()+' ] === TRANSMISSION ===',250);
+    L('[ '+ts()+' ] Channel: '+location.protocol+'//'+location.host);
+    L('[ '+ts()+' ] Method: POST | Content-Type: application/json');
+    L('[ '+ts()+' ] Secure: '+(location.protocol==='https:'?'TLS 1.3':'unencrypted'),200);
+    L('[ '+ts()+' ] Server response: 200 OK ('+(con?con.rtt+'ms':'?ms')+')',300);
+    L('[ '+ts()+' ] === AUDIT COMPLETE ===',500);
+    L('[ '+ts()+' ] Session: '+sessionId+' | Records: '+lines.length+' | Size: '+totalSize+'B');
+    L('[ '+ts()+' ] Archive: /logs/'+sessionId+'_'+batchId+'.json');
+    L('[ '+ts()+' ] === END OF LOG ===',500);
+    return lines;
+  }
+
+  function printTerminal(term, entries) {
+    return new Promise(function(resolve){
+      var idx = 0;
+      function printNext() {
+        if (idx >= entries.length) { resolve(); return; }
+        var entry = entries[idx++];
+        var text = entry.text || entry;
+        var pause = entry.pause != null ? entry.pause : 1;
+        term.textContent += text + '\n';
+        term.scrollTop = term.scrollHeight;
+        setTimeout(printNext, pause);
+      }
+      printNext();
+    });
+  }
+
+  (async function(){
+    // wait 0.5s
+    await sleep(500);
+
+    // show overlay
+    seq.style.display = 'flex';
+    bodyEl.style.overflow = 'hidden';
+    await animate(seq, { opacity: [0, 1] }, { duration: 350, easing: 'ease' });
+    seq.style.opacity = '1';
+
+    // phase 1: "你要越权访问 XXX？"
+    line1.textContent = from ? '你要越权访问' + from + '？' : '你没有权限访问此页面';
+    await animate(line1, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0)'] }, { duration: 500, easing: 'ease-out' });
+    line1.style.opacity = '1';
+    line1.style.transform = 'translateY(0)';
+
+    await sleep(2000);
+
+    // exit phase 1
+    await animate(line1, { opacity: [1, 0], transform: ['translateY(0)', 'translateY(-16px)'] }, { duration: 350, easing: 'ease-in' });
+    line1.style.opacity = '0';
+    line1.style.transform = 'translateY(-16px)';
+
+    // phase 2: "正在收集数据并上传"
+    line1.textContent = '正在收集数据并上传';
+    line2.textContent = '请稍候';
+    await animate(line1, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0)'] }, { duration: 500, easing: 'ease-out' });
+    line1.style.opacity = '1';
+    line1.style.transform = 'translateY(0)';
+    await animate(line2, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0)'] }, { duration: 500, easing: 'ease-out' });
+    line2.style.opacity = '1';
+    line2.style.transform = 'translateY(0)';
+
+    // print terminal one line at a time
+    var term = document.getElementById('intrTerm');
+    var devLines = generateDeviceLines();
+    await printTerminal(term, devLines);
+
+    await sleep(1500);
+
+    // exit phase 2
+    term.textContent = '';
+    await animate(line1, { opacity: [1, 0], transform: ['translateY(0)', 'translateY(-16px)'] }, { duration: 350, easing: 'ease-in' });
+    line1.style.opacity = '0';
+    line1.style.transform = 'translateY(-16px)';
+    await animate(line2, { opacity: [1, 0], transform: ['translateY(0)', 'translateY(-16px)'] }, { duration: 350, easing: 'ease-in' });
+    line2.style.opacity = '0';
+    line2.style.transform = 'translateY(-16px)';
+
+    // change to "已完成"
+    line1.textContent = '已完成';
+    line2.textContent = '';
+    await animate(line1, { opacity: [0, 1], transform: ['translateY(16px)', 'translateY(0)'] }, { duration: 500, easing: 'ease-out' });
+    line1.style.opacity = '1';
+    line1.style.transform = 'translateY(0)';
+    // small scale pulse
+    await animate(icon, { transform: ['scale(1)', 'scale(1.15)', 'scale(1)'] }, { duration: 500, easing: 'ease' });
+
+    await sleep(1200);
+
+    // unlock achievement
+    try { unlockAchievement('intruder').then(function(d){ if(d) showAchievementToast('intruder'); }); } catch(e){}
+    // 404常客
+    const _404c = parseInt(localStorage.getItem('_404count') || '0') + 1;
+    localStorage.setItem('_404count', String(_404c));
+    if (_404c >= 3) { try { unlockAchievement('frequent_404').then(function(d){ if(d) showAchievementToast('frequent_404'); }); } catch(e){} }
+
+    // exit overlay
+    await animate(seq, { opacity: [1, 0] }, { duration: 350, easing: 'ease-in' });
+    seq.style.display = 'none';
+    bodyEl.style.overflow = '';
+  })();
+})();
+</script>
+</body>
+</html>

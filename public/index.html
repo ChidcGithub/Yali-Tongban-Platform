@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>首页 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+  <script src="/version.js"></script>
+  <style>
+    .splash-wrap {
+      min-height: calc(100vh - var(--nav-height, 56px) - 48px);
+      display: flex; align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+    }
+    .splash-emblem { display: flex; justify-content: center; margin: 0 auto 20px; }
+    .splash-emblem img { width: 90px; height: 90px; }
+    .splash-wrap h2 {
+      font-family: "Noto Serif SC", serif;
+      font-size: 1.3rem; margin: 0 0 6px;
+      color: var(--md-on-surface); font-weight: 700;
+    }
+    .splash-wrap .sub {
+      font-size: .88rem; color: var(--md-on-surface-variant);
+      margin: 0 0 28px;
+    }
+    .splash-bar {
+      width: 200px; height: 4px; margin: 0 auto;
+      background: var(--md-surface-variant);
+      border-radius: 4px; overflow: hidden;
+    }
+    .splash-bar-track {
+      height: 100%; width: 40%;
+      background: linear-gradient(90deg, var(--md-primary), var(--md-tertiary));
+      border-radius: 4px;
+      animation: splashIndeterminate 1.4s ease-in-out infinite;
+    }
+    @keyframes splashIndeterminate {
+      0% { transform: translateX(-100%); }
+      50% { transform: translateX(150%); }
+      100% { transform: translateX(350%); }
+    }
+    .splash-version {
+      margin-top: 16px;
+      font-size: .72rem; color: var(--md-on-surface-variant); opacity: .4;
+      letter-spacing: 1px;
+    }
+    .splash-skip {
+      margin-top: 8px;
+      font-size: .78rem; color: var(--md-on-surface-variant); opacity: .35;
+    }
+  </style>
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('index');
+    checkSiteClosed();
+    window.addEventListener('load', () => {
+      let t = setTimeout(() => { location.href = 'services.html'; }, 1800);
+      document.addEventListener('click', () => { clearTimeout(t); location.href = 'services.html'; }, { once: true });
+    });
+  </script>
+  <div class="container">
+    <div class="splash-wrap">
+      <div>
+        <div class="splash-emblem">
+          <img src="/images/emblem.png" alt="雅礼团委">
+        </div>
+        <h2>雅礼团委 · 通办</h2>
+        <p class="sub">一站式工作管理平台</p>
+        <div class="splash-bar">
+          <div class="splash-bar-track"></div>
+        </div>
+        <div class="splash-version"><script>document.write('v' + APP_VERSION)</script></div>
+        <div class="splash-skip">点击任意处跳过</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

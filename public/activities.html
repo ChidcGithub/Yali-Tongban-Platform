@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>活动 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/captcha.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('activities');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>活动</h1>
+      <p>团委活动公示与志愿者报名</p>
+    </div>
+
+    <div class="tab-btn hall-section-tabs" id="hallSectionTabs">
+      <button class="tab-btn hall-section-tab hall-tab-active" data-htab="activities">全部活动</button>
+      <button class="tab-btn hall-section-tab" data-htab="hall">千报预约</button>
+    </div>
+
+    <!-- 活动列表 -->
+    <div id="activitySection">
+      <div class="section">
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+          <span>全部活动</span>
+          <span style="font-size:.85rem;font-weight:400;color:var(--md-on-surface-variant)" id="activityCount"></span>
+        </div>
+        <div id="activityList">
+          <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果替换 -->
+          <div class="activity-card g-skeleton" aria-hidden="true">
+            <div class="g-skeleton-line" style="width:50%;height:18px"></div>
+            <div class="g-skeleton-line" style="width:72%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:42%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:24%;height:12px;margin-top:14px"></div>
+          </div>
+          <div class="activity-card g-skeleton" aria-hidden="true">
+            <div class="g-skeleton-line" style="width:62%;height:18px"></div>
+            <div class="g-skeleton-line" style="width:68%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:38%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:20%;height:12px;margin-top:14px"></div>
+          </div>
+          <div class="activity-card g-skeleton" aria-hidden="true">
+            <div class="g-skeleton-line" style="width:44%;height:18px"></div>
+            <div class="g-skeleton-line" style="width:76%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:48%;height:12px"></div>
+            <div class="g-skeleton-line" style="width:28%;height:12px;margin-top:14px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 千报预约 -->
+    <div id="hallSection" style="display:none">
+
+      <!-- 审核面板 -->
+      <div class="hall-review-panel" id="hallReviewPanel" style="display:none">
+        <div class="hall-review-header" onclick="toggleHallReview()">
+          <span>待审核</span>
+          <span class="hall-review-badge" id="hallReviewBadge">0</span>
+          <span style="margin-left:auto;font-size:.7rem;opacity:.6" id="hallReviewToggleIcon">展开</span>
+        </div>
+        <div class="hall-review-body" id="hallReviewBody" style="display:none"></div>
+      </div>
+
+      <!-- 日历 -->
+      <div class="hall-cal-wrap">
+        <div class="hall-cal" id="hallCal"></div>
+      </div>
+
+      <!-- 时段表 -->
+      <div id="hallDateTitle" style="font-size:.9rem;font-weight:500;margin-bottom:12px;color:var(--md-on-surface)"></div>
+      <div class="hall-timeline-wrap" id="hallSlots"></div>
+
+      <!-- 自定义时间 -->
+      <div class="hall-custom-row" id="hallCustomRow"></div>
+    </div>
+  </div>
+
+
+
+  <script src="/js/activities.js"></script>
+  <!-- 浮动加号按钮 -->
+  <button class="fab" id="fabBtn" onclick="openActivityModal()" aria-label="发布活动" style="display:none">+</button>
+</body>
+</html>

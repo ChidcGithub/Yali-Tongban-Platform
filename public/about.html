@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <style>
+    .about-icon { display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--md-shape-sm);background:var(--md-primary-container);color:var(--md-primary);font-size:1rem;flex-shrink:0 }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+    .shake { animation:shake .4s ease-in-out }
+    @keyframes tabBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+    .tab-bounce { animation:tabBounce .5s ease-in-out infinite }
+    .about-emblem { height:2em;vertical-align:middle;margin-left:12px;display:none }
+    .about-office { height:1.6em;border-radius:var(--md-shape-xs);display:none }
+    .about-title { position:relative;width:100%;margin-top:13px }
+    .about-emblem-group { display:none;position:absolute;right:0;top:19px;align-items:center;gap:16px }
+    .about-emblem-group img { height:2.4em;width:auto;display:block }
+    .about-emblem-group a:last-child img { border-radius:var(--md-shape-xs) }
+    @media (min-width:769px){ .about-emblem-group { display:flex } }
+    @media (min-width:769px){ .about-emblem { display:inline } }
+  </style>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/changelog-data.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('about');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+    <div class="page-header">
+      <h1 class="about-title" style="cursor:pointer" onclick="location.href='changelog.html'"><span>关于</span><span class="about-emblem-group" onclick="event.stopPropagation();_tapEmblem()"><a href="https://www.gqt.org.cn/" target="_blank" rel="noopener"><img src="/images/league-emblem.png" alt="团徽"></a><a href="https://yali.csedu.gov.cn/wzsy" target="_blank" rel="noopener"><img src="/images/emblem.png" alt="雅礼校徽"></a><a href="https://yali-tongban.pages.dev/" target="_blank" rel="noopener"><img src="/images/the-office.png" alt="通办平台"></a></span></h1>
+      <p>长沙市雅礼中学团委 通办平台</p>
+    </div>
+
+    <div class="section">
+      <div class="card" style="cursor:pointer" onclick="location.href='changelog.html'">
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:14px;background:var(--md-primary-container);color:var(--md-primary);font-size:1.3rem;flex-shrink:0">
+            <span id="updateIcon"></span>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-size:1rem;font-weight:600;color:var(--md-on-surface)">最近更新</span>
+              <span class="np-pill" style="font-size:.72rem;font-weight:500;padding:1px 10px;border-radius:var(--md-shape-full);background:var(--md-primary-container);color:var(--md-primary)" id="aboutUpdateVersion"></span>
+            </div>
+            <p style="font-size:.85rem;color:var(--text-secondary);line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="aboutUpdateSummary"></p>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+              <span style="font-size:.78rem;color:var(--text-light)" id="aboutUpdateDate"></span>
+              <span style="font-size:.78rem;color:var(--md-primary);font-weight:500">查看完整更新日志 →</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        var _lat = CHANGELOG_ENTRIES[0];
+        document.getElementById('updateIcon').innerHTML = icon('clock');
+        document.getElementById('aboutUpdateVersion').textContent = _lat.version;
+        document.getElementById('aboutUpdateDate').textContent = _lat.date;
+        document.getElementById('aboutUpdateSummary').textContent = _lat.items[0].text + ' 等 ' + _lat.items.length + ' 项更新';
+      })();
+    </script>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">功能介绍</h2>
+        <div style="display:flex;flex-direction:column;gap:16px" id="featureList"></div>
+      </div>
+    </div>
+
+    <script>
+      (function() {
+        const user = getUser();
+        const features = [
+          { icon: 'clipboard', title: '报修服务', desc: '提交校园设施报修问题，实时跟踪处理进度，支持图片上传。' },
+          { icon: 'megaphone', title: '公告通知', desc: '发布团委重要通知与活动公告，支持图文混排与评论互动。' },
+          { icon: 'message-circle', title: '动态', desc: '团委动态与通知，支持评论互动。' },
+          { icon: 'check-circle', title: '投票系统', desc: '发起和参与团委投票，支持单选、多选、主观题与配图，可导出结果。' },
+          { icon: 'wallet', title: '财务管理', desc: '记录团委收支明细，按月汇总统计，支持标签分类。', minRole: 'member' },
+          { icon: 'check', title: '审核系统', desc: '图片审核流程，支持通过/拒绝操作并填写审核意见。', minRole: 'admin' },
+          { icon: 'message-square', title: '反馈', desc: '向平台提交建议或问题，帮助我们持续改进。' },
+          { icon: 'clock', title: '值日签到', desc: '学生会办公室值日签到与扣分管理，支持签到计时与自动缺岗标记。' },
+        ];
+        const roleWeight = { member: 2, admin: 3, owner: 4 };
+        const userWeight = user ? (roleWeight[user.role] || 0) : 0;
+        const visible = features.filter(f => !f.minRole || userWeight >= (roleWeight[f.minRole] || 99));
+        const el = document.getElementById('featureList');
+        el.innerHTML = visible.map(f => `
+          <div class="about-feature" style="display:flex;gap:12px;align-items:flex-start">
+            <span class="about-icon">${icon(f.icon)}</span>
+            <div>
+              <h3 class="feature-title" data-tab="${f.title}" style="font-size:1rem;font-weight:500;color:var(--md-primary);margin-bottom:4px;cursor:default">${f.title}</h3>
+              <p style="font-size:.9rem;color:var(--text-secondary);line-height:1.6">${f.desc}</p>
+            </div>
+          </div>`
+        ).join('');
+        document.querySelectorAll('.feature-title').forEach(h3 => {
+          h3.addEventListener('mouseenter', function() {
+            const label = this.dataset.tab;
+            if (!label) return;
+            const tab = Array.from(document.querySelectorAll('.tab-cap-item')).find(t => t.textContent.includes(label));
+            if (tab) tab.classList.add('tab-bounce');
+          });
+          h3.addEventListener('mouseleave', function() {
+            const label = this.dataset.tab;
+            if (!label) return;
+            const tab = Array.from(document.querySelectorAll('.tab-cap-item')).find(t => t.textContent.includes(label));
+            if (tab) tab.classList.remove('tab-bounce');
+          });
+        });
+      })();
+      function _tapEmblem() {
+        const count = parseInt(localStorage.getItem('_emblemClicks') || '0') + 1;
+        localStorage.setItem('_emblemClicks', String(count));
+        if (count >= 5) unlockAchievement('easter_egg').then(d => { if (d) showAchievementToast('easter_egg'); });
+      }
+    </script>
+
+    <div class="section">
+      <div class="card" style="cursor:pointer" onclick="location.href='personalize.html'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="about-icon" id="personalizeIcon"></span>
+          <div>
+            <h3 style="font-size:1rem;font-weight:500;color:var(--md-primary);margin-bottom:4px">个性化</h3>
+            <p style="font-size:.9rem;color:var(--text-secondary)">主题、强调色、字体大小等显示设置</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>document.getElementById('personalizeIcon').innerHTML = icon('settings');</script>
+
+    <div class="section">
+      <div class="card">
+        <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:24px">关于作者</h2>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="font-weight:600;font-size:1.3rem;cursor:pointer" id="authorName">Chidc</div>
+          <div class="np-author-meta" style="font-size:.9rem;color:var(--text-secondary)">开发者 & 站长 · 2517班</div>
+          <div>
+            <span style="color:var(--text-secondary);font-size:.9rem">GitHub：</span>
+            <a href="https://github.com/chidcgithub" target="_blank" rel="noopener" style="color:var(--md-primary);font-size:.9rem;text-decoration:none">github.com/chidcgithub</a>
+          </div>
+          <div>
+            <span style="color:var(--text-secondary);font-size:.9rem">Mail：</span>
+            <a href="mailto:chidcout@outlook.com" style="color:var(--md-primary);font-size:.9rem;text-decoration:none">chidcout@outlook.com</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.getElementById('authorName').addEventListener('click', function() {
+        this.classList.remove('shake');
+        void this.offsetWidth;
+        this.classList.add('shake');
+      });
+    </script>
+
+    <div class="section">
+      <div class="card" style="cursor:pointer" onclick="location.href='thanks.html'">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="about-icon" data-icon="heart"></span>
+          <div>
+            <h3 style="font-size:1rem;font-weight:500;color:var(--md-primary);margin-bottom:4px">鸣谢</h3>
+            <p style="font-size:.9rem;color:var(--text-secondary)">感谢所有开源库与服务的支持</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="text-align:center;padding-bottom:24px">
+      <p style="font-size:.8rem;color:var(--text-light);cursor:pointer" id="debugEntry">长沙市雅礼中学团委 通办 &copy; 2026 <span id="aboutVersion" style="opacity:.5"></span></p>
+    </div>
+  </div>
+  <script src="/version.js"></script>
+  <script>
+    let _debugTap = 0, _debugTimer;
+    document.getElementById('debugEntry').addEventListener('click', () => {
+      _debugTap++;
+      clearTimeout(_debugTimer);
+      _debugTimer = setTimeout(() => { _debugTap = 0; }, 1000);
+      if (_debugTap >= 3) { _debugTap = 0; location.href = 'debug.html'; }
+    });
+    var _av = document.getElementById('aboutVersion');
+    if (_av && typeof APP_VERSION !== 'undefined') _av.textContent = 'v' + APP_VERSION;
+    document.querySelectorAll('.about-icon[data-icon]').forEach(function(el) {
+      el.innerHTML = icon(el.getAttribute('data-icon'));
+    });
+  </script>
+</body>
+</html>

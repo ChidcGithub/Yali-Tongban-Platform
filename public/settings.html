@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 - 雅礼团委-通办</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="/css/material/style.css">
+  <style>
+    .set-group { border-bottom: 1px solid var(--md-outline-variant); }
+    .set-group:last-child { border-bottom: none; }
+    .set-group-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 0; cursor: pointer; user-select: none;
+      font-size: .95rem; font-weight: 600; color: var(--md-on-surface);
+      transition: opacity .2s;
+    }
+    .set-group-header:hover { opacity: .7; }
+    .set-group-header .chevron {
+      transition: transform .25s; flex-shrink: 0;
+      display: inline-flex; font-size: 1rem;
+    }
+    .set-group-header.expanded .chevron { transform: rotate(90deg); }
+    .set-group-body {
+      overflow: hidden; max-height: 0;
+      transition: max-height .3s, opacity .25s;
+      opacity: 0; padding: 0 0 0 24px;
+    }
+    .set-group-body.expanded { max-height: 400px; opacity: 1; padding-bottom: 16px; }
+  </style>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+</head>
+<body>
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/nav.js"></script>
+  <script>
+    renderNav('settings');
+    checkSiteClosed();
+  </script>
+
+  <div class="container">
+      <div class="page-header">
+        <h1>个人中心</h1>
+        <p id="pageSubtitle">管理你的账户与偏好</p>
+      </div>
+
+    <div class="section">
+      <!-- 用户信息 -->
+      <div class="pc-header" id="pcHeader">
+        <div class="pc-name" id="pcName"></div>
+        <div class="pc-meta" id="pcMeta"></div>
+        <div id="pcTrophy"></div>
+      </div>
+
+      <!-- 成就 -->
+      <div class="card" id="achCard" style="margin-bottom:16px">
+        <div class="card-header"><strong><svg viewBox="0 0 24 24" width="1.1em" height="1.1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> 成就</strong></div>
+        <div class="card-body">
+          <div class="ach-grid" id="achGrid"></div>
+        </div>
+      </div>
+
+      <!-- 账户设置 -->
+      <div class="card" id="accountSettingsSection" style="margin-bottom:16px">
+        <div class="card-header"><strong><svg viewBox="0 0 24 24" width="1.1em" height="1.1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> 账户设置</strong></div>
+        <div class="card-body" style="padding-bottom:0">
+          <!-- 更改姓名 -->
+          <div class="set-group">
+            <div class="set-group-header" onclick="toggleSetting(this)">
+              <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+              更改姓名
+            </div>
+            <div class="set-group-body">
+              <form id="nameForm" onsubmit="changeName(event)">
+                <div class="form-group">
+                  <label class="form-label">新姓名</label>
+                  <input class="form-input" name="new_name" placeholder="输入新姓名" required minlength="2" maxlength="20">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">当前密码</label>
+                  <input class="form-input" type="password" name="password" placeholder="输入当前密码确认" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="nameBtn">保存姓名</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- 更改班级 -->
+          <div class="set-group">
+            <div class="set-group-header" onclick="toggleSetting(this)">
+              <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+              更改班级
+            </div>
+            <div class="set-group-body">
+              <p id="currentClass" style="font-size:.85rem;color:var(--md-on-surface-variant);margin-bottom:12px"></p>
+              <form id="classForm" onsubmit="changeClass(event)">
+                <div class="form-group">
+                  <label class="form-label">新班级</label>
+                  <input class="form-input" name="class_name" id="classInput" placeholder="如 2501" required maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+                  <p id="classChangeMsg" style="font-size:.78rem;margin-top:4px;display:none"></p>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">当前密码</label>
+                  <input class="form-input" type="password" name="password" placeholder="输入当前密码确认" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="classBtn">保存班级</button>
+              </form>
+            </div>
+          </div>
+
+      <!-- 更改部门 -->
+      <div class="set-group" id="deptGroup">
+        <div class="set-group-header" onclick="toggleSetting(this)">
+          <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+          更改所属部门
+        </div>
+            <div class="set-group-body">
+              <p id="currentDepartment" style="font-size:.85rem;color:var(--md-on-surface-variant);margin-bottom:12px"></p>
+              <form id="deptForm" onsubmit="changeDepartment(event)">
+                <div class="form-group">
+                  <label class="form-label" for="deptSelect">新部门</label>
+                  <select class="form-input" id="deptSelect" name="department" style="appearance:auto">
+                    <option value="">未选择</option>
+                    <option value="书记处">书记处</option>
+                    <option value="团总支">团总支</option>
+                    <option value="社团部">社团部</option>
+                    <option value="记者站">记者站</option>
+                    <option value="宣传部">宣传部</option>
+                    <option value="组织部">组织部</option>
+                    <option value="青志协">青志协</option>
+                    <option value="办公室">办公室</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">当前密码</label>
+                  <input class="form-input" type="password" name="password" placeholder="输入当前密码确认" required>
+                </div>
+                <button type="submit" class="btn btn-primary" id="deptBtn">保存部门</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- 更改密码 -->
+          <div class="set-group">
+            <div class="set-group-header" onclick="toggleSetting(this)">
+              <span class="chevron"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+              更改密码
+            </div>
+            <div class="set-group-body">
+              <form id="passwordForm" onsubmit="changePassword(event)">
+                <div class="form-group">
+                  <label class="form-label">当前密码</label>
+                  <input class="form-input" type="password" name="old_password" placeholder="输入当前密码" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">新密码</label>
+                  <input class="form-input" type="password" name="new_password" placeholder="至少6位，含字母和数字" required minlength="6">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">确认新密码</label>
+                  <input class="form-input" type="password" name="confirm" placeholder="再次输入新密码" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary" id="passwordBtn">保存密码</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;padding:32px 0">
+        <a href="feedback.html" style="color:var(--md-on-surface-variant);text-decoration:none;font-size:.9rem">→ 反馈意见</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/settings.js"></script>
+  <script>
+    const _viewUserId = new URLSearchParams(location.search).get('userId');
+    if (_viewUserId) {
+      document.getElementById('accountSettingsSection').style.display = 'none';
+      document.getElementById('pageSubtitle').textContent = '查看该用户的账户与偏好';
+      (async () => {
+        try {
+          const u = await apiGet('/api/admin/users/' + _viewUserId);
+          if (!u) { toast('用户不存在', 'error'); setTimeout(() => { location.href = 'settings.html'; }, 1500); return; }
+          document.getElementById('pcName').textContent = u.name || '未知';
+          const header = document.getElementById('pcHeader');
+          header.setAttribute('data-name', u.name || '');
+          const name = u.name || '';
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="80">
+            <defs>
+              <pattern id="wm" x="0" y="0" width="140" height="80" patternUnits="userSpaceOnUse">
+                <text x="70" y="40" text-anchor="middle" dominant-baseline="central" fill="rgba(255,255,255,.04)" font-size="26" font-weight="800" font-family="var(--md-font-body)" transform="rotate(-18,70,40)">${escapeHtml(name)}</text>
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#wm)"/>
+          </svg>`;
+          header.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}"), linear-gradient(135deg, var(--md-primary) 0%, var(--md-primary-dim) 100%)`;
+          const parts = [];
+          if (u.class_name) parts.push(u.class_name);
+          if (u.department) parts.push(u.department);
+          if (u.role) parts.push({ owner: '所有者', admin: '管理员', teacher: '教师', member: '成员', pending: '待审批' }[u.role] || u.role);
+          document.getElementById('pcMeta').innerHTML = parts.map(p => `<span>${escapeHtml(p)}</span>`).join('');
+          const achievements = Array.isArray(u.achievements) ? u.achievements : [];
+          const total = ACHIEVEMENT_DEFS.length;
+          const unlocked = achievements.length;
+          const ratio = total ? Math.min(unlocked / total, 1) : 0;
+          const clipH = 24 * ratio;
+          const clipY = 24 - clipH;
+          const trophyPath = 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z';
+          document.getElementById('pcTrophy').innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="tg" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stop-color="#b26500"/>
+                <stop offset="20%" stop-color="#ff9100"/>
+                <stop offset="40%" stop-color="#ffa733"/>
+                <stop offset="60%" stop-color="#b28704"/>
+                <stop offset="80%" stop-color="#ffc107"/>
+                <stop offset="100%" stop-color="#ffcd38"/>
+              </linearGradient>
+              <clipPath id="tc"><rect x="0" y="${clipY}" width="24" height="${clipH}"/></clipPath>
+            </defs>
+            <path d="${trophyPath}" stroke="rgba(255,255,255,.18)" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="${trophyPath}" stroke="url(#tg)" stroke-width="1.5" stroke-linejoin="round" clip-path="url(#tc)" fill="url(#tg)" fill-opacity=".6"/>
+          </svg>`;
+          const card = document.getElementById('achCard');
+          if (card) card.style.display = unlocked ? '' : 'none';
+          const lockedCount = total - unlocked;
+          const myAch = getAchievements();
+          const prefs = JSON.parse(localStorage.getItem('personalize') || '{}');
+          const anim = prefs.animation !== false && !prefs.noAnimation;
+          const _gc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()_+-=[]{}|;:,.<>?/`~¥€£₩§±×÷≥≤≠≈∞√∑∫π∆';
+          function _g(len = 22) { let r = ''; for (let i = len; i--;) r += _gc[Math.random() * _gc.length | 0]; return r; }
+          window._gt = function(id) { const def = ACHIEVEMENT_DEFS.find(d => d.id === id); if (!def) return; const el = document.createElement('div'); el.className = 'ach-toast'; el.innerHTML = `<div class="ach-toast-icon">${icon(def.icon)}</div><div class="ach-toast-body"><div class="ach-toast-title">${_g(8)}</div><div class="ach-toast-name">${def.title}</div><div class="ach-toast-desc">${_g(30)}</div></div>`; document.body.appendChild(el); requestAnimationFrame(() => el.classList.add('show')); setTimeout(() => { el.classList.remove('show'); setTimeout(() => el.remove(), 400); }, 5000); }
+          const unlockedItems = ACHIEVEMENT_DEFS.filter(a => achievements.includes(a.id)).map(a =>
+            myAch.includes(a.id)
+              ? `<div class="ach-item" onclick="showAchievementToast('${a.id}')">
+                  <div class="ach-item-icon">${icon(a.icon)}</div>
+                  <div class="ach-item-body">
+                    <div class="ach-item-title">${a.title}</div>
+                    <div class="ach-item-desc">${a.desc}</div>
+                  </div>
+                </div>`
+              : `<div class="ach-item" onclick="_gt('${a.id}')">
+                  <div class="ach-item-icon">${icon(a.icon)}</div>
+                  <div class="ach-item-body">
+                    <div class="ach-item-title">${a.title}</div>
+                    <div class="ach-item-desc">${anim ? `<span class="_gd">${_g()}</span>` : _g()}</div>
+                  </div>
+                </div>`
+          );
+          const lockedItem = lockedCount > 0
+            ? `<div class="ach-item ach-item-locked">
+                <div class="ach-item-icon locked">${icon('lock')}</div>
+                <div class="ach-item-body">
+                  <div class="ach-item-title" style="color:var(--md-on-surface-variant);font-size:.78rem"></div>
+                </div>
+              </div>`
+            : '';
+          const showAll = unlockedItems.length <= 3;
+          if (showAll) {
+            document.getElementById('achGrid').innerHTML = unlockedItems.join('') + lockedItem;
+          } else {
+            const shuffled = [...unlockedItems].sort(() => Math.random() - 0.5);
+            document.getElementById('achGrid').innerHTML = shuffled.slice(0, 3).join('');
+            const wrap = document.getElementById('achCard');
+            const existing = wrap.querySelector('.ach-toggle');
+            if (existing) existing.remove();
+            const toggle = document.createElement('div');
+            toggle.className = 'ach-toggle';
+            toggle.textContent = '展开全部';
+            let expanded = false;
+            toggle.onclick = function () {
+              expanded = !expanded;
+              if (expanded) {
+                document.getElementById('achGrid').innerHTML = unlockedItems.join('') + lockedItem;
+                toggle.textContent = '收起';
+              } else {
+                const reShuffled = [...unlockedItems].sort(() => Math.random() - 0.5);
+                document.getElementById('achGrid').innerHTML = reShuffled.slice(0, 3).join('');
+                toggle.textContent = '展开全部';
+              }
+            };
+            wrap.appendChild(toggle);
+          }
+          if (anim) setInterval(() => { document.querySelectorAll('._gd').forEach(el => { el.textContent = _g(); }); }, 10);
+        } catch {
+          toast('用户不存在', 'error');
+          setTimeout(() => { location.href = 'settings.html'; }, 1500);
+        }
+      })();
+    } else {
+    function updateProfileUI() {
+      const u = getUser();
+      if (!u) return;
+      document.getElementById('pcName').textContent = u.name || '未登录';
+      const header = document.getElementById('pcHeader');
+      header.setAttribute('data-name', u.name || '');
+      // repeating watermark background
+      const name = u.name || '';
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="140" height="80">
+        <defs>
+          <pattern id="wm" x="0" y="0" width="140" height="80" patternUnits="userSpaceOnUse">
+            <text x="70" y="40" text-anchor="middle" dominant-baseline="central" fill="rgba(255,255,255,.04)" font-size="26" font-weight="800" font-family="var(--md-font-body)" transform="rotate(-18,70,40)">${escapeHtml(name)}</text>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#wm)"/>
+      </svg>`;
+      header.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}"), linear-gradient(135deg, var(--md-primary) 0%, var(--md-primary-dim) 100%)`;
+      const parts = [];
+      if (u.class_name) parts.push(u.class_name);
+      if (u.department) parts.push(u.department);
+      if (u.role) parts.push({ owner: '所有者', admin: '管理员', teacher: '教师', member: '成员', pending: '待审批' }[u.role] || u.role);
+      document.getElementById('pcMeta').innerHTML = parts.map(p => `<span>${escapeHtml(p)}</span>`).join('');
+      // trophy fill
+      const total = ACHIEVEMENT_DEFS.length;
+      const unlocked = getAchievements().length;
+      const ratio = total ? Math.min(unlocked / total, 1) : 0;
+      const clipH = 24 * ratio;
+      const clipY = 24 - clipH;
+      const trophyPath = 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z';
+      document.getElementById('pcTrophy').innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tg" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#b26500"/>
+      <stop offset="20%" stop-color="#ff9100"/>
+      <stop offset="40%" stop-color="#ffa733"/>
+      <stop offset="60%" stop-color="#b28704"/>
+      <stop offset="80%" stop-color="#ffc107"/>
+      <stop offset="100%" stop-color="#ffcd38"/>
+    </linearGradient>
+    <clipPath id="tc"><rect x="0" y="${clipY}" width="24" height="${clipH}"/></clipPath>
+  </defs>
+  <path d="${trophyPath}" stroke="rgba(255,255,255,.18)" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="${trophyPath}" stroke="url(#tg)" stroke-width="1.5" stroke-linejoin="round" clip-path="url(#tc)" fill="url(#tg)" fill-opacity=".6"/>
+</svg>`;
+    }
+    function renderAchievements() {
+      const unlocked = getAchievements();
+      const card = document.getElementById('achCard');
+      if (card) card.style.display = unlocked.length ? '' : 'none';
+      const lockedCount = ACHIEVEMENT_DEFS.length - unlocked.length;
+      const unlockedItems = ACHIEVEMENT_DEFS.filter(a => unlocked.includes(a.id)).map(a =>
+        `<div class="ach-item" onclick="showAchievementToast('${a.id}')">
+          <div class="ach-item-icon">${icon(a.icon)}</div>
+          <div class="ach-item-body">
+            <div class="ach-item-title">${a.title}</div>
+            <div class="ach-item-desc">${a.desc}</div>
+          </div>
+        </div>`
+      );
+      const lockedItem = lockedCount > 0
+        ? `<div class="ach-item ach-item-locked">
+            <div class="ach-item-icon locked">${icon('lock')}</div>
+            <div class="ach-item-body">
+              <div class="ach-item-title" style="color:var(--md-on-surface-variant);font-size:.78rem"></div>
+            </div>
+          </div>`
+        : '';
+      const showAll = unlockedItems.length <= 3;
+      if (showAll) {
+        document.getElementById('achGrid').innerHTML = unlockedItems.join('') + lockedItem;
+      } else {
+        const shuffled = [...unlockedItems].sort(() => Math.random() - 0.5);
+        document.getElementById('achGrid').innerHTML = shuffled.slice(0, 3).join('');
+        const wrap = document.getElementById('achCard');
+        const existing = wrap.querySelector('.ach-toggle');
+        if (existing) existing.remove();
+        const toggle = document.createElement('div');
+        toggle.className = 'ach-toggle';
+        toggle.textContent = '展开全部';
+        let expanded = false;
+        toggle.onclick = function () {
+          expanded = !expanded;
+          if (expanded) {
+            document.getElementById('achGrid').innerHTML = unlockedItems.join('') + lockedItem;
+            toggle.textContent = '收起';
+          } else {
+            const reShuffled = [...unlockedItems].sort(() => Math.random() - 0.5);
+            document.getElementById('achGrid').innerHTML = reShuffled.slice(0, 3).join('');
+            toggle.textContent = '展开全部';
+          }
+        };
+        wrap.appendChild(toggle);
+      }
+    }
+    updateProfileUI();
+    renderAchievements();
+    // background sync: silently refresh achievements from server
+    (async () => {
+      try {
+        const freshUser = await apiGet('/api/auth/me');
+        if (freshUser && Array.isArray(freshUser.achievements)) {
+          const old = getAchievements();
+          const fresh = freshUser.achievements;
+          const changed = old.length !== fresh.length || !old.every(a => fresh.includes(a));
+          if (changed) {
+            const u = getUser();
+            if (u) { u.achievements = fresh; localStorage.setItem('user', JSON.stringify(u)); }
+            renderAchievements();
+            // re-render trophy ratio if unlocked count changed
+            const total = ACHIEVEMENT_DEFS.length;
+            const ratio = total ? Math.min(fresh.length / total, 1) : 0;
+            const clipH = 24 * ratio;
+            const clipY = 24 - clipH;
+            const trophyPath = 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z';
+            document.getElementById('pcTrophy').innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tg" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#b26500"/>
+      <stop offset="20%" stop-color="#ff9100"/>
+      <stop offset="40%" stop-color="#ffa733"/>
+      <stop offset="60%" stop-color="#b28704"/>
+      <stop offset="80%" stop-color="#ffc107"/>
+      <stop offset="100%" stop-color="#ffcd38"/>
+    </linearGradient>
+    <clipPath id="tc"><rect x="0" y="${clipY}" width="24" height="${clipH}"/></clipPath>
+  </defs>
+  <path d="${trophyPath}" stroke="rgba(255,255,255,.18)" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="${trophyPath}" stroke="url(#tg)" stroke-width="1.5" stroke-linejoin="round" clip-path="url(#tc)" fill="url(#tg)" fill-opacity=".6"/>
+</svg>`;
+          }
+        }
+      } catch {}
+    })();
+    function toggleSetting(header) {
+      const body = header.nextElementSibling;
+      const expanded = body.classList.toggle('expanded');
+      header.classList.toggle('expanded', expanded);
+      body.style.maxHeight = expanded ? body.scrollHeight + 'px' : '0';
+      body.style.opacity = expanded ? '1' : '0';
+    }
+    // 非管理员隐藏更改部门
+    const u = getUser();
+    if (u && u.role !== 'admin' && u.role !== 'owner' && u.role !== 'teacher') {
+      const dg = document.getElementById('deptGroup');
+      if (dg) dg.style.display = 'none';
+    }
+    }
+  </script>
+</body>
+</html>
