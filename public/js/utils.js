@@ -56,6 +56,8 @@ function parseImages(val) {
 
 async function progressiveRender(container, items, renderItem, chunkSize = 8) {
   const total = items.length;
+  // 清空容器（骨架屏/旧数据）：渐进渲染为追加式，必须先覆盖容器，否则占位内容残留
+  if (container) container.innerHTML = '';
   if (total === 0) return;
   showNavLoading('加载中...');
   for (let i = 0; i < total; i += chunkSize) {
