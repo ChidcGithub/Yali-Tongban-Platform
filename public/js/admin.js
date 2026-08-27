@@ -949,7 +949,7 @@ async function loadAdminFinance() {
   } catch { document.getElementById('financeSummary').textContent = '加载失败'; }
 }
 
-// 列表瘦身后：批量回填财务图片（每批 10 条），供缩略图渲染
+// 列表瘦身后：批量回填财务图片（每批 10 条），每批到达后原位替换扫光占位（不重绘整列表）
 async function loadAdminFinanceImages() {
   const pending = _financeList.filter(f => f.has_image && !_financeImgCache[f.id]).map(f => f.id);
   for (let i = 0; i < pending.length; i += 10) {
@@ -957,7 +957,25 @@ async function loadAdminFinanceImages() {
     let map = {};
     try { map = await apiGet(`/api/finance/images?ids=${batch.join(',')}`); } catch {}
     for (const id of batch) if (map && map[id]) _financeImgCache[id] = map[id];
+    applyAdminFinanceThumbs();
   }
+}
+
+// 把已就绪图片原位替换掉扫光占位（保留列表其它区域不动，避免闪烁）
+function applyAdminFinanceThumbs() {
+  document.querySelectorAll('.admin-finance-thumb-skeleton').forEach(el => {
+    const id = Number(el.dataset.thumbId);
+    const img = _financeImgCache[id];
+    if (!img) return;
+    const holder = document.createElement('img');
+    holder.className = 'admin-finance-thumb img-clickable';
+    holder.src = img;
+    holder.alt = '';
+    holder.dataset.action = 'openLightbox';
+    holder.dataset.src = dataUrlToBlobUrl(img);
+    holder.onerror = function () { this.style.display = 'none'; };
+    el.replaceWith(holder);
+  });
 }
 
 function renderFinanceList() {
@@ -967,9 +985,12 @@ function renderFinanceList() {
   return _financeList.map(f => {
     const tags = (() => { try { return JSON.parse(f.tags || '[]'); } catch { return []; } })();
     const thumb = _financeImgCache[f.id];
+    const thumbHtml = thumb
+      ? `<img class="admin-finance-thumb img-clickable" src="${attrEscape(thumb)}" alt="" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(thumb))}" onerror="this.style.display='none'">`
+      : (f.has_image ? `<div class="admin-finance-thumb-skeleton" data-thumb-id="${f.id}"><div class="g-skeleton"></div></div>` : '');
     return `
     <div class="admin-user-item" style="align-items:flex-start">
-      ${thumb ? `<img class="admin-finance-thumb img-clickable" src="${attrEscape(thumb)}" alt="" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(thumb))}" onerror="this.style.display='none'">` : ''}
+      ${thumbHtml}
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
           ${Badge(f.type || '支出', f.type === '收入' ? 'done' : 'pending')}
@@ -986,7 +1007,6 @@ function renderFinanceList() {
 
 async function openFinanceModal() {
   _activeListModal = 'finance';
-  await loadAdminFinanceImages();
   openModal({
     title: '财务记录管理（全部）',
     body: renderFinanceList(),
@@ -994,6 +1014,8 @@ async function openFinanceModal() {
     footer: [{ text: '关闭', variant: 'outline', onClick: function() { _activeListModal = null; closeModal(document.getElementById('modalContainer')); } }],
     onClose: function() { _activeListModal = null; }
   });
+  // 文字先显示，图片异步拉取后原位替换扫光占位
+  loadAdminFinanceImages();
 }
 
 function confirmDeleteFinance(dataset) {
@@ -1005,6 +1027,7 @@ function confirmDeleteFinance(dataset) {
       try {
         await apiDel(`/api/admin/finance/${dataset.id}`);
         toast('财务记录已删除', 'success');
+        delete _financeImgCache[dataset.id];
         loadAdminFinance();
       } catch (err) { toast(err.message, 'error'); }
     }
