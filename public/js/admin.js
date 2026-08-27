@@ -666,12 +666,12 @@ window.toggleSetting = function(header) {
 // ──────── Confirmations ────────
 // showConfirmWithCountdown 基于 openModal + countdown 配置实现
 // 倒计时期间主按钮禁用，结束后启用；cancelCallback 仅在取消/背景点击时触发
-function showConfirmWithCountdown(title, msg, btnText, callback, cancelCallback) {
+function showConfirmWithCountdown(title, msg, btnText, callback, cancelCallback, seconds = 5) {
   openModal({
     title: title,
     body: '<p style="color:var(--md-on-surface-variant);margin:0">' + escapeHtml(msg) + '</p>',
     maxWidth: '380px',
-    countdown: { seconds: 5, hint: '请等待 {n} 秒后确认' },
+    countdown: { seconds: seconds, hint: '请等待 {n} 秒后确认' },
     footer: [
       { text: '取消', variant: 'outline', onClick: function() { closeModal(document.getElementById('modalContainer')); } },
       { text: btnText, variant: 'danger', countdownBtn: true, onClick: function() { var c = document.getElementById('modalContainer'); c._onClose = null; closeModal(c); callback(); } }
@@ -699,7 +699,7 @@ function confirmClearAll() {
   const steps = [
     { title: '\u26A0 第1次确认', msg: '你正在尝试清空全部数据，包括所有问题、公告、财务记录、审核记录和成员账号。此操作不可撤销！' },
     { title: '\u26A0\u26A0 第2次确认', msg: '请再次确认：所有数据将被永久删除，无法恢复。你确定要继续吗？' },
-    { title: '\u26A0\u26A0\u26A0 最终确认', msg: '最后一次确认！一旦执行，全部数据将彻底消失。是否继续？' },
+    { title: '\u26A0\u26A0\u26A0 最终确认', msg: '最后一次确认！一旦执行，全部数据将彻底消失。是否继续？', seconds: 300 },
   ];
   let i = 0;
   function nextStep() {
@@ -707,7 +707,7 @@ function confirmClearAll() {
       executeClearAll();
       return;
     }
-    showConfirmWithCountdown(steps[i].title, steps[i].msg, i < 2 ? '下一步' : '确认清空', nextStep);
+    showConfirmWithCountdown(steps[i].title, steps[i].msg, i < 2 ? '下一步' : '确认清空', nextStep, null, steps[i].seconds || 5);
     i++;
   }
   nextStep();
