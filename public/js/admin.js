@@ -140,7 +140,7 @@ async function toggleSiteClosed() {
       '<div style="margin:12px 0"><label style="font-size:.85rem;color:var(--md-on-surface-variant);display:block;margin-bottom:6px">关闭提示（可选，留空则显示默认文案）</label>' +
       '<textarea id="siteClosedMessageInput" class="form-input" style="width:100%;min-height:80px;resize:vertical" placeholder="雅礼团委-通办暂时关闭，请稍后再访问">' + escapeHtml(_siteClosedMessage) + '</textarea></div>';
     openModal({
-      title: icon('alert') + ' 确认关闭网站',
+      title: '\u26A0 确认关闭网站',
       body: bodyHtml,
       maxWidth: '380px',
       countdown: { seconds: 5, hint: '请等待 {n} 秒后确认' },
@@ -697,9 +697,9 @@ function confirmDeleteUser(dataset) {
 
 function confirmClearAll() {
   const steps = [
-    { title: `${icon('alert')} 第1次确认`, msg: '你正在尝试清空全部数据，包括所有问题、公告、财务记录、审核记录和成员账号。此操作不可撤销！' },
-    { title: `${icon('alert')}${icon('alert')} 第2次确认`, msg: '请再次确认：所有数据将被永久删除，无法恢复。你确定要继续吗？' },
-    { title: `${icon('alert')}${icon('alert')}${icon('alert')} 最终确认`, msg: '最后一次确认！一旦执行，全部数据将彻底消失。是否继续？' },
+    { title: '\u26A0 第1次确认', msg: '你正在尝试清空全部数据，包括所有问题、公告、财务记录、审核记录和成员账号。此操作不可撤销！' },
+    { title: '\u26A0\u26A0 第2次确认', msg: '请再次确认：所有数据将被永久删除，无法恢复。你确定要继续吗？' },
+    { title: '\u26A0\u26A0\u26A0 最终确认', msg: '最后一次确认！一旦执行，全部数据将彻底消失。是否继续？' },
   ];
   let i = 0;
   function nextStep() {
