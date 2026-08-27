@@ -25,7 +25,27 @@
   </script>
 
   <div class="container">
-    <div id="pollDetail"></div>
+    <div id="pollDetail">
+      <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果整体替换 -->
+      <div class="page-header g-skeleton" aria-hidden="true" style="margin-bottom:16px">
+        <div class="g-skeleton-line" style="width:55%;height:26px"></div>
+        <div class="g-skeleton-line" style="width:86%;height:14px"></div>
+        <div class="g-skeleton-line" style="width:42%;height:12px"></div>
+      </div>
+      <div class="card g-skeleton" aria-hidden="true">
+        <div class="g-skeleton-line" style="width:62%;height:16px"></div>
+        <div class="g-skeleton-line" style="width:94%;height:38px;border-radius:var(--md-shape-sm)"></div>
+        <div class="g-skeleton-line" style="width:88%;height:38px;border-radius:var(--md-shape-sm)"></div>
+        <div class="g-skeleton-line" style="width:70%;height:38px;border-radius:var(--md-shape-sm)"></div>
+      </div>
+      <div class="card g-skeleton" aria-hidden="true">
+        <div class="g-skeleton-line" style="width:48%;height:16px"></div>
+        <div class="g-skeleton-line" style="width:92%;height:38px;border-radius:var(--md-shape-sm)"></div>
+        <div class="g-skeleton-line" style="width:78%;height:38px;border-radius:var(--md-shape-sm)"></div>
+        <div class="g-skeleton-line" style="width:56%;height:38px;border-radius:var(--md-shape-sm)"></div>
+      </div>
+      <div class="g-skeleton" style="width:120px;height:38px;border-radius:var(--md-shape-full,999px);margin-top:20px" aria-hidden="true"></div>
+    </div>
   </div>
 
   <script src="/js/lightbox.js"></script>
