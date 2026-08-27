@@ -301,7 +301,7 @@ async function renderFinance(filteredList) {
       ${imgArea}
       <div class="img-card-body">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          ${Badge((f.type === '收入' ? icon('trending-up') : icon('trending-down')) + ' ' + f.type, f.type === '收入' ? 'done' : 'pending')}
+          <span style="display:inline-flex;align-items:center;gap:4px">${f.type === '收入' ? icon('trending-up') : icon('trending-down')}${Badge(f.type, f.type === '收入' ? 'done' : 'pending')}</span>
           <strong style="font-size:1.1rem;color:${f.type === '收入' ? 'var(--success)' : 'var(--accent)'}">${f.type === '收入' ? '+' : '-'}¥${Number(f.amount || 0).toFixed(2)}</strong>
         </div>
         ${f.department ? `<div style="margin-bottom:4px">${Badge(escapeHtml(f.department), 'processing')}</div>` : ''}
