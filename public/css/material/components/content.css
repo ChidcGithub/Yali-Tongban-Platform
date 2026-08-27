@@ -118,6 +118,41 @@
   transition: opacity .2s;
 }
 .announce-banner-img:hover { opacity: .85; }
+/* 横幅文字骨架：主色渐变底上的半透明白线条扫光，数据到达即被覆盖 */
+.announce-banner-skeleton {
+  min-height: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
+}
+.announce-banner-skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+  background: rgba(255,255,255,.16);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.announce-banner-skeleton-line::after {
+  content: '';
+  position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.45) 50%, transparent 100%);
+  animation: g-skeleton-slide 1.6s ease-in-out infinite;
+}
+/* 横幅图片加载中扫光：解码完成前显示，onload 移除 class */
+.announce-banner-img.announce-img-loading {
+  background: linear-gradient(90deg, rgba(255,255,255,.15) 25%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.15) 75%);
+  background-size: 200% 100%;
+  animation: imgShimmer 1.2s ease-in-out infinite;
+}
+.no-animation .announce-banner-skeleton-line::after,
+.no-animation .announce-banner-img.announce-img-loading { animation: none; }
+.reduce-animation .announce-banner-skeleton-line::after { animation-duration: 2.4s; }
 .announce-banner-dots {
   position: absolute; bottom: 8px; left: 0; right: 0;
   display: flex; justify-content: center; gap: 8px;

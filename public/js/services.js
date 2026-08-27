@@ -18,7 +18,21 @@ function renderBannerFromFallback() {
   }
 }
 
+// 横幅文字加载中的扫光占位：数据到达（含缓存）后即被真实内容覆盖，不等图片
+function showBannerSkeleton() {
+  const el = document.getElementById('announceBanner');
+  if (!el) return;
+  el.style.display = '';
+  el.innerHTML = '<div class="announce-banner-skeleton">'
+    + '<div class="announce-banner-skeleton-line" style="width:46%;height:16px"></div>'
+    + '<div class="announce-banner-skeleton-line" style="width:88%"></div>'
+    + '<div class="announce-banner-skeleton-line" style="width:68%"></div>'
+    + '<div class="announce-banner-skeleton-line" style="width:34%;height:10px;margin-top:6px"></div>'
+    + '</div>';
+}
+
 async function loadBanner() {
+  showBannerSkeleton();
   const cached = cacheGet('/api/banner');
   if (cached && cached.data) {
     _bannerData = cached.data;
@@ -40,7 +54,7 @@ function renderBanner() {
   if (!el) return;
   bannerItems = [];
   const data = _bannerData;
-  if (!data) return;
+  if (!data) { el.style.display = 'none'; el.innerHTML = ''; return; }
   if (data.announcements && data.announcements.length) {
     data.announcements.forEach(a => bannerItems.push({ type: 'announcement', data: a }));
   }
@@ -48,7 +62,7 @@ function renderBanner() {
     data.hallBookings.forEach(h => bannerItems.push({ type: 'hall', data: h }));
   }
   if (bannerTimer) { clearInterval(bannerTimer); bannerTimer = null; }
-  if (bannerItems.length === 0) return;
+  if (bannerItems.length === 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
 
   // pre-cache images as blob URLs
   for (const item of bannerItems) {
@@ -84,7 +98,7 @@ function renderBanner() {
           <div class="announce-banner-content">${escapeHtml(d.content)}</div>
           <div class="announce-banner-time">${formatTime(d.created_at)} · ${escapeHtml(d.created_by)}</div>
         </div>
-        ${d._images && d._images.length > 0 ? `<img class="announce-banner-img" src="${attrEscape(d._images[Math.floor(Math.random() * d._images.length)])}" alt="公告图片" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(d._images[0]))}" onerror="this.style.display='none'">` : ''}
+        ${d._images && d._images.length > 0 ? `<img class="announce-banner-img announce-img-loading" src="${attrEscape(d._images[Math.floor(Math.random() * d._images.length)])}" alt="公告图片" data-action="openLightbox" data-src="${attrEscape(dataUrlToBlobUrl(d._images[0]))}" onload="this.classList.remove('announce-img-loading')" onerror="this.style.display='none'">` : ''}
       </div></div>`;
   }
 
