@@ -561,12 +561,14 @@ async function postAnnouncement(dataset, target) {
       });
       allAnnouncements.unshift(data);
       cacheDel('/api/announcements');
+      const uploadedUrls = [];
       for (const item of _selectedFiles) {
         const compressed = await compressImage(item.dataUrl);
+        uploadedUrls.push(compressed);
         await apiPost(`/api/announcements/${data.id}/images`, { image_url: compressed });
       }
-      const final = await apiGet(`/api/announcements/${data.id}`);
-      announceImgCache[final.id] = parseImages(final.image_url);
+      const final = await apiGet(`/api/announcements/${data.id}`); // v2 瘦身结构（has_image，无 image_url 全文）
+      announceImgCache[final.id] = uploadedUrls;
       allAnnouncements[0] = final;
       renderAnnouncements();
       toast('公告已发布', 'success');

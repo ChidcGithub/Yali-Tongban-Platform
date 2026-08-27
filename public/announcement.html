@@ -27,7 +27,20 @@
     <div style="margin-bottom:16px">
       <a href="/announcements.html" style="color:var(--text-secondary);font-size:.9rem">&larr; 返回公告列表</a>
     </div>
-    <div id="announceDetail"></div>
+    <div id="announceDetail">
+      <!-- 文字骨架：数据到达后由 renderAnnouncement 覆盖 -->
+      <div class="card">
+        <div class="card-header"><div class="g-skeleton" style="height:20px;width:55%"></div></div>
+        <div class="card-body">
+          <div class="g-skeleton" style="height:13px;width:32%;margin-bottom:16px"></div>
+          <div class="g-skeleton" style="height:14px;width:92%;margin-bottom:8px"></div>
+          <div class="g-skeleton" style="height:14px;width:78%;margin-bottom:8px"></div>
+          <div class="g-skeleton" style="height:14px;width:85%;margin-bottom:8px"></div>
+          <div class="g-skeleton" style="height:14px;width:64%;margin-bottom:8px"></div>
+          <div class="g-skeleton" style="height:14px;width:71%"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="/js/lightbox.js"></script>
