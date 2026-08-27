@@ -25,10 +25,55 @@
       <h1>值日</h1>
       <p>值日签到系统</p>
     </div>
-    <div id="dutyDashboard"></div>
+    <div id="dutyDashboard">
+      <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果整体替换 -->
+      <div class="card g-skeleton" aria-hidden="true">
+        <div class="g-skeleton-line" style="width:36%;height:12px"></div>
+        <div class="g-skeleton-line" style="width:58%;height:22px;border-radius:999px"></div>
+      </div>
+      <div class="card g-skeleton" aria-hidden="true">
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr auto;gap:10px;align-items:center;padding:8px 0 10px;border-bottom:1px solid var(--md-outline-variant)">
+          <div class="g-skeleton-line" style="width:70%;height:12px;margin:0"></div>
+          <div class="g-skeleton-line" style="width:55%;height:12px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:55%;height:12px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:46px;height:12px;margin:0 0 0 auto"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--md-outline-variant)">
+          <div class="g-skeleton-line" style="width:62%;height:12px;margin:0"></div>
+          <div class="g-skeleton-line" style="width:74%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:74%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:40px;height:12px;margin:0 0 0 auto"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--md-outline-variant)">
+          <div class="g-skeleton-line" style="width:58%;height:12px;margin:0"></div>
+          <div class="g-skeleton-line" style="width:70%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:70%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:40px;height:12px;margin:0 0 0 auto"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--md-outline-variant)">
+          <div class="g-skeleton-line" style="width:66%;height:12px;margin:0"></div>
+          <div class="g-skeleton-line" style="width:66%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:66%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:40px;height:12px;margin:0 0 0 auto"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:90px 1fr 1fr auto;gap:10px;align-items:center;padding:10px 0 2px">
+          <div class="g-skeleton-line" style="width:52%;height:12px;margin:0"></div>
+          <div class="g-skeleton-line" style="width:64%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:64%;height:34px;margin:0 auto;border-radius:var(--md-shape-sm)"></div>
+          <div class="g-skeleton-line" style="width:40px;height:12px;margin:0 0 0 auto"></div>
+        </div>
+      </div>
+    </div>
     <div class="section" id="publicDeptStatsSection" style="margin-top:20px">
       <div class="section-title">部门扣分统计（近两周）</div>
-      <div id="publicDeptStats"><p style="color:var(--md-on-surface-variant);font-size:.88rem">加载中...</p></div>
+      <div id="publicDeptStats">
+        <div class="dept-stats" aria-hidden="true">
+          <div class="g-skeleton-line" style="width:92%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:84%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:88%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:70%;height:16px;margin:0 auto"></div>
+        </div>
+      </div>
     </div>
   </div>
   <script src="/js/duty.js"></script>

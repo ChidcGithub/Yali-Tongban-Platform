@@ -47,7 +47,50 @@
         <span class="cal-nav-title" id="calTitle"></span>
         <button class="cal-nav-btn" onclick="nextMonth()"><span data-icon="chevron-right"></span></button>
       </div>
-      <div id="adminScheduleList"></div>
+      <div id="adminScheduleList">
+        <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果整体替换 -->
+        <div class="card g-skeleton" aria-hidden="true" style="padding:12px">
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:8px">
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+            <div class="g-skeleton-line" style="width:50%;height:10px;margin:0 auto"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+            <div class="g-skeleton-line" style="width:100%;height:auto;aspect-ratio:1/1;margin:0;border-radius:var(--md-shape-md)"></div>
+          </div>
+        </div>
+      </div>
       <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;align-items:center">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-sm btn-primary" id="genScheduleBtn" onclick="generateSchedule()"><span data-icon="refresh"></span> 自动生成</button>
@@ -71,7 +114,15 @@
     <!-- Department Stats -->
     <div class="section">
       <div class="section-title">部门扣分统计（近两周）</div>
-      <div id="deptStatsContainer"><p style="color:var(--md-on-surface-variant);font-size:.88rem">加载中...</p></div>
+      <div id="deptStatsContainer">
+        <!-- 加载占位：骨架屏扫光，数据返回后被 JS 渲染结果整体替换 -->
+        <div class="dept-stats" aria-hidden="true">
+          <div class="g-skeleton-line" style="width:92%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:84%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:88%;height:16px;margin:0 auto"></div>
+          <div class="g-skeleton-line" style="width:70%;height:16px;margin:0 auto"></div>
+        </div>
+      </div>
     </div>
   </div>
 
