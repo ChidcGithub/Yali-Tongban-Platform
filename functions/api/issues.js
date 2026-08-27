@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, verifyCaptcha, isValidImageUrl, isAdmin, insertChatSystemMessage, createNotification, getUserIdByName } from './_utils.js';
+import { rateLimit, json, error, parseBody, verifyCaptcha, isValidImageUrl, isAdmin, insertChatSystemMessage, createNotification, getUserIdByName } from './_utils.js';
 
 export async function handleGetIssues(env, user) {
   const isLoggedIn = !!user;
@@ -17,8 +17,8 @@ export async function handleGetIssues(env, user) {
 }
 
 export async function handleCreateIssue(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'issue', 10, 60000)) return error('提交过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'issue', 10, 60000, '提交过于频繁，请稍后再试');
+  if (rl) return rl;
 
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
@@ -43,8 +43,8 @@ export async function handleCreateIssue(request, env) {
 
 export async function handleUpdateIssueStatus(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'updateIssueStatus', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'updateIssueStatus', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { status } = body;
@@ -70,8 +70,8 @@ export async function handleUpdateIssueStatus(request, env, id, user) {
 
 export async function handleDeleteIssue(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteIssue', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteIssue', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   await env.DB.prepare("DELETE FROM comments WHERE target_type = 'issue' AND target_id = ?").bind(Number(id)).run();
   await env.DB.prepare('DELETE FROM issues WHERE id = ?').bind(id).run();
   return json({ message: '问题已删除' });

@@ -2,6 +2,7 @@ let user = null;
 let allAnnouncements = [];
 let editingId = null;
 let announceCommentsCache = {};
+let announceImgCache = {}; // 公告 id → 图片 url 数组（列表接口瘦身后按需分批拉取）
 let _formDirty = false;
 let _selectedFiles = [];
 
@@ -59,7 +60,7 @@ async function renderAnnouncements() {
   }
 
   await progressiveRender(el, visible, a => {
-    const imgs = parseImages(a.image_url);
+    const imgs = announceImgCache[a.id] || [];
     const isNew = now - new Date(a.created_at).getTime() < 86400000;
     const canEdit = user && (user.name === a.created_by || user.role === 'admin' || user.role === 'owner');
     const commentCount = a.comment_count || 0;
@@ -75,7 +76,7 @@ async function renderAnnouncements() {
         </div>
       </div>
       <div class="card-body" style="white-space:pre-wrap">${escapeHtml(a.content)}</div>
-      ${renderAnnounceImages(imgs)}
+      ${renderAnnounceImageArea(a, imgs)}
       <div class="card-footer">
         <span>${escapeHtml(a.created_by)}</span>
         <span>${formatTime(a.created_at)}</span>
@@ -101,7 +102,7 @@ async function renderAnnouncements() {
   el.querySelectorAll('.announce-card').forEach(card => {
     const id = Number(card.dataset.id);
     const a = allAnnouncements.find(x => x.id === id);
-    const imgs = a ? parseImages(a.image_url) : [];
+    const imgs = a ? (announceImgCache[id] || []) : [];
     card.addEventListener('click', function (e) {
       if (e.target.closest('[data-action]')) return;
       const imgArea = e.target.closest('.announce-img');
@@ -114,6 +115,52 @@ async function renderAnnouncements() {
       }
       location.href = `/announcement.html?id=${id}`;
     });
+  });
+
+  loadAnnounceImagesLazy();
+}
+
+// 列表接口瘦身后：有缓存图 → 直接渲染图片；有图但未加载 → 扫光骨架占位，图片到达后替换
+function renderAnnounceImageArea(a, imgs) {
+  if (imgs && imgs.length > 0) return renderAnnounceImages(imgs);
+  if (a.has_image) return '<div class="img-row announce-img-skeleton"><div class="g-skeleton" style="height:180px;border-radius:var(--md-shape-sm);width:100%"></div></div>';
+  return '';
+}
+
+// 分批拉取图片（每批 4 条公告），逐批替换扫光占位
+async function loadAnnounceImagesLazy() {
+  const pending = allAnnouncements.filter(a => a.has_image && !announceImgCache[a.id]).map(a => a.id);
+  for (let i = 0; i < pending.length; i += 4) {
+    const batch = pending.slice(i, i + 4);
+    let map = {};
+    try {
+      map = await apiGet(`/api/announcements/images?ids=${batch.join(',')}`);
+    } catch {}
+    for (const id of batch) {
+      const urls = (map && Array.isArray(map[id]) && map[id].length > 0) ? map[id] : [];
+      announceImgCache[id] = urls;
+      if (urls.length > 0) replaceAnnounceImgSkeleton(id, urls);
+    }
+  }
+}
+
+// 图片全部就绪后再替换骨架，避免闪烁
+function replaceAnnounceImgSkeleton(id, urls) {
+  const holder = document.querySelector(`.announce-card[data-id="${id}"] .announce-img-skeleton`);
+  if (!holder) return;
+  const html = renderAnnounceImages(urls);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const imgs = tmp.querySelectorAll('img');
+  if (imgs.length === 0) { holder.remove(); return; }
+  let loaded = 0;
+  const finish = () => {
+    loaded++;
+    if (loaded >= imgs.length) holder.outerHTML = html;
+  };
+  imgs.forEach(img => {
+    if (img.complete) finish();
+    else { img.onload = finish; img.onerror = finish; }
   });
 }
 
@@ -425,6 +472,7 @@ async function deleteAnnouncement(dataset, target) {
     try {
       await apiDel(`/api/announcements/${id}`);
       allAnnouncements = allAnnouncements.filter(a => a.id !== id);
+      delete announceImgCache[id];
       cacheDel('/api/announcements');
       renderAnnouncements();
       toast('公告已删除', 'success');
@@ -455,7 +503,7 @@ function openEditModal(id, _target) {
   form.querySelector('[name="content"]').value = a.content;
   const previews = document.getElementById('announcePreviews');
   previews.innerHTML = '';
-  const imgs = parseImages(a.image_url);
+  const imgs = announceImgCache[id] || [];
   if (imgs.length > 0) {
     document.getElementById('announceUploadZone').querySelector('p').textContent = `现有 ${imgs.length} 张图片（重新选择将替换）`;
     imgs.forEach(url => {
@@ -491,15 +539,14 @@ async function postAnnouncement(dataset, target) {
           image_urls.push(compressed);
         }
       } else {
-        const a = allAnnouncements.find(x => x.id === editingId);
-        if (a && Array.isArray(a.image_url)) image_urls = a.image_url;
-        else if (a && a.image_url) image_urls = [a.image_url];
+        image_urls = announceImgCache[editingId] || [];
       }
       const data = await apiPut(`/api/announcements/${editingId}`, {
         title: fd.get('title'),
         content: fd.get('content'),
         image_urls,
       });
+      announceImgCache[editingId] = parseImages(data.image_url);
       const idx = allAnnouncements.findIndex(a => a.id === editingId);
       if (idx >= 0) allAnnouncements[idx] = data;
       cacheDel('/api/announcements');
@@ -518,6 +565,7 @@ async function postAnnouncement(dataset, target) {
         await apiPost(`/api/announcements/${data.id}/images`, { image_url: compressed });
       }
       const final = await apiGet(`/api/announcements/${data.id}`);
+      announceImgCache[final.id] = parseImages(final.image_url);
       allAnnouncements[0] = final;
       renderAnnouncements();
       toast('公告已发布', 'success');

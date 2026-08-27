@@ -51,6 +51,14 @@ export function checkRateLimit(ip, key, maxAttempts = 5, windowMs = 60000) {
   return true;
 }
 
+// 限流包装器：通过返回 null，被限流返回 error Response（调用方 const rl = rateLimit(...); if (rl) return rl;）
+// IP 获取与限流策略集中在此，后续升级分布式限流只改这一处
+export function rateLimit(request, key, maxAttempts = 5, windowMs = 60000, msg = '操作过于频繁，请稍后再试') {
+  const ip = getClientIP(request);
+  if (!checkRateLimit(ip, key, maxAttempts, windowMs)) return error(msg, 429);
+  return null;
+}
+
 export function safeParse(str, fallback = null) {
   try { return JSON.parse(str); } catch { return fallback; }
 }

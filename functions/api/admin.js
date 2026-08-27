@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { json, error, safeParse, checkRateLimit, parseBody, getClientIP, isValidClass, isValidImageUrl, isAdmin, isOwner, signTokenForUser, respondWithToken, validatePassword, insertNotification, insertChatSystemMessage, createNotification, SALT_ROUNDS, NAME_MIN, NAME_MAX, DEPARTMENTS, getStorageStats } from './_utils.js';
+import { rateLimit, json, error, safeParse, parseBody, isValidClass, isValidImageUrl, isAdmin, isOwner, signTokenForUser, respondWithToken, validatePassword, insertNotification, insertChatSystemMessage, createNotification, SALT_ROUNDS, NAME_MIN, NAME_MAX, DEPARTMENTS, getStorageStats } from './_utils.js';
 
 export async function handleGetMembers(env, url) {
   const offset = Math.max(0, parseInt(url?.searchParams?.get('offset'), 10) || 0);
@@ -21,8 +21,8 @@ export async function handleGetRegistrations(env) {
 }
 
 export async function handleApproveRegistration(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'approveRegistration', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'approveRegistration', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   await env.DB.prepare("UPDATE users SET role = 'member' WHERE id = ? AND role = 'pending'").bind(id).run();
   const userRow = await env.DB.prepare('SELECT name FROM users WHERE id = ?').bind(id).first();
   try { await insertNotification(env, `通过注册：${userRow?.name || ''}`); } catch {}
@@ -31,15 +31,15 @@ export async function handleApproveRegistration(request, env, id) {
 }
 
 export async function handleRejectRegistration(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'rejectRegistration', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'rejectRegistration', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   await env.DB.prepare("DELETE FROM users WHERE id = ? AND role = 'pending'").bind(id).run();
   return json({ message: '注册已拒绝' });
 }
 
 export async function handleDeleteUser(request, env, id, currentUserId) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteUser', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteUser', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const idNum = Number(id);
   if (idNum === Number(currentUserId)) return error('不能删除自己');
   const target = await env.DB.prepare('SELECT role, name FROM users WHERE id = ?').bind(id).first();
@@ -64,8 +64,8 @@ export async function handleDeleteUser(request, env, id, currentUserId) {
 }
 
 export async function handleClearAll(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'clearAll', 3, 3600000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'clearAll', 3, 3600000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   await env.DB.prepare('DELETE FROM issues').run();
   await env.DB.prepare('DELETE FROM announcements').run();
   await env.DB.prepare('DELETE FROM finance').run();
@@ -92,8 +92,8 @@ export async function handleGetAdminSettings(env) {
 
 const ALLOWED_SETTINGS_KEYS = ['site_closed', 'site_closed_by', 'site_closed_message'];
 export async function handleUpdateSettings(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'updateSettings', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'updateSettings', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const data = await parseBody(request);
   if (!data) return error('请求格式错误');
   for (const [key, value] of Object.entries(data)) {
@@ -108,8 +108,8 @@ export async function handleGetStorage(env) {
 }
 
 export async function handleUpdateRole(request, env, id, user) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'updateRole', 20, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'updateRole', 20, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { role } = body;
@@ -149,8 +149,8 @@ export async function handleGetUser(env, id) {
 }
 
 export async function handleResetPassword(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'resetPassword', 10, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'resetPassword', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body || !body.password) return error('请提供新密码');
   const password = body.password;
@@ -165,8 +165,8 @@ export async function handleResetPassword(request, env, id) {
 }
 
 export async function handleAdminChangeName(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'adminChangeName', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'adminChangeName', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { name } = body;
@@ -181,8 +181,8 @@ export async function handleAdminChangeName(request, env, id) {
 }
 
 export async function handleSetDepartment(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'setDepartment', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'setDepartment', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { department } = body;
@@ -196,8 +196,8 @@ export async function handleSetDepartment(request, env, id) {
 
 export async function handleBatchImport(request, env) {
   try {
-    const ip = getClientIP(request);
-    if (!checkRateLimit(ip, 'batchImport', 5, 60000)) return error('操作过于频繁，请稍后再试', 429);
+    const rl = rateLimit(request, 'batchImport', 5, 60000, '操作过于频繁，请稍后再试');
+    if (rl) return rl;
     const body = await parseBody(request);
     if (!body || !body.users || !Array.isArray(body.users) || body.users.length === 0) return error('请提供用户列表');
     const results = { success: 0, skipped: 0, failed: [] };
@@ -257,8 +257,8 @@ export async function handleBatchImport(request, env) {
 }
 
 export async function handleBatchApprove(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'batchApprove', 10, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'batchApprove', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body || !body.ids || !Array.isArray(body.ids) || body.ids.length === 0) return error('请提供ID列表');
   for (const id of body.ids) {

@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs';
-import { json, error, safeParse, signToken, signTokenForUser, respondWithToken, setTokenCookie, checkRateLimit, parseBody, getClientIP, verifyCaptcha, isValidClass, validatePassword, requireMember, isAdmin, insertNotification, SALT_ROUNDS, NAME_MIN, NAME_MAX, DEPARTMENTS } from './_utils.js';
+import { rateLimit, json, error, safeParse, signToken, signTokenForUser, respondWithToken, setTokenCookie, parseBody, verifyCaptcha, isValidClass, validatePassword, requireMember, isAdmin, insertNotification, SALT_ROUNDS, NAME_MIN, NAME_MAX, DEPARTMENTS } from './_utils.js';
 
 export async function handleLogin(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'login', 5, 60000)) return error('登录尝试过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'login', 5, 60000, '登录尝试过于频繁，请稍后再试');
+  if (rl) return rl;
 
   let body;
   try { body = await request.json(); } catch { return error('请求格式错误'); }
@@ -32,8 +32,8 @@ export async function handleLogin(request, env) {
 }
 
 export async function handleRegister(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'register', 3, 60000)) return error('注册尝试过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'register', 3, 60000, '注册尝试过于频繁，请稍后再试');
+  if (rl) return rl;
 
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
@@ -71,8 +71,8 @@ export async function handleCheckName(request, env) {
 
 export async function handleChangePassword(request, env, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'changePassword', 5, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'changePassword', 5, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { old_password, new_password } = body;
@@ -91,8 +91,8 @@ export async function handleChangePassword(request, env, user) {
 export async function handleChangeName(request, env, user) {
   if (!user) return error('请先登录', 401);
   if (user.role === 'owner') return error('站长不可更改姓名', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'changeName', 10, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'changeName', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { new_name, password } = body;
@@ -111,8 +111,8 @@ export async function handleChangeName(request, env, user) {
 
 export async function handleChangeClass(request, env, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'changeClass', 10, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'changeClass', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { class_name, password } = body;
@@ -133,8 +133,8 @@ export async function handleChangeClass(request, env, user) {
 export async function handleChangeOwnDepartment(request, env, user) {
   if (!user) return error('请先登录', 401);
   if (!isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'changeDepartment', 10, 60000)) return error('操作过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'changeDepartment', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { department, password } = body;

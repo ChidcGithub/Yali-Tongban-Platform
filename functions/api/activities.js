@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, verifyCaptcha, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS } from './_utils.js';
+import { rateLimit, json, error, parseBody, getClientIP, verifyCaptcha, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS } from './_utils.js';
 
 export async function handleGetActivities(env, user) {
   let sql = "SELECT a.*, (SELECT COUNT(*) FROM activity_volunteers WHERE activity_id = a.id) AS volunteer_count";
@@ -14,8 +14,8 @@ export async function handleGetActivities(env, user) {
 
 export async function handleDeleteActivity(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteActivity', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteActivity', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   await env.DB.prepare('DELETE FROM activity_volunteers WHERE activity_id = ?').bind(id).run();
   const r = await env.DB.prepare('DELETE FROM activities WHERE id = ?').bind(id).run();
   if (r.meta.changes === 0) return error('活动不存在', 404);
@@ -24,8 +24,8 @@ export async function handleDeleteActivity(request, env, id, user) {
 
 export async function handleCreateActivity(request, env, user) {
   if (!user) return error('需要登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'createActivity', 10, 60000)) return error('提交过于频繁', 429);
+  const rl = rateLimit(request, 'createActivity', 10, 60000, '提交过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { name, location, time, departments, need_volunteers } = body;
@@ -85,8 +85,8 @@ export async function handleSignupVolunteer(request, env, id, user) {
 
 export async function handleUnsignupVolunteer(request, env, id, user) {
   if (!user) return error('需要登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'unsignupVolunteer', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'unsignupVolunteer', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const r = await env.DB.prepare(
     'DELETE FROM activity_volunteers WHERE activity_id = ? AND member_name = ?'
   ).bind(id, user.name).run();

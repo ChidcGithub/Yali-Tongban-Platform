@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, isAdmin } from './_utils.js';
+import { rateLimit, json, error, parseBody, isAdmin } from './_utils.js';
 
 export async function handleGetFeedMessages(env, user, url) {
   const limit = Math.min(parseInt(url.searchParams.get('limit'), 10) || 20, 50);
@@ -34,8 +34,8 @@ export async function handleGetFeedMessages(env, user, url) {
 
 export async function handleDeleteChatMessage(env, id, request, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteChatMessage', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteChatMessage', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const msg = await env.DB.prepare('SELECT * FROM chat_messages WHERE id = ?').bind(Number(id)).first();
   if (!msg) return error('消息不存在', 404);
   await env.DB.prepare('DELETE FROM chat_messages WHERE id = ?').bind(Number(id)).run();
@@ -44,8 +44,8 @@ export async function handleDeleteChatMessage(env, id, request, user) {
 
 export async function handleAddFeedComment(request, env, feedId, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'addFeedComment', 5, 10000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'addFeedComment', 5, 10000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body || !body.content || body.content.trim().length < 1 || body.content.length > 200) return error('评论内容为1-200字');
   const feed = await env.DB.prepare('SELECT id FROM chat_messages WHERE id = ? AND type = ?').bind(Number(feedId), 'system').first();

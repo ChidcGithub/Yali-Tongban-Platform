@@ -1,4 +1,4 @@
-import { json, error, safeParse, checkRateLimit, parseBody, getClientIP, verifyCaptcha, isValidImageUrl, isAdmin, DEPARTMENTS, insertChatSystemMessage, insertNotification, updateChatSystemStatus, createNotification, getUserIdByName } from './_utils.js';
+import { rateLimit, json, error, safeParse, parseBody, verifyCaptcha, isValidImageUrl, isAdmin, DEPARTMENTS, insertChatSystemMessage, insertNotification, updateChatSystemStatus, createNotification, getUserIdByName } from './_utils.js';
 
 export async function handleGetFinance(env, user, department) {
   if (!user) return error('需要登录', 401);
@@ -21,8 +21,8 @@ export async function handleGetFinance(env, user, department) {
 
 export async function handleCreateFinance(request, env, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'createFinance', 20, 60000)) return error('提交过于频繁', 429);
+  const rl = rateLimit(request, 'createFinance', 20, 60000, '提交过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   if (!body.captcha_token) return error('请完成人机验证', 400);
@@ -61,8 +61,8 @@ export async function handleCreateFinance(request, env, user) {
 
 export async function handleCompleteFinance(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'completeFinance', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'completeFinance', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const f = await env.DB.prepare('SELECT id, created_by, notes, type, amount FROM finance WHERE id = ?').bind(id).first();
   if (!f) return error('记录不存在', 404);
   await env.DB.prepare(
@@ -79,8 +79,8 @@ export async function handleCompleteFinance(request, env, id, user) {
 
 export async function handleReimburseFinance(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'reimburseFinance', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'reimburseFinance', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const f = await env.DB.prepare('SELECT * FROM finance WHERE id = ?').bind(id).first();
   if (!f) return error('记录不存在', 404);
   await env.DB.prepare(
@@ -103,8 +103,8 @@ export async function handleReimburseFinance(request, env, id, user) {
 
 export async function handleUnreimburseFinance(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'unreimburseFinance', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'unreimburseFinance', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const f = await env.DB.prepare('SELECT id FROM finance WHERE id = ?').bind(id).first();
   if (!f) return error('记录不存在', 404);
   await env.DB.prepare(
@@ -116,8 +116,8 @@ export async function handleUnreimburseFinance(request, env, id, user) {
 
 export async function handleDeleteFinance(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteFinance', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteFinance', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const row = await env.DB.prepare('SELECT * FROM finance WHERE id = ?').bind(id).first();
   if (!row) return error('财务记录不存在', 404);
   await env.DB.prepare('DELETE FROM finance WHERE id = ?').bind(id).run();

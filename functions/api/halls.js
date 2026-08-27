@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, isAdmin, isHallReviewer, insertNotification, createNotification } from './_utils.js';
+import { rateLimit, json, error, parseBody, isAdmin, isHallReviewer, insertNotification, createNotification } from './_utils.js';
 
 export async function handleGetHallBookings(env, user) {
   if (!user) return error('需要登录', 401);
@@ -11,8 +11,8 @@ export async function handleGetHallBookings(env, user) {
 
 export async function handleCreateHallBooking(request, env, user) {
   if (!user) return error('需要登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'hallBooking', 5, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'hallBooking', 5, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body || !body.date || !body.start_time || !body.end_time || !body.purpose) return error('请填写完整信息');
   if (body.purpose.length > 200) return error('用途不超过200字');
@@ -45,8 +45,8 @@ export async function handleDeleteHallBooking(request, env, id, user) {
 
 export async function handleReviewHallBooking(request, env, id, user) {
   if (!user || !isHallReviewer(user)) return error('需要审核权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'reviewHall', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'reviewHall', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body || !body.action || !['approve', 'reject'].includes(body.action)) return error('参数错误');
   const row = await env.DB.prepare('SELECT * FROM hall_bookings WHERE id = ?').bind(Number(id)).first();

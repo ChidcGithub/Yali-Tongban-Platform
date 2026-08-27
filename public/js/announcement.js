@@ -19,19 +19,21 @@ async function init() {
 async function loadAnnouncement(id) {
   try {
     let found = null;
-    await fetchWithCache('/api/announcements',
-      () => apiGet('/api/announcements'),
-      data => {
-        found = data.find(a => a.id === Number(id));
-        if (found) { renderAnnouncement(found); setTimeout(() => checkTimeTraveler(found.created_at), 200); }
-      }
+    // 详情接口（保留完整图片字段，列表接口瘦身后不再返回 image_url）
+    await fetchWithCache(`/api/announcements/${id}`,
+      () => apiGet(`/api/announcements/${id}`),
+      data => { renderAnnouncement(data); setTimeout(() => checkTimeTraveler(data.created_at), 200); }
     );
   } catch (err) {
-    // fallback: direct fetch
+    // fallback: 列表缓存兜底
     try {
-      const a = await apiGet(`/api/announcements/${id}`);
-      renderAnnouncement(a);
-      setTimeout(() => checkTimeTraveler(a.created_at), 200);
+      await fetchWithCache('/api/announcements',
+        () => apiGet('/api/announcements'),
+        data => {
+          found = data.find(a => a.id === Number(id));
+          if (found) { renderAnnouncement(found); setTimeout(() => checkTimeTraveler(found.created_at), 200); }
+        }
+      );
     } catch (e) {
       const el = document.getElementById('announceDetail');
       if (el) el.innerHTML = EmptyState('', '加载失败：' + e.message);

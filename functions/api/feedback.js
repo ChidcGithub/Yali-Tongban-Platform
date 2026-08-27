@@ -1,8 +1,8 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, verifyCaptcha } from './_utils.js';
+import { rateLimit, json, error, parseBody, verifyCaptcha } from './_utils.js';
 
 export async function handleCreateFeedback(request, env) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'feedback', 5, 60000)) return error('提交过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'feedback', 5, 60000, '提交过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { content, contact, page, section, version, captcha_token, captcha_code } = body;

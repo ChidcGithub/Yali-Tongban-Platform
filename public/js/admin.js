@@ -789,6 +789,7 @@ async function loadAdminAnnouncements() {
       () => apiGet('/api/announcements'),
       data => {
         _announceList = data;
+        loadAdminAnnounceImages(); // 列表瘦身后缩略图走图片接口异步拉取
         const count = _announceList.length;
         const pending = data.filter(a => a.status === '待审核').length;
         document.getElementById('announceCount').textContent = `（${count} 条）`;
@@ -799,6 +800,25 @@ async function loadAdminAnnouncements() {
       }
     );
   } catch { document.getElementById('announceSummary').textContent = '加载失败'; }
+}
+
+// 管理后台公告缩略图：按需分批从图片接口拉取，回填到 _announceList 后重渲染
+async function loadAdminAnnounceImages() {
+  const pending = _announceList.filter(a => a.has_image && !a.image_url).map(a => a.id);
+  for (let i = 0; i < pending.length; i += 10) {
+    const batch = pending.slice(i, i + 10);
+    try {
+      const map = await apiGet(`/api/announcements/images?ids=${batch.join(',')}`);
+      for (const id of batch) {
+        const a = _announceList.find(x => x.id === id);
+        if (a && map && map[id] && map[id].length > 0) a.image_url = map[id];
+      }
+    } catch {}
+  }
+  if (_activeListModal === 'announce') {
+    const container = document.getElementById('announceListContainer');
+    if (container) container.innerHTML = renderAnnounceList();
+  }
 }
 
 function setAnnounceFilter(dataset) {

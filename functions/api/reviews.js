@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, isValidImageUrl, isAdmin, insertChatSystemMessage } from './_utils.js';
+import { rateLimit, json, error, parseBody, isValidImageUrl, isAdmin, insertChatSystemMessage } from './_utils.js';
 
 export async function handleGetReviews(env, user) {
   if (!user) return error('需要登录', 401);
@@ -8,8 +8,8 @@ export async function handleGetReviews(env, user) {
 
 export async function handleCreateReview(request, env, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'createReview', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'createReview', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { image_url } = body;
@@ -27,8 +27,8 @@ export async function handleCreateReview(request, env, user) {
 export async function handleReviewItem(request, env, id, user) {
   if (!user) return error('请先登录', 401);
   if (!isAdmin(user)) return error('无权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'reviewItem', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'reviewItem', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { status, reject_reason } = body;
@@ -46,8 +46,8 @@ export async function handleReviewItem(request, env, id, user) {
 
 export async function handleDeleteReview(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteReview', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteReview', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   await env.DB.prepare('DELETE FROM reviews WHERE id = ?').bind(id).run();
   return json({ message: '审核记录已删除' });
 }

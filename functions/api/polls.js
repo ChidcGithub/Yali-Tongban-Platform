@@ -1,4 +1,4 @@
-import { json, error, safeParse, checkRateLimit, parseBody, getClientIP, isValidClass, isAdmin, getUserFromRequest, insertChatSystemMessage, verifyCaptcha, COMMON_HEADERS } from './_utils.js';
+import { rateLimit, json, error, safeParse, parseBody, getClientIP, isValidClass, isAdmin, getUserFromRequest, insertChatSystemMessage, verifyCaptcha, COMMON_HEADERS } from './_utils.js';
 
 export async function handleGetPolls(env) {
   const rows = await env.DB.prepare('SELECT * FROM polls ORDER BY created_at DESC LIMIT 200').all();
@@ -16,8 +16,8 @@ export async function handleGetPoll(env, id) {
 
 export async function handleCreatePoll(request, env, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'createPoll', 10, 60000)) return error('提交过于频繁', 429);
+  const rl = rateLimit(request, 'createPoll', 10, 60000, '提交过于频繁');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { title, description, require_name, min_role, allowed_classes, questions } = body;
@@ -51,8 +51,8 @@ export async function handleCreatePoll(request, env, user) {
 }
 
 export async function handleVotePoll(request, env, id) {
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'vote', 3, 3600000)) return error('投票过于频繁，每小时最多提交3次', 429);
+  const rl = rateLimit(request, 'vote', 3, 3600000, '投票过于频繁，每小时最多提交3次');
+  if (rl) return rl;
   const poll = await env.DB.prepare('SELECT * FROM polls WHERE id = ?').bind(Number(id)).first();
   if (!poll) return error('投票不存在', 404);
   if (poll.status !== 'open') return error('投票已结束', 400);
@@ -200,8 +200,8 @@ export async function handleExportPollResults(env, id, user) {
 
 export async function handleDeletePoll(request, env, id, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deletePoll', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deletePoll', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const poll = await env.DB.prepare('SELECT * FROM polls WHERE id = ?').bind(Number(id)).first();
   if (!poll) return error('投票不存在', 404);
   if (user.name !== poll.created_by && !isAdmin(user)) return error('无权删除此投票', 403);

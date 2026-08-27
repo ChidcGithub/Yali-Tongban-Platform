@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, isAdmin, createNotification, getUserIdByName } from './_utils.js';
+import { rateLimit, json, error, parseBody, isAdmin, createNotification, getUserIdByName } from './_utils.js';
 
 export async function handleGetComments(env, type, id) {
   if (!['announcement', 'issue'].includes(type)) return error('无效的类型');
@@ -10,8 +10,8 @@ export async function handleGetComments(env, type, id) {
 
 export async function handleCreateComment(request, env, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'comment', 10, 60000)) return error('评论过于频繁，请稍后再试', 429);
+  const rl = rateLimit(request, 'comment', 10, 60000, '评论过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
   if (!body) return error('请求格式错误');
   const { target_type, target_id, content } = body;
@@ -50,8 +50,8 @@ export async function handleCreateComment(request, env, user) {
 
 export async function handleUpdateComment(request, env, id, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'updateComment', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'updateComment', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const comment = await env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(Number(id)).first();
   if (!comment) return error('评论不存在', 404);
   if (user.name !== comment.created_by) return error('无权编辑此评论', 403);
@@ -66,8 +66,8 @@ export async function handleUpdateComment(request, env, id, user) {
 
 export async function handleDeleteComment(request, env, id, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteComment', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteComment', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const comment = await env.DB.prepare('SELECT * FROM comments WHERE id = ?').bind(Number(id)).first();
   if (!comment) return error('评论不存在', 404);
   if (user.name !== comment.created_by && !isAdmin(user)) return error('无权删除此评论', 403);

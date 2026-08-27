@@ -1,4 +1,4 @@
-import { json, error, checkRateLimit, parseBody, getClientIP, isValidImageUrl, isAdmin, attachAnnounceImages, replaceAnnounceImages, insertChatSystemMessage, createNotification, createNotificationBatch, getUserIdByName } from './_utils.js';
+import { rateLimit, json, error, parseBody, isValidImageUrl, isAdmin, safeParse, attachAnnounceImages, replaceAnnounceImages, insertChatSystemMessage, createNotification, createNotificationBatch, getUserIdByName } from './_utils.js';
 
 export async function handleGetAnnouncements(env, id) {
   try {
@@ -8,19 +8,64 @@ export async function handleGetAnnouncements(env, id) {
       await attachAnnounceImages(env, [row]);
       return json(row);
     }
-    const rows = await env.DB.prepare("SELECT a.*, COALESCE(c.cnt, 0) AS comment_count FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.status IS NULL OR a.status != ? ORDER BY a.created_at DESC LIMIT 200").bind('已拒绝').all();
-    await attachAnnounceImages(env, rows.results);
-    return json(rows.results);
+    // 列表接口瘦身：不返回 base64 图片全文（曾导致响应体 2.4MB），仅标记 has_image；
+    // 图片由 GET /api/announcements/images?ids= 按需分批获取，前端先渲染文字 + 扫光占位再替换
+    const rows = await env.DB.prepare("SELECT a.id, a.title, a.content, a.created_by, a.created_at, a.status, COALESCE(c.cnt, 0) AS comment_count FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.status IS NULL OR a.status != ? ORDER BY a.created_at DESC LIMIT 200").bind('已拒绝').all();
+    const list = rows.results;
+    if (list.length > 0) {
+      const ids = list.map(r => r.id);
+      const ph = ids.map(() => '?').join(',');
+      const hasImg = new Set();
+      try {
+        const imgRows = await env.DB.prepare(`SELECT DISTINCT announcement_id FROM announcement_images WHERE announcement_id IN (${ph})`).bind(...ids).all();
+        for (const ir of imgRows.results) hasImg.add(ir.announcement_id);
+      } catch {}
+      try {
+        const legacyRows = await env.DB.prepare(`SELECT id FROM announcements WHERE id IN (${ph}) AND image_url != '' AND image_url != '[]'`).bind(...ids).all();
+        for (const lr of legacyRows.results) hasImg.add(lr.id);
+      } catch {}
+      for (const row of list) row.has_image = hasImg.has(row.id);
+    }
+    return json(list);
   } catch {
     return error('获取公告失败', 500);
+  }
+}
+
+// 按公告 id 批量获取图片（legacy 字段 + 子表合并），最多 50 条，前端分批调用
+export async function handleGetAnnouncementImages(env, idsStr) {
+  try {
+    const ids = [...new Set(String(idsStr || '').split(',').map(s => Number(String(s).trim())).filter(n => Number.isInteger(n) && n > 0))];
+    if (ids.length === 0) return error('缺少公告 id');
+    if (ids.length > 50) return error('一次最多查询 50 条公告的图片');
+    const ph = ids.map(() => '?').join(',');
+    const map = {};
+    for (const id of ids) map[id] = [];
+    try {
+      const imgRows = await env.DB.prepare(`SELECT announcement_id, image_url FROM announcement_images WHERE announcement_id IN (${ph}) ORDER BY sort_order ASC`).bind(...ids).all();
+      for (const ir of imgRows.results) {
+        if (map[ir.announcement_id]) map[ir.announcement_id].push(ir.image_url);
+      }
+    } catch {}
+    try {
+      const legacyRows = await env.DB.prepare(`SELECT id, image_url FROM announcements WHERE id IN (${ph}) AND image_url != '' AND image_url != '[]'`).bind(...ids).all();
+      for (const lr of legacyRows.results) {
+        const parsed = safeParse(lr.image_url, []);
+        const arr = Array.isArray(parsed) ? parsed : [lr.image_url];
+        if (map[lr.id]) map[lr.id] = [...arr, ...map[lr.id]];
+      }
+    } catch {}
+    return json(map);
+  } catch {
+    return error('获取图片失败', 500);
   }
 }
 
 export async function handleCreateAnnouncement(request, env, user) {
   try {
     if (!user) return error('请先登录', 401);
-    const ip = getClientIP(request);
-    if (!checkRateLimit(ip, 'createAnnouncement', 5, 60000)) return error('操作过于频繁，请稍后再试', 429);
+    const rl = rateLimit(request, 'createAnnouncement', 5, 60000, '操作过于频繁，请稍后再试');
+    if (rl) return rl;
     const body = await parseBody(request);
     if (!body) return error('请求格式错误');
     const { title, content, image_urls } = body;
@@ -51,8 +96,8 @@ export async function handleCreateAnnouncement(request, env, user) {
 
 export async function handleDeleteAnnouncement(request, env, id, user) {
   if (!user) return error('请先登录', 401);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'deleteAnnouncement', 10, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'deleteAnnouncement', 10, 60000, '操作过于频繁');
+  if (rl) return rl;
   const row = await env.DB.prepare('SELECT created_by FROM announcements WHERE id = ?').bind(id).first();
   if (!row) return error('公告不存在', 404);
   if (user.name !== row.created_by && !isAdmin(user)) return error('无权删除此公告', 403);
@@ -65,8 +110,8 @@ export async function handleDeleteAnnouncement(request, env, id, user) {
 export async function handleUpdateAnnouncement(request, env, id, user) {
   try {
     if (!user) return error('请先登录', 401);
-    const ip = getClientIP(request);
-    if (!checkRateLimit(ip, 'updateAnnouncement', 10, 60000)) return error('操作过于频繁', 429);
+    const rl = rateLimit(request, 'updateAnnouncement', 10, 60000, '操作过于频繁');
+    if (rl) return rl;
     const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?').bind(id).first();
     if (!row) return error('公告不存在', 404);
     if (user.name !== row.created_by && !isAdmin(user)) return error('无权编辑此公告', 403);
@@ -92,8 +137,8 @@ export async function handleUpdateAnnouncement(request, env, id, user) {
 
 export async function handleReviewAnnouncement(request, env, id, user) {
   if (!user || !isAdmin(user)) return error('需要管理员权限', 403);
-  const ip = getClientIP(request);
-  if (!checkRateLimit(ip, 'reviewAnnouncement', 20, 60000)) return error('操作过于频繁', 429);
+  const rl = rateLimit(request, 'reviewAnnouncement', 20, 60000, '操作过于频繁');
+  if (rl) return rl;
   const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?').bind(id).first();
   if (!row) return error('公告不存在', 404);
   const body = await parseBody(request);
@@ -132,8 +177,8 @@ export async function handleReviewAnnouncement(request, env, id, user) {
 export async function handleAddAnnouncementImage(request, env, id, user) {
   try {
     if (!user) return error('请先登录', 401);
-    const ip = getClientIP(request);
-    if (!checkRateLimit(ip, 'addAnnouncementImage', 10, 60000)) return error('操作过于频繁', 429);
+    const rl = rateLimit(request, 'addAnnouncementImage', 10, 60000, '操作过于频繁');
+    if (rl) return rl;
     const row = await env.DB.prepare('SELECT * FROM announcements WHERE id = ?').bind(id).first();
     if (!row) return error('公告不存在', 404);
     if (user.name !== row.created_by && !isAdmin(user)) return error('无权修改此公告', 403);
