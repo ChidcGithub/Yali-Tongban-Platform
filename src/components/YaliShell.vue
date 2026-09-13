@@ -52,8 +52,18 @@
       :Maximum="progressTotal || 100"
       :MinHeight="3" />
 
-    <!-- 页面主体 -->
-    <slot />
+    <!-- 页面主体
+         NavigationView 的内容区（.win-nav-content）本身是 overflow:hidden 的 flex 列，
+         且 WinUI 的 theme.css 给 html/body 设了 overflow:hidden —— 不套 ScrollViewer
+         的话超出视口的内容会被直接裁掉、无法滚动。这里統一包一层，页面只管写内容。 -->
+    <ScrollViewer
+      class="yali-scroll"
+      VerticalScrollMode="Auto"
+      VerticalScrollBarVisibility="Auto"
+      HorizontalScrollMode="Disabled"
+      HorizontalScrollBarVisibility="Disabled">
+      <slot />
+    </ScrollViewer>
   </NavigationView>
 </template>
 
@@ -207,6 +217,16 @@ onBeforeUnmount(() => {
 .yali-progress {
   flex: none;
   width: 100%;
+}
+
+/* 滚动容器：撑满内容区，滚动交给它自己处理 */
+.yali-scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+.yali-scroll > :deep(*) {
+  min-height: 100%;
 }
 
 /* 侧栏品牌区
