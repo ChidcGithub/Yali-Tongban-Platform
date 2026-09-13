@@ -123,6 +123,13 @@ const FIXTURES = {
     },
     myVote: []
   },
+  finance: {
+    finance: [
+      { id: 61, type: '支出', amount: 128.5, status: '已完成', tags: '["办公用品","打印"]', notes: '打印招新海报', created_by: '团委办公室', created_at: ts(172800), department: '办公室', has_image: 0, reimbursed: false },
+      { id: 62, type: '收入', amount: 500, status: '待完成', tags: '["赞助"]', notes: '社团赞助款', created_by: '组织部', created_at: ts(86400), department: '组织部', has_image: 0, reimbursed: false },
+      { id: 63, type: '支出', amount: 60, status: '已完成', tags: '[]', notes: '', created_by: '宣传部', created_at: ts(3600), department: '宣传部', has_image: 0, reimbursed: true }
+    ]
+  },
   activities: {
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
@@ -179,6 +186,8 @@ const stub = `
     if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
+    if (fx.finance && url.indexOf('/api/finance/images') === 0) return {};
+    if (fx.finance && url.indexOf('/api/finance') === 0) return fx.finance;
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
     if (fx.list && url.indexOf('/api/announcements') === 0) return fx.list;
     if (url.indexOf('/api/features/enabled') === 0) return { enabled: [{ key: 'messages' }] };
