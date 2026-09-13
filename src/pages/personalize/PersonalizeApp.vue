@@ -31,6 +31,8 @@
         <TextBlock Text="字体大小" :FontSize="16" :FontWeight="600" />
         <div class="pz-slider-row">
           <TextBlock Text="小" class="yali-muted" />
+          <!-- Slider 的 ValueChanged 负载是 { OldValue, NewValue }，**没有** Value；
+               :Value 是单向绑定 → 早先读 args.Value 恒为 undefined，滑块完全无效 -->
           <Slider :Minimum="13" :Maximum="18" :StepFrequency="1"
                   :Value="prefs.fontSize" class="pz-slider" @ValueChanged="onFontChange" />
           <TextBlock Text="大" class="yali-muted" />
@@ -220,7 +222,7 @@ function unlock(id: string) {
   const toastFn = (window as unknown as {
     showAchievementToast?: (i: string) => void
   }).showAchievementToast
-  fn?.(id).then((ok) => {
+  fn?.(id)?.then((ok) => {
     if (ok) toastFn?.(id)
   })
 }
@@ -261,9 +263,12 @@ function setColor(val: string) {
   checkColorFreak()
 }
 
-function onFontChange(args: { Value?: number }) {
-  const v = Math.round(Number(args?.Value ?? prefs.fontSize))
-  if (v === prefs.fontSize) return
+/** Slider 的 ValueChanged 只带 { OldValue, NewValue }（见 Slider.vue） */
+function onFontChange(args: { OldValue?: number; NewValue?: number }) {
+  const raw = args?.NewValue ?? args?.OldValue
+  if (raw === undefined || raw === null) return
+  const v = Math.round(Number(raw))
+  if (!Number.isFinite(v) || v === prefs.fontSize) return
   prefs.fontSize = v
   persist()
   apply()

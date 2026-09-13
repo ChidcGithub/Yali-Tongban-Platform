@@ -13,8 +13,9 @@
 
       <div v-else class="feed-list">
         <article v-for="m in items" :key="m.id" class="feed-item"
-                 :class="{ 'is-linkable': feedLink(m) }" @click="openLink(m)">
-          <div class="feed-icon">
+                 :class="{ 'is-linkable': feedLink(m), 'feed-item-notification': isNotice(m) }"
+                 @click="openLink(m)">
+          <div v-if="!isNotice(m)" class="feed-icon">
             <FontIcon :Glyph="feedGlyph(m)" :FontSize="16" />
           </div>
           <div class="feed-body">
@@ -24,7 +25,9 @@
               <span v-if="sysData(m)?.status" class="yali-chip">{{ sysData(m).status }}</span>
             </div>
 
-            <div class="feed-actions">
+            <!-- 通知类条目（type=notification / 「任命」系统消息）没有评论区：
+                 后端 handleAddFeedComment 只接受 type='system' 的目标，硬发必 404 -->
+            <div v-if="!isNotice(m)" class="feed-actions">
               <Button @Click.stop="toggleComments(m)">
                 <span class="yali-btn-inner">
                   <FontIcon :Glyph="GLYPH.feedback" :FontSize="14" />
@@ -38,13 +41,14 @@
               </Button>
             </div>
 
-            <div v-if="openComments[m.id]" class="feed-comments">
+            <!-- 阻止冒泡：点评论输入框不该触发卡片跳转（旧版显式排除了这些区域） -->
+            <div v-if="!isNotice(m) && openComments[m.id]" class="feed-comments" @click.stop>
               <div v-if="commentsLoading[m.id]" class="yali-muted">加载中…</div>
               <template v-else>
                 <p v-if="!(comments[m.id] || []).length" class="yali-muted">暂无评论</p>
                 <div v-for="c in comments[m.id] || []" :key="c.id" class="yali-comment">
                   <div class="yali-comment-head">
-                    <span class="yali-comment-author">{{ c.created_by }}</span>
+                    <span class="yali-comment-author">{{ c.user_name }}</span>
                     <span>{{ formatTime(c.created_at) }}</span>
                   </div>
                   <p class="yali-comment-text">{{ c.content }}</p>
@@ -52,7 +56,7 @@
               </template>
 
               <div v-if="user" class="feed-comment-form">
-                <TextBox v-model:Text="draft[m.id]" PlaceholderText="写下你的评论…" :MaxLength="500" />
+                <TextBox v-model:Text="draft[m.id]" PlaceholderText="写下你的评论…" :MaxLength="200" />
                 <Button :IsEnabled="!!(draft[m.id] || '').trim()" @Click.stop="submitComment(m)">
                   <span class="yali-btn-inner"><span>发送</span></span>
                 </Button>
@@ -85,13 +89,14 @@ interface FeedItem {
   type?: string
   content: string
   created_at: string
+  /** 序列化的 JSON：{ action, from_dept, to_dept, title, status, ref_type, ref_id }
+      —— chat_messages 表本身**没有** ref_type / ref_id 列（见 schema.sql） */
   system_data?: string
-  ref_type?: string
-  ref_id?: number
 }
 interface FeedComment {
   id: number
-  created_by: string
+  /** feed_comments 表的作者列名是 user_name，不是 created_by */
+  user_name: string
   content: string
   created_at: string
 }
@@ -104,25 +109,32 @@ const loading = ref(false)
 const hasMore = ref(true)
 const nextCursor = ref<string | number | null>(null)
 
-/** ref_type → 图标字形 */
+/** ref_type → 图标字形（对齐旧版 moment.js 的 FEED_ICONS） */
 const FEED_GLYPHS: Record<string, string> = {
   finance: GLYPH.finance,
   activity: GLYPH.activities,
   issue: GLYPH.services,
   announcement: GLYPH.announcements,
   poll: GLYPH.polls,
+  achievement: GLYPH.star,
   user: GLYPH.person
 }
 
-function feedGlyph(m: FeedItem) {
-  return FEED_GLYPHS[m.ref_type ?? ''] ?? GLYPH.moment
+/** 通知类条目：type=notification，或「任命」系统消息 —— 旧版对它们用另一种排版且无评论区 */
+function isNotice(m: FeedItem) {
+  if (m.type === 'notification') return true
+  return m.type === 'system' && sysData(m).action === '任命'
 }
 
-/** ref_type → 跳转目标 */
+function feedGlyph(m: FeedItem) {
+  return FEED_GLYPHS[sysData(m).ref_type ?? ''] ?? GLYPH.moment
+}
+
+/** ref_type → 跳转目标（ref_type / ref_id 都住在 system_data 里） */
 function feedLink(m: FeedItem): string | null {
-  // 与原页面一致：通知类条目不作为跳转入口
-  if (m.type === 'notification') return null
-  switch (m.ref_type) {
+  if (isNotice(m)) return null
+  const d = sysData(m)
+  switch (d.ref_type) {
     case 'finance':
       return 'finance.html'
     case 'activity':
@@ -130,9 +142,9 @@ function feedLink(m: FeedItem): string | null {
     case 'issue':
       return 'services.html'
     case 'announcement':
-      return `announcement.html?id=${m.ref_id}`
+      return `announcement.html?id=${d.ref_id}`
     case 'poll':
-      return `poll.html?id=${m.ref_id}`
+      return `poll.html?id=${d.ref_id}`
     case 'user':
       return 'admin.html'
     default:
@@ -143,7 +155,8 @@ function feedLink(m: FeedItem): string | null {
 function sysData(m: FeedItem): Record<string, string> {
   if (!m.system_data) return {}
   try {
-    return JSON.parse(m.system_data)
+    const d = JSON.parse(m.system_data)
+    return d && typeof d === 'object' ? d : {}
   } catch {
     return {}
   }
@@ -216,8 +229,13 @@ function onVisibilityChange() {
 const sentinel = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 
-onMounted(() => {
-  loadFeed(true)
+onMounted(async () => {
+  restoreOpenComments()
+  await loadFeed(true)
+  // 恢复出来的展开项要补拉评论（旧版也是在渲染后按 _openComments 补齐）
+  for (const id of Object.keys(openComments).map(Number)) {
+    if (openComments[id] && !comments[id]) await loadComments(id)
+  }
   observer = new IntersectionObserver(
     (entries) => {
       if (entries[0]?.isIntersecting && hasMore.value && !loading.value) {
@@ -239,10 +257,34 @@ onBeforeUnmount(() => {
 })
 
 /* ── 评论 ── */
+/** 展开状态持久化到 sessionStorage（旧版 moment.js 的 feed_openComments），
+    刷新页面后仍保持展开 —— 否则每刷新一次就要重新点开 */
+const OPEN_KEY = 'feed_openComments'
 const openComments = reactive<Record<number, boolean>>({})
 const comments = reactive<Record<number, FeedComment[]>>({})
 const commentsLoading = reactive<Record<number, boolean>>({})
 const draft = reactive<Record<number, string>>({})
+
+function restoreOpenComments() {
+  try {
+    const raw = sessionStorage.getItem(OPEN_KEY)
+    if (!raw) return
+    const saved = JSON.parse(raw) as Record<string, boolean>
+    for (const [id, open] of Object.entries(saved || {})) {
+      if (open) openComments[Number(id)] = true
+    }
+  } catch {
+    /* 存储不可用就当作没有 */
+  }
+}
+
+function saveOpenComments() {
+  try {
+    sessionStorage.setItem(OPEN_KEY, JSON.stringify({ ...openComments }))
+  } catch {
+    /* 忽略 */
+  }
+}
 
 function commentCount(id: number) {
   return (comments[id] || []).length
@@ -251,6 +293,7 @@ function commentCount(id: number) {
 async function toggleComments(m: FeedItem) {
   const open = !openComments[m.id]
   openComments[m.id] = open
+  saveOpenComments()
   if (open && !comments[m.id]) await loadComments(m.id)
 }
 
@@ -271,10 +314,11 @@ async function submitComment(m: FeedItem) {
   if (!content) return
   if (content.length > 200) return toast('评论最多 200 字', 'error')
   try {
-    const created = await apiPost<FeedComment>(`/api/feed/${m.id}/comment`, { content })
-    if (!comments[m.id]) comments[m.id] = []
-    comments[m.id].push(created)
+    // 后端只返回 { message: '评论成功' }，**不含**新评论对象 ——
+    // 直接 push 那个响应会往列表里塞一条「空作者 + 空内容」的鬼影评论。
+    await apiPost(`/api/feed/${m.id}/comment`, { content })
     draft[m.id] = ''
+    await loadComments(m.id)
     toast('评论已发表', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -311,6 +355,11 @@ function openLink(m: FeedItem) {
 }
 .feed-item.is-linkable {
   cursor: pointer;
+}
+/* 通知类条目没有图标列，靠左侧竖线区分 */
+.feed-item-notification {
+  padding-left: 10px;
+  border-left: 3px solid var(--accent-base);
 }
 .feed-item.is-linkable:hover .feed-content {
   color: var(--accent-base);

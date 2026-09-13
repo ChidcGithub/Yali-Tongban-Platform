@@ -95,8 +95,10 @@
         </div>
       </section>
 
-      <p class="yali-muted yali-about-foot">
-        长沙市雅礼中学团委 通办 © 2026
+      <!-- 连点 3 次进诊断页 —— 这是全站**唯一**的 debug.html 入口（导航里没有它） -->
+      <p class="yali-muted yali-about-foot about-foot-link" role="button" tabindex="0"
+         @click="tapDebug" @keydown.enter="tapDebug">
+        长沙市雅礼中学团委 通办 © 2026 <span class="about-version">{{ APP_VERSION }}</span>
       </p>
       <p class="yali-muted yali-about-foot">展示用途的示例项目，非雅礼中学官方平台</p>
     </div>
@@ -164,6 +166,23 @@ function onEmblemTap() {
 
 function go(href: string) {
   window.location.href = href
+}
+
+/* ── debug.html 入口：页脚连点 3 次（1 秒内）──
+   迁移时漏掉了这段，导致 debug.html 变成只能手输 URL 的死页 */
+let debugTaps = 0
+let debugTimer: number | undefined
+function tapDebug() {
+  debugTaps += 1
+  if (debugTimer) window.clearTimeout(debugTimer)
+  debugTimer = window.setTimeout(() => {
+    debugTaps = 0
+  }, 1000)
+  if (debugTaps >= 3) {
+    debugTaps = 0
+    if (debugTimer) window.clearTimeout(debugTimer)
+    window.location.href = 'debug.html'
+  }
 }
 </script>
 
@@ -285,5 +304,12 @@ function go(href: string) {
 .yali-about-foot {
   text-align: center;
   margin-top: 20px;
+}
+.about-foot-link {
+  cursor: pointer;
+  user-select: none;
+}
+.about-version {
+  opacity: 0.5;
 }
 </style>

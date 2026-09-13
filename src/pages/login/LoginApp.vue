@@ -8,29 +8,35 @@
         <SelectorBar :Items="tabs" :SelectedItem="selectedTab" @SelectionChanged="onTabChanged"
                      class="login-tabs" />
 
-        <!-- ── 登录 ── -->
-        <form v-if="tab === 'login'" class="login-form" @submit.prevent="handleLogin">
+        <!-- 两个表单都用 v-show 而不是 v-if/v-else：
+             验证码容器必须在挂载时就存在于 DOM 里。CaptchaWidget 的构造函数
+             拿不到容器会**静默返回**（captcha.js:16-19），于是 regCaptcha.input
+             永远是 undefined、getData() 恒返回空 token —— 注册必然报「人机验证失败」。
+             旧页面正是用 display:none 让两个容器都留着的（login.html）。 -->
+        <form v-show="tab === 'login'" class="login-form" @submit.prevent="handleLogin">
           <label class="yali-field">
             <span class="yali-field-label">姓名</span>
             <TextBox v-model:Text="loginForm.name" PlaceholderText="输入你的姓名" :MaxLength="20" />
           </label>
           <label class="yali-field">
             <span class="yali-field-label">密码</span>
-            <PasswordBox v-model:Password="loginForm.password" PlaceholderText="输入密码" />
+            <PasswordBox v-model:Password="loginForm.password" PlaceholderText="输入密码" :MaxLength="50" />
           </label>
           <div class="yali-field">
             <span class="yali-field-label">人机验证</span>
             <div id="yaliLoginCaptcha"></div>
           </div>
           <p v-if="loginError" class="login-msg login-msg-error">{{ loginError }}</p>
-          <Button class="login-submit" :Style="'{StaticResource AccentButtonStyle}'"
-                  :IsEnabled="!busy" @Click="handleLogin">
+          <!-- 唯一提交入口是表单的 submit：Button 渲染出的原生 <button> 默认 type=submit，
+               再挂一个 @Click 就会「点一次发两遍」（Click + submit 各触发一次）。 -->
+          <Button class="login-submit" type="submit" :Style="'{StaticResource AccentButtonStyle}'"
+                  :IsEnabled="!busy">
             <span class="yali-btn-inner"><span>{{ busy ? '登录中…' : '登录' }}</span></span>
           </Button>
         </form>
 
         <!-- ── 注册 ── -->
-        <form v-else class="login-form" @submit.prevent="handleRegister">
+        <form v-show="tab === 'register'" class="login-form" @submit.prevent="handleRegister">
           <label class="yali-field">
             <span class="yali-field-label">姓名</span>
             <TextBox v-model:Text="regForm.name" PlaceholderText="输入你的姓名" :MaxLength="20"
@@ -50,19 +56,19 @@
           <label class="yali-field">
             <span class="yali-field-label">密码</span>
             <PasswordBox v-model:Password="regForm.password"
-                         PlaceholderText="设置密码（至少6位，含字母和数字）" />
+                         PlaceholderText="设置密码（至少6位，含字母和数字）" :MaxLength="50" />
           </label>
           <label class="yali-field">
             <span class="yali-field-label">确认密码</span>
-            <PasswordBox v-model:Password="regForm.confirm" PlaceholderText="再次输入密码" />
+            <PasswordBox v-model:Password="regForm.confirm" PlaceholderText="再次输入密码" :MaxLength="50" />
           </label>
           <div class="yali-field">
             <span class="yali-field-label">人机验证</span>
             <div id="yaliRegCaptcha"></div>
           </div>
           <p v-if="regMsg" class="login-msg" :class="regOk ? 'login-msg-ok' : 'login-msg-error'">{{ regMsg }}</p>
-          <Button class="login-submit" :Style="'{StaticResource AccentButtonStyle}'"
-                  :IsEnabled="!busy" @Click="handleRegister">
+          <Button class="login-submit" type="submit" :Style="'{StaticResource AccentButtonStyle}'"
+                  :IsEnabled="!busy">
             <span class="yali-btn-inner"><span>{{ busy ? '提交中…' : '提交注册申请' }}</span></span>
           </Button>
         </form>
@@ -120,12 +126,14 @@ const unlock = (id: string) => {
   const toastFn = (window as unknown as {
     showAchievementToast?: (i: string) => void
   }).showAchievementToast
-  fn?.(id).then((ok) => {
+  // ?. 要一路串下去：unlockAchievement 返回 undefined 时直接 .then 会抛 TypeError
+  fn?.(id)?.then((ok) => {
     if (ok) toastFn?.(id)
   })
 }
 
 async function handleLogin() {
+  if (busy.value) return
   if (!loginForm.name.trim() || !loginForm.password) {
     loginError.value = '请输入姓名与密码'
     return
@@ -282,6 +290,7 @@ function onClassInput() {
 }
 
 async function handleRegister() {
+  if (busy.value) return
   regMsg.value = ''
   regOk.value = false
   if (regForm.password !== regForm.confirm) {
@@ -312,6 +321,12 @@ async function handleRegister() {
     regForm.class_name = ''
     regForm.password = ''
     regForm.confirm = ''
+    regDeptIndex.value = -1
+    // 旧页面在 2 秒后自动切回登录页签（login.html:261），保留该行为
+    window.setTimeout(() => {
+      if (tab.value === 'register') tab.value = 'login'
+    }, 2000)
+    regCaptcha?.refresh()
   } catch (err) {
     regMsg.value = (err as Error).message
     regCaptcha?.refresh()

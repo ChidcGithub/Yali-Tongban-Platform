@@ -178,10 +178,10 @@ async function openMessage(m: Message) {
 async function markAllRead() {
   try {
     await apiPost('/api/messages/read-all', type.value !== 'all' ? { type: type.value } : {})
-    // 后端只把当前筛选类型（或全部）标为已读，未读总数要相应扣减而不是直接清零
-    const affected = items.value.filter((m) => !m.is_read).length
-    items.value = items.value.map((m) => ({ ...m, is_read: true }))
-    unread.value = Math.max(0, unread.value - affected)
+    // 后端是按 user_id (+type) 在**全库**更新的，本地只翻已加载的那几条会算不准未读数
+    // —— 直接重新拉一次，用服务端返回的 total / unread 覆盖（旧版 messages.js 就是这么做的）
+    offset.value = 0
+    await fetchPage(false)
     toast('已全部标为已读', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -192,8 +192,8 @@ async function clearRead() {
   if (!window.confirm('确定清空已读消息吗？此操作不可撤销。')) return
   try {
     await apiDel('/api/messages')
-    items.value = items.value.filter((m) => !m.is_read)
-    total.value = items.value.length
+    offset.value = 0
+    await fetchPage(false)
     toast('已清空已读消息', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -205,6 +205,7 @@ async function removeOne(m: Message) {
     await apiDel(`/api/messages/${m.id}`)
     items.value = items.value.filter((x) => x.id !== m.id)
     total.value = Math.max(0, total.value - 1)
+    if (!m.is_read) unread.value = Math.max(0, unread.value - 1)
   } catch (err) {
     toast((err as Error).message, 'error')
   }

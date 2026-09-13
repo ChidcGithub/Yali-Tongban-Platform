@@ -62,7 +62,7 @@ const PAGES = [
   ['duty-admin', { query: '' }],
   ['admin', { query: '' }],
   ['404', { query: '' }],
-  ['410', { query: '' }],
+  ['410', { query: '?from=cultural' }],
   ['debug', { query: '' }]
 ]
 

@@ -73,9 +73,13 @@ function chipClass(type: string) {
   return 'yali-chip-info'
 }
 
-/* ── 成就：read_all_changelog —— 全部条目展开并停留 30 秒 ── */
+/* ── 成就：read_all_changelog —— 把「折叠着」的条目都展开并停留 30 秒 ──
+   分母必须是**默认折叠**的条目数：前 3 条初始就是展开的（None 不会触发 Expanding），
+   用 entries.length 会让用户永远差 3 次、而且毫无提示。
+   旧版 changelog.html 用的正是 `document.querySelectorAll('.changelog-card.collapsed').length`。 */
 const openedCount = ref(0)
-const totalEntries = entries.value.length
+const DEFAULT_EXPANDED = 3
+const totalEntries = Math.max(0, entries.value.length - DEFAULT_EXPANDED)
 let achTimer: number | undefined
 
 function onEntryExpanded() {

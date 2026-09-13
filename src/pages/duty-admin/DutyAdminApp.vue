@@ -1,8 +1,10 @@
 <template>
   <YaliShell current="duty-admin" title="值日管理">
     <div class="yali-page">
+      <!-- SelectorBar 的 SelectionChanged 首参是 sender，只暴露 Items / SelectedItem，
+           没有 SelectedIndex —— 必须自己 indexOf，否则 tabIndex 恒被写回 0 -->
       <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="da-pivot"
-                   @SelectionChanged="(a) => (tabIndex = a?.SelectedIndex ?? 0)" />
+                   @SelectionChanged="(a) => (tabIndex = a?.Items?.indexOf(a.SelectedItem) ?? 0)" />
 
       <!-- ── 排班 ── -->
       <template v-if="tabIndex === 0">
@@ -25,6 +27,11 @@
                   <FontIcon :Glyph="GLYPH.calendar" :FontSize="13" /><span>自动生成 60 天</span>
                 </span>
               </Button>
+              <Button @Click="exportSchedule">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出排班</span>
+                </span>
+              </Button>
               <Button @Click="clearAll">
                 <span class="yali-btn-inner">
                   <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>清空排班</span>
@@ -36,16 +43,19 @@
           <div v-if="scheduleLoading" class="yali-muted da-gap">加载中…</div>
           <div v-else class="da-cal">
             <div v-for="w in WEEKDAYS" :key="w" class="da-cal-head">{{ w }}</div>
-            <div v-for="(cell, i) in calendar" :key="i" class="da-cal-cell"
-                 :class="{ 'is-empty': !cell, 'is-today': cell?.isToday }">
+            <!-- 点日期单元格手动排 / 删当天的班（旧版 openScheduleModal → /schedule/manual） -->
+            <button v-for="(cell, i) in calendar" :key="i" type="button" class="da-cal-cell"
+                    :class="{ 'is-empty': !cell, 'is-today': cell?.isToday, 'is-set': !!cell?.a_id }"
+                    @click="cell && openManual(cell)">
               <template v-if="cell">
                 <span class="da-cal-date">{{ cell.day }}</span>
                 <span v-if="cell.a" class="da-cal-name">{{ cell.a }}</span>
                 <span v-else class="da-cal-name yali-muted">未排班</span>
                 <span v-if="cell.b" class="da-cal-name yali-muted">{{ cell.b }}</span>
               </template>
-            </div>
+            </button>
           </div>
+          <p class="yali-muted da-gap">点日期可手动指定当天的两名干事</p>
         </section>
       </template>
 
@@ -65,6 +75,7 @@
             <span class="da-name">{{ s.name }}</span>
             <span class="yali-muted">{{ s.class || '—' }}</span>
             <span class="yali-chip">{{ s.department || '未分配' }}</span>
+            <span v-if="!s.user_id" class="yali-chip yali-chip-warn" title="还未绑定平台账号">未映射</span>
             <button class="da-del" type="button" title="删除" @click="removeStaff(s)">
               <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
             </button>
@@ -76,15 +87,36 @@
       <template v-else-if="tabIndex === 2">
         <section class="yali-section">
           <div class="yali-section-head">
-            <TextBlock :Text="'评分记录（' + scores.length + ' 条）'" :FontSize="15" :FontWeight="500" />
-            <Button @Click="openScoreDialog">
-              <span class="yali-btn-inner">
-                <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>手动加减分</span>
-              </span>
+            <TextBlock :Text="'评分记录（' + filteredScores.length + ' 条）'" :FontSize="15" :FontWeight="500" />
+            <div class="da-head-btns">
+              <Button :IsEnabled="selectedScoreIds.length > 0" @Click="openBatchCancel">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.close" :FontSize="13" />
+                  <span>批量销分{{ selectedScoreIds.length ? ' (' + selectedScoreIds.length + ')' : '' }}</span>
+                </span>
+              </Button>
+              <Button @Click="openScoreDialog">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>手动加减分</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+
+          <!-- 筛选（旧版 admin.js 的部门 / 状态 / 姓名三重筛选） -->
+          <div class="da-filters">
+            <ComboBox :ItemsSource="scoreDeptItems" v-model:SelectedIndex="scoreDeptIndex" class="da-filter-dept" />
+            <ToggleSwitch v-model:IsOn="scoreOnlyActive" OnContent="仅未销分" OffContent="全部" />
+            <TextBox v-model:Text="scoreKeyword" PlaceholderText="按姓名搜索" :MaxLength="20" class="da-filter-kw" />
+            <Button v-if="scores.length" @Click="toggleSelectAll">
+              <span class="yali-btn-inner"><span>{{ allSelected ? '取消全选' : '全选' }}</span></span>
             </Button>
           </div>
-          <p v-if="!scores.length" class="yali-muted da-gap">暂无评分记录</p>
-          <div v-for="r in scores" :key="r.id" class="da-row" :class="{ 'is-cancelled': r.is_cancelled }">
+
+          <p v-if="!filteredScores.length" class="yali-muted da-gap">暂无评分记录</p>
+          <div v-for="r in filteredScores" :key="r.id" class="da-row" :class="{ 'is-cancelled': r.is_cancelled }">
+            <CheckBox v-if="!r.is_cancelled" :IsChecked="selectedScoreIds.includes(r.id)"
+                      @update:IsChecked="(v) => toggleScoreSelection(r.id, v)" />
             <span class="da-name">{{ r.name }}</span>
             <span class="yali-muted">{{ r.date }} {{ r.period || '' }}</span>
             <span class="da-score" :class="Number(r.score) >= 0 ? 'da-plus' : 'da-minus'">
@@ -115,8 +147,10 @@
           <p v-if="!periods.length" class="yali-muted da-gap">暂无配置</p>
           <div v-for="(p, i) in periods" :key="p.id ?? p.label" class="da-period">
             <span class="da-name">{{ p.label }}</span>
+            <!-- ComboBox 的 SelectionChanged 只带 {AddedItems,RemovedItems}，没有 SelectedIndex；
+                 索引只从 update:SelectedIndex 出来 -->
             <ComboBox :ItemsSource="SLOT_TYPES" :SelectedIndex="slotIndex(p)"
-                      @SelectionChanged="(a) => (p.slot_type = SLOT_VALUES[a?.SelectedIndex ?? 0])"
+                      @update:SelectedIndex="(i) => (p.slot_type = SLOT_VALUES[i] ?? SLOT_VALUES[0])"
                       class="da-period-slot" />
             <TextBox v-model:Text="p.start_time" PlaceholderText="09:00" :MaxLength="5" class="da-period-time" />
             <NumberBox v-model:Value="p.auto_absent_min" :Minimum="0" :Maximum="120"
@@ -181,7 +215,7 @@
         <label class="yali-field">
           <span class="yali-field-label">销分人 <em>*</em></span>
           <ComboBox :ItemsSource="adminNames" :SelectedIndex="cancelAdminIndex"
-                    @SelectionChanged="(a) => (cancelAdminIndex = a?.SelectedIndex ?? -1)"
+                    @update:SelectedIndex="(i) => (cancelAdminIndex = i ?? -1)"
                     PlaceholderText="选择管理员" />
         </label>
         <label class="yali-field">
@@ -210,14 +244,14 @@
         <label class="yali-field">
           <span class="yali-field-label">干事 <em>*</em></span>
           <ComboBox :ItemsSource="staffNames" :SelectedIndex="scoreStaffIndex"
-                    @SelectionChanged="(a) => (scoreStaffIndex = a?.SelectedIndex ?? -1)"
+                    @update:SelectedIndex="(i) => (scoreStaffIndex = i ?? -1)"
                     PlaceholderText="选择干事" />
         </label>
         <div class="yali-form-row">
           <label class="yali-field">
             <span class="yali-field-label">时段 <em>*</em></span>
             <ComboBox :ItemsSource="scorePeriodNames" :SelectedIndex="scorePeriodIndex"
-                      @SelectionChanged="(a) => (scorePeriodIndex = a?.SelectedIndex ?? -1)"
+                      @update:SelectedIndex="(i) => (scorePeriodIndex = i ?? -1)"
                       PlaceholderText="选择时段" />
           </label>
           <label class="yali-field">
@@ -243,6 +277,63 @@
         </div>
       </div>
     </ContentDialog>
+
+    <!-- 批量销分（旧版 duty-admin.js 的复选框 + 全选 + 批量销分） -->
+    <ContentDialog :IsOpen="batchDialog" :Title="'批量销分 · ' + selectedScoreIds.length + ' 条'"
+                   CloseButtonText="取消" @update:IsOpen="batchDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">将对所选的 {{ selectedScoreIds.length }} 条记录执行销分并回滚对应考勤得分。</p>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人 <em>*</em></span>
+          <ComboBox :ItemsSource="adminNames" v-model:SelectedIndex="batchAdminIndex"
+                    PlaceholderText="选择管理员" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">销分理由 <em>*</em></span>
+          <TextBox v-model:Text="batchReason" PlaceholderText="如：排班调整，原扣分作废" :MaxLength="200" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人密码 <em>*</em></span>
+          <PasswordBox v-model:Password="batchPassword" PlaceholderText="输入销分人密码以确认" />
+        </label>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="batchDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="confirmBatchCancel">
+            <span class="yali-btn-inner"><span>确认销分</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 手动排班（点日历某一天打开；旧版 openScheduleModal） -->
+    <ContentDialog :IsOpen="manualOpen" :Title="'手动排班 · ' + manualDate" CloseButtonText="取消"
+                   @update:IsOpen="manualOpen = $event">
+      <div class="yali-form">
+        <label class="yali-field">
+          <span class="yali-field-label">干事 A <em>*</em></span>
+          <ComboBox :ItemsSource="staffOptions" v-model:SelectedIndex="manualAIndex"
+                    PlaceholderText="选择干事" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">干事 B <em>*</em></span>
+          <ComboBox :ItemsSource="staffOptions" v-model:SelectedIndex="manualBIndex"
+                    PlaceholderText="选择干事" />
+        </label>
+        <p class="yali-muted">当前：{{ manualHasRecord ? manualA + ' / ' + manualB : '未排班' }}</p>
+        <div class="yali-form-actions">
+          <Button v-if="manualHasRecord" :IsEnabled="!busy" @Click="deleteManual">
+            <span class="yali-btn-inner">
+              <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>删除当天排班</span>
+            </span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveManual">
+            <span class="yali-btn-inner"><span>保存</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
   </YaliShell>
 </template>
 
@@ -250,7 +341,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast } from '../../shared/api'
 
 const TABS = ['排班', '干事', '评分', '时段']
 const tabItems = TABS.map((Text) => ({ Text }))
@@ -280,6 +371,8 @@ const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 /* ── 排班 ── */
 interface ScheduleRow {
   date: string
+  staff_a_id?: number
+  staff_b_id?: number
   a_name?: string
   b_name?: string
   cancelled?: boolean
@@ -320,7 +413,15 @@ const calendar = computed(() => {
   for (const r of schedule.value) map[(r.date || '').slice(0, 10)] = r
 
   const today = fmt(new Date())
-  const cells: Array<null | { day: number; a?: string; b?: string; isToday: boolean }> = []
+  const cells: Array<null | {
+    day: number
+    date: string
+    a?: string
+    b?: string
+    a_id?: number
+    b_id?: number
+    isToday: boolean
+  }> = []
   const start = new Date(weekStart.value)
   for (let i = 0; i < 14; i++) {
     const d = new Date(start)
@@ -329,13 +430,80 @@ const calendar = computed(() => {
     const row = map[key]
     cells.push({
       day: d.getDate(),
+      date: key,
       a: row?.a_name,
       b: row?.b_name,
+      a_id: row?.staff_a_id,
+      b_id: row?.staff_b_id,
       isToday: key === today
     })
   }
   return cells
 })
+
+/* ── 手动排班（旧版 openScheduleModal / saveManualSchedule / deleteManualSchedule） ── */
+const manualOpen = ref(false)
+const manualDate = ref('')
+const manualHasRecord = ref(false)
+const manualA = ref('')
+const manualB = ref('')
+const manualAIndex = ref(-1)
+const manualBIndex = ref(-1)
+/** 下拉里带部门+班级，避免同名干事选错 */
+const staffOptions = computed(() =>
+  staff.value.map((s) => `${s.department || ''}${s.class || ''} ${s.name}`.trim())
+)
+
+async function openManual(cell: { date: string; a_id?: number; b_id?: number }) {
+  manualDate.value = cell.date
+  manualHasRecord.value = !!cell.a_id
+  // 干事列表可能还没加载过（用户没进过「干事」标签）
+  if (!staff.value.length) await loadStaff()
+  const ai = staff.value.findIndex((s) => s.id === cell.a_id)
+  const bi = staff.value.findIndex((s) => s.id === cell.b_id)
+  manualAIndex.value = ai
+  manualBIndex.value = bi
+  manualA.value = ai >= 0 ? staff.value[ai].name : ''
+  manualB.value = bi >= 0 ? staff.value[bi].name : ''
+  manualOpen.value = true
+}
+
+async function saveManual() {
+  const a = manualAIndex.value >= 0 ? staff.value[manualAIndex.value] : null
+  const b = manualBIndex.value >= 0 ? staff.value[manualBIndex.value] : null
+  if (!a || !b) return toast('请选择两名干事', 'error')
+  if (a.id === b.id) return toast('两名干事不能相同', 'error')
+  busy.value = true
+  try {
+    await apiPost('/api/duty/schedule/manual', {
+      date: manualDate.value,
+      staff_a_id: a.id,
+      staff_b_id: b.id
+    })
+    toast('排班已保存', 'success')
+    manualOpen.value = false
+    await loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function deleteManual() {
+  if (!window.confirm(`确定删除 ${manualDate.value} 的排班吗？`)) return
+  busy.value = true
+  try {
+    await apiDel(`/api/duty/schedule/manual?date=${encodeURIComponent(manualDate.value)}`)
+    toast('排班已删除', 'success')
+    manualOpen.value = false
+    await loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
 
 async function loadSchedule() {
   scheduleLoading.value = true
@@ -365,6 +533,33 @@ async function generate() {
   }
 }
 
+/** 导出当前可见的两周排班（后端 /api/duty/schedule/export 直接回 CSV） */
+async function exportSchedule() {
+  const s = weekStart.value
+  const e = new Date(s)
+  e.setDate(e.getDate() + 13)
+  try {
+    const res = await fetch(`/api/duty/schedule/export?start=${fmt(s)}&end=${fmt(e)}`)
+    if (!res.ok) {
+      let msg = '导出失败'
+      try {
+        const d = await res.json()
+        if (d?.error) msg = d.error
+      } catch { /* 非 JSON */ }
+      throw new Error(msg)
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `duty-schedule-${fmt(s)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 async function clearAll() {
   if (!window.confirm('确定清空所有排班、考勤与评分记录吗？此操作不可撤销。')) return
   if (!window.confirm('再次确认：清空后无法恢复，是否继续？')) return
@@ -383,6 +578,8 @@ interface Staff {
   name: string
   class?: string
   department?: string
+  /** 0 表示还没绑定平台账号（旧版会打「未映射」徽标） */
+  user_id?: number
 }
 const staff = ref<Staff[]>([])
 const staffNames = computed(() => staff.value.map((s) => s.name))
@@ -437,6 +634,7 @@ interface ScoreRow {
   id: number
   date: string
   name: string
+  department?: string
   period?: string
   score: number
   reason?: string
@@ -463,8 +661,87 @@ async function loadScores() {
   try {
     const from = fmt(new Date(Date.now() - 30 * 86400000))
     scores.value = (await apiGet<ScoreRow[]>(`/api/duty/scores?date_from=${from}`)) ?? []
+    selectedScoreIds.value = []
   } catch {
     scores.value = []
+  }
+}
+
+/* ── 评分筛选：部门 / 是否已销分 / 姓名（旧版三重筛选） ── */
+const scoreDeptIndex = ref(0)
+const scoreOnlyActive = ref(false)
+const scoreKeyword = ref('')
+const scoreDeptItems = computed(() => {
+  const depts: string[] = []
+  for (const r of scores.value) {
+    if (r.department && !depts.includes(r.department)) depts.push(r.department)
+  }
+  return ['全部部门', ...depts]
+})
+const filteredScores = computed(() => {
+  const dept = scoreDeptIndex.value > 0 ? scoreDeptItems.value[scoreDeptIndex.value] : ''
+  const kw = scoreKeyword.value.trim()
+  return scores.value.filter((r) => {
+    if (dept && r.department !== dept) return false
+    if (scoreOnlyActive.value && r.is_cancelled) return false
+    if (kw && !r.name.includes(kw)) return false
+    return true
+  })
+})
+
+/* ── 批量销分 ── */
+const selectedScoreIds = ref<number[]>([])
+const batchDialog = ref(false)
+const batchAdminIndex = ref(-1)
+const batchReason = ref('')
+const batchPassword = ref('')
+
+const allSelected = computed(
+  () =>
+    filteredScores.value.length > 0 &&
+    filteredScores.value.every((r) => r.is_cancelled || selectedScoreIds.value.includes(r.id))
+)
+
+function toggleScoreSelection(id: number, checked: boolean) {
+  const set = new Set(selectedScoreIds.value)
+  if (checked) set.add(id)
+  else set.delete(id)
+  selectedScoreIds.value = [...set]
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) selectedScoreIds.value = []
+  else selectedScoreIds.value = filteredScores.value.filter((r) => !r.is_cancelled).map((r) => r.id)
+}
+
+async function openBatchCancel() {
+  if (!selectedScoreIds.value.length) return toast('请先选择记录', 'error')
+  batchReason.value = ''
+  batchPassword.value = ''
+  batchAdminIndex.value = -1
+  if (!admins.value.length) await loadAdmins()
+  batchDialog.value = true
+}
+
+async function confirmBatchCancel() {
+  if (batchAdminIndex.value < 0) return toast('请选择销分人', 'error')
+  if (!batchReason.value.trim()) return toast('请填写销分理由', 'error')
+  if (!batchPassword.value) return toast('请输入密码', 'error')
+  busy.value = true
+  try {
+    const res = await apiPost<{ cancelled?: number }>('/api/duty/scores/batch-cancel', {
+      score_record_ids: selectedScoreIds.value,
+      reason: batchReason.value.trim(),
+      admin_id: admins.value[batchAdminIndex.value]?.id,
+      password: batchPassword.value
+    })
+    toast(`已销分 ${res?.cancelled ?? selectedScoreIds.value.length} 条`, 'success')
+    batchDialog.value = false
+    await loadScores()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
   }
 }
 
@@ -634,6 +911,11 @@ function loadForTab(i: number) {
 watch(tabIndex, loadForTab)
 
 onMounted(() => {
+  /* 非管理员进来只会看到满屏 403 —— 请回值日页（旧版 duty-admin.js 开头就是 requireAdmin()） */
+  if (!isAdmin()) {
+    window.location.replace('duty.html')
+    return
+  }
   loadSchedule()
   loadStaff()
   // 若通过 ?tab= 直接落在别的标签，补上该标签的数据
@@ -669,6 +951,17 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* 格子现在是 <button>，需要清掉浏览器默认按钮样式 */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.da-cal-cell:hover {
+  border-color: var(--accent-base);
+}
+.da-cal-cell.is-set {
+  border-left: 3px solid var(--accent-base);
 }
 .da-cal-cell.is-today {
   border-color: var(--accent-base);

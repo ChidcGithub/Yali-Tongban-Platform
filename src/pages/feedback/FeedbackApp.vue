@@ -9,7 +9,7 @@
         <div class="yali-form">
           <label class="yali-field">
             <span class="yali-field-label">反馈内容 <em>*</em></span>
-            <TextBox v-model:Text="form.content" PlaceholderText="说说你的建议或遇到的问题…" :MaxLength="5000"
+            <TextBox v-model:Text="form.content" PlaceholderText="说说你的建议或遇到的问题…" :MaxLength="2000"
                      AcceptsReturn TextWrapping="Wrap" class="fb-content" />
           </label>
 

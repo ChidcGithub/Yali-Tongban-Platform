@@ -2,8 +2,10 @@
   <YaliShell current="activities" title="活动">
     <div class="yali-page">
       <!-- 「全部活动 / 千报预约」两种视图，与原页面一致 -->
+      <!-- SelectorBar 的 SelectionChanged 首参是 sender，只暴露 Items / SelectedItem，
+           没有 SelectedIndex —— 必须自己 indexOf，否则 tabIndex 恒被写回 0 -->
       <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="act-tabs"
-                   @SelectionChanged="(a) => (tabIndex = a?.SelectedIndex ?? 0)" />
+                   @SelectionChanged="(a) => (tabIndex = a?.Items?.indexOf(a.SelectedItem) ?? 0)" />
 
       <template v-if="tabIndex === 0">
         <div v-if="loading" class="yali-loading">
@@ -64,7 +66,8 @@
       <HallSection v-else ref="hallRef" />
     </div>
 
-    <button v-if="admin && tabIndex === 0" class="yali-fab" type="button" aria-label="发布活动" @click="dialogOpen = true">
+    <!-- 任意已登录用户都能发布活动（旧版 activities.js 只判断 user，后端也只要求登录） -->
+    <button v-if="user && tabIndex === 0" class="yali-fab" type="button" aria-label="发布活动" @click="dialogOpen = true">
       <FontIcon :Glyph="GLYPH.add" :FontSize="18" />
     </button>
 
@@ -84,10 +87,15 @@
           <span class="yali-field-label">地点</span>
           <TextBox v-model:Text="draft.location" PlaceholderText="选填" :MaxLength="200" />
         </label>
-        <label class="yali-field">
-          <span class="yali-field-label">参与部门</span>
-          <TextBox v-model:Text="draft.departments" PlaceholderText="选填，如：组织部、宣传部" :MaxLength="200" />
-        </label>
+        <div class="yali-field">
+          <!-- 部门必须从固定枚举里勾选：后端只保留 DEPARTMENTS 白名单内的值，
+               自由文本里写顿号/空格会导致 departments 被清空 → 通知发给「全体」 -->
+          <span class="yali-field-label">涉及部门</span>
+          <div class="act-dept-grid">
+            <CheckBox v-for="d in DEPARTMENTS" :key="d" :Content="d"
+                      v-model:IsChecked="deptChecked[d]" />
+          </div>
+        </div>
         <div class="yali-field">
           <ToggleSwitch v-model:IsOn="draft.need_volunteers" OnContent="需要志愿者" OffContent="不需要志愿者" />
         </div>
@@ -127,15 +135,25 @@
     </ContentDialog>
 
     <!-- 志愿者名单 -->
-    <ContentDialog :IsOpen="listOpen" Title="志愿者名单" CloseButtonText="关闭"
+    <ContentDialog :IsOpen="listOpen" :Title="volTitle" CloseButtonText="关闭"
                    @update:IsOpen="listOpen = $event">
       <div class="vol-list">
         <p v-if="volLoading" class="yali-muted">加载中…</p>
         <p v-else-if="!volunteers.length" class="yali-muted">还没有人报名</p>
-        <div v-for="v in volunteers" :key="v.id ?? v.name" class="vol-item">
+        <div v-for="(v, i) in volunteers" :key="v.id ?? i" class="vol-item">
+          <span class="vol-idx">{{ i + 1 }}</span>
           <FontIcon :Glyph="GLYPH.person" :FontSize="14" />
-          <span>{{ v.name }}</span>
-          <span v-if="v.created_at" class="yali-muted">{{ formatTime(v.created_at) }}</span>
+          <span>{{ v.member_name }}</span>
+          <span v-if="v.department" class="yali-muted">{{ v.department }}</span>
+          <span v-if="v.created_at" class="yali-muted vol-time">{{ formatTime(v.created_at) }}</span>
+        </div>
+        <!-- ContentDialog 只有默认插槽，导出按钮就放在正文里 -->
+        <div v-if="volunteers.length" class="yali-form-actions">
+          <Button @Click="exportVolunteers">
+            <span class="yali-btn-inner">
+              <FontIcon :Glyph="GLYPH.download" :FontSize="14" /><span>导出表格</span>
+            </span>
+          </Button>
         </div>
       </div>
     </ContentDialog>
@@ -253,21 +271,58 @@ async function doSignup(id: number, name: string | undefined, a: Activity) {
 /* ── 志愿者名单 ── */
 const listOpen = ref(false)
 const volLoading = ref(false)
-const volunteers = ref<Array<{ id?: number; name: string; created_at?: string }>>([])
+const volTitle = ref('志愿者名单')
+interface Volunteer {
+  id?: number
+  /** 后端 activity_volunteers 表的姓名列是 member_name（不是 name） */
+  member_name: string
+  department?: string
+  created_at?: string
+}
+const volunteers = ref<Volunteer[]>([])
 
 async function viewVolunteers(a: Activity) {
   listOpen.value = true
   volLoading.value = true
   volunteers.value = []
+  volTitle.value = a.name + ' - 志愿者名单'
   try {
-    volunteers.value = await apiGet<Array<{ id?: number; name: string; created_at?: string }>>(
+    // 接口返回的是 { activity_name, volunteers }，不是裸数组 ——
+    // 早先直接把它当数组赋值，volunteers.length 恒为 undefined（永远显示「还没有人报名」）
+    const data = await apiGet<{ activity_name?: string; volunteers?: Volunteer[] }>(
       `/api/activities/${a.id}/volunteers`
     )
+    volunteers.value = data?.volunteers ?? []
+    if (data?.activity_name) volTitle.value = data.activity_name + ' - 志愿者名单'
   } catch (err) {
     toast((err as Error).message, 'error')
   } finally {
     volLoading.value = false
   }
+}
+
+/** 导出志愿者名单为 CSV（旧版 exportVolunteers，含 BOM 以便 Excel 识别中文） */
+function exportVolunteers() {
+  if (!volunteers.value.length) return
+  const header = ['序号', '姓名', '部门', '报名时间']
+  const rows = volunteers.value.map((v, i) => [
+    String(i + 1),
+    v.member_name,
+    v.department || '',
+    formatTime(v.created_at)
+  ])
+  const csv =
+    '\uFEFF' +
+    [header, ...rows]
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'volunteers.csv'
+  link.click()
+  URL.revokeObjectURL(url)
 }
 
 async function remove(a: Activity) {
@@ -283,23 +338,39 @@ async function remove(a: Activity) {
 
 /* ── 发布活动 ── */
 const dialogOpen = ref(false)
+/** 与后端 DEPARTMENTS 白名单一致（functions/api/activities.js 只保留这里的值） */
+const DEPARTMENTS = ['书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室']
+const deptChecked = reactive<Record<string, boolean>>(
+  Object.fromEntries(DEPARTMENTS.map((d) => [d, false]))
+)
+
 const draft = reactive({
   name: '',
   time: '',
   location: '',
-  departments: '',
   need_volunteers: false
 })
 
+/** 勾选的部门 → 逗号连接（后端按 ',' 切分） */
+function pickedDepartments() {
+  return DEPARTMENTS.filter((d) => deptChecked[d]).join(',')
+}
+
 async function create() {
   if (!draft.name.trim() || !draft.time.trim()) return toast('活动名称与时间为必填', 'error')
+  // 旧版用 <input type="datetime-local"> 保证格式；这里换成文本框后必须自己校验，
+  // 后端不做校验，写错了会原样进库（列表里显示成乱码时间）
+  if (!/^\d{4}-\d{1,2}-\d{1,2}([ T]\d{1,2}:\d{2})?$/.test(draft.time.trim())) {
+    return toast('时间格式应为 2026-10-01 09:00', 'error')
+  }
   saving.value = true
   try {
     const data = await apiPost<Activity>('/api/activities', {
       name: draft.name,
       location: draft.location,
-      time: draft.time,
-      departments: draft.departments,
+      // 统一成后端与其它页面都用空格分隔的形式
+      time: draft.time.trim().replace('T', ' '),
+      departments: pickedDepartments(),
       need_volunteers: draft.need_volunteers
     })
     items.value.unshift(data)
@@ -308,8 +379,8 @@ async function create() {
     draft.name = ''
     draft.time = ''
     draft.location = ''
-    draft.departments = ''
     draft.need_volunteers = false
+    for (const d of DEPARTMENTS) deptChecked[d] = false
   } catch (err) {
     toast((err as Error).message, 'error')
   } finally {
@@ -342,7 +413,20 @@ onMounted(load)
   font-size: 13px;
   color: var(--text-primary);
 }
-.vol-item .yali-muted {
+.vol-idx {
+  flex: none;
+  width: 20px;
+  text-align: right;
+  color: var(--text-tertiary);
+}
+.vol-item .vol-time {
   margin-left: auto;
+}
+/* 发布活动的部门勾选区（替代旧版的 8 个复选框） */
+.act-dept-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 6px;
 }
 </style>

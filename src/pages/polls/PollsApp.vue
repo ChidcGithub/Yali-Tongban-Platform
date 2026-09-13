@@ -126,6 +126,29 @@
                 </span>
               </Button>
             </div>
+
+            <!-- 主观题字数上限（旧版 pq-maxlen，默认 1000） -->
+            <label v-else class="yali-field poll-maxlen">
+              <span class="yali-field-label">字数限制</span>
+              <NumberBox v-model:Value="q.max_length" :Minimum="1" :Maximum="10000" :SmallChange="100" />
+            </label>
+
+            <!-- 题目配图（选填）：旧版为 upload-zone，选取后先压缩再随创建请求提交 -->
+            <div class="poll-image">
+              <label class="poll-image-pick">
+                <input type="file" accept="image/*" @change="pickImage(q, $event)" />
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.photo" :FontSize="13" />
+                  <span>{{ q.image_url ? '更换配图' : '添加配图（选填）' }}</span>
+                </span>
+              </label>
+              <span v-if="q.image_url" class="poll-image-note">已添加，随投票一起提交</span>
+              <button v-if="q.image_url" class="poll-del" type="button" title="移除配图"
+                      @click="q.image_url = ''">
+                <FontIcon :Glyph="GLYPH.close" :FontSize="12" />
+              </button>
+              <img v-if="q.image_url" :src="q.image_url" class="poll-image-preview" alt="配图预览" />
+            </div>
           </div>
         </div>
 
@@ -275,6 +298,15 @@ interface DraftQuestion {
   options: string[]
   type: string
   _typeIndex: number
+  /** 已压缩的 base64 data URL；既作预览也作提交载荷（空串表示无配图） */
+  image_url: string
+  /** 主观题字数上限 */
+  max_length: number
+}
+
+/** 新题目的默认值（必须含 image_url / max_length，否则响应式上会是 undefined） */
+function blankQuestion(): DraftQuestion {
+  return { title: '', options: ['', ''], type: 'single', _typeIndex: 0, image_url: '', max_length: 1000 }
 }
 
 const dialogOpen = ref(false)
@@ -286,17 +318,46 @@ const draft = reactive({
   require_name: false,
   /** 限定班级：输入框里是逗号/空格分隔的 4 位班级编号，提交前解析成数组 */
   allowed_classes: '',
-  questions: [
-    { title: '', options: ['', ''], type: 'single', _typeIndex: 0 }
-  ] as DraftQuestion[]
+  questions: [blankQuestion()] as DraftQuestion[]
 })
 
 function addQuestion() {
-  draft.questions.push({ title: '', options: ['', ''], type: 'single', _typeIndex: 0 })
+  draft.questions.push(blankQuestion())
 }
 
 function removeQuestion(i: number) {
   draft.questions.splice(i, 1)
+}
+
+/* ── 题目配图 ──
+   旧版走「先预览原图 → 提交时再 compressImage」，这里改为**选取时就压缩**，
+   既避免重复编码，也让预览图与最终提交的图完全一致（原图 25MB 会被后端拒绝）。 */
+async function pickImage(q: DraftQuestion, e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 一定要清空，否则连续选同一个文件不会再触发 change
+  input.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/')) return toast('请选择图片文件', 'error')
+  if (file.size > 25 * 1024 * 1024) return toast('图片不能超过 25MB', 'error')
+  try {
+    const raw = await readAsDataUrl(file)
+    const fn = (window as unknown as { compressImage?: (d: string) => Promise<string> }).compressImage
+    q.image_url = fn ? await fn(raw) : raw
+  } catch {
+    toast('图片读取失败', 'error')
+  }
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  const fn = (window as unknown as { fileToDataUrl?: (f: File) => Promise<string> }).fileToDataUrl
+  if (fn) return fn(file)
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result))
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(file)
+  })
 }
 
 async function create() {
@@ -308,14 +369,17 @@ async function create() {
     .filter((c) => /^\d{4}$/.test(c))
   const questions = draft.questions
     .filter((q) => q.title.trim())
-    .map((q) => ({
-      type: TYPE_VALUES[q._typeIndex] ?? 'single',
-      title: q.title.trim(),
-      options:
-        TYPE_VALUES[q._typeIndex] === 'text'
-          ? []
-          : q.options.map((o) => o.trim()).filter(Boolean)
-    }))
+    .map((q) => {
+      const type = TYPE_VALUES[q._typeIndex] ?? 'single'
+      const base = {
+        type,
+        title: q.title.trim(),
+        image_url: q.image_url,
+        options: type === 'text' ? [] : q.options.map((o) => o.trim()).filter(Boolean)
+      }
+      // 主观题才需要字数上限；后端对非主观题会忽略该字段
+      return type === 'text' ? { ...base, max_length: q.max_length || 1000 } : base
+    })
 
   if (!questions.length) return toast('至少需要一个题目', 'error')
   const invalid = questions.find(
@@ -350,7 +414,7 @@ async function create() {
     draft.description = ''
     draft.require_name = false
     draft.allowed_classes = ''
-    draft.questions = [{ title: '', options: ['', ''], type: 'single', _typeIndex: 0 }]
+    draft.questions = [blankQuestion()]
     roleIndex.value = 0
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -403,6 +467,49 @@ onMounted(load)
 .poll-type {
   width: 120px;
   flex: none;
+}
+.poll-maxlen {
+  margin-top: 8px;
+  padding-left: 12px;
+  max-width: 220px;
+}
+/* 题目配图：用一个 <label> 包住隐藏的 file input 当按钮用（原生控件，
+   不引入新的设计系统；样式沿用站点既有的 --card-bg / --stroke-divider） */
+.poll-image {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-left: 12px;
+}
+.poll-image-pick input {
+  display: none;
+}
+.poll-image-pick {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--text-primary);
+  background: var(--card-bg);
+}
+.poll-image-pick:hover {
+  background: var(--subtle-tertiary);
+}
+.poll-image-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.poll-image-preview {
+  max-height: 96px;
+  max-width: 100%;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 4px;
+  display: block;
 }
 .poll-options {
   display: flex;

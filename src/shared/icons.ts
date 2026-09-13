@@ -47,6 +47,7 @@ export const GLYPH = {
   star: '\uE734',
   starFilled: '\uE735',
   package: '\uE7B8', // 盒子 —— 依赖包（关于页 / 致谢页）
+  photo: '\uE91B', // 相框 —— 配图（投票题目图片上传）
   person: '\uE77B',
   people: '\uE716',
   lock: '\uE72E',

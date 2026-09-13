@@ -21,6 +21,17 @@
           <span v-if="item.status && item.status !== '已通过'" class="yali-chip yali-chip-warn">
             {{ item.status }}
           </span>
+          <!-- 作者 / 管理员：编辑（回列表页带 ?edit=id 打开编辑器）与删除 -->
+          <div v-if="canManageItem" class="ad-head-actions">
+            <Button @Click="editItem">
+              <span class="yali-btn-inner"><span>编辑</span></span>
+            </Button>
+            <Button @Click="removeItem">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.delete" :FontSize="14" /><span>删除</span>
+              </span>
+            </Button>
+          </div>
         </header>
 
         <div class="yali-item-meta ad-meta">
@@ -65,11 +76,12 @@
             </template>
             <template v-else>
               <p class="yali-comment-text">{{ c.content }}</p>
-              <div v-if="canEdit(c)" class="yali-comment-actions">
-                <Button @Click="startEdit(c)">
+              <div v-if="canEditComment(c) || canDeleteComment(c)" class="yali-comment-actions">
+                <!-- 编辑只允许作者本人（后端 comments.js 口径），管理员点了必然 403 -->
+                <Button v-if="canEditComment(c)" @Click="startEdit(c)">
                   <span class="yali-btn-inner"><span>编辑</span></span>
                 </Button>
-                <Button @Click="remove(c)">
+                <Button v-if="canDeleteComment(c)" @Click="remove(c)">
                   <span class="yali-btn-inner"><span>删除</span></span>
                 </Button>
               </div>
@@ -95,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import {
@@ -106,6 +118,7 @@ import {
   formatTime,
   getUser,
   isAdmin,
+  legacy,
   openLightbox,
   toBlobUrl,
   toast
@@ -219,10 +232,25 @@ async function loadComments() {
   }
 }
 
-function canEdit(c: Comment) {
+/** 改评论：仅作者本人（后端 comments.js 只放行作者，admin 也会 403） */
+function canEditComment(c: Comment) {
+  const u = user.value
+  return !!u && u.name === c.created_by
+}
+
+/** 删评论：作者本人，或管理员 / 站长 */
+function canDeleteComment(c: Comment) {
   const u = user.value
   return !!u && (u.name === c.created_by || u.role === 'admin' || u.role === 'owner')
 }
+
+/** 改 / 删这条公告：作者本人，或管理员 / 站长（与后端 announcements.js 一致） */
+const canManageItem = computed(() => {
+  const u = user.value
+  const a = item.value
+  if (!u || !a) return false
+  return u.name === a.created_by || u.role === 'admin' || u.role === 'owner'
+})
 
 function startEdit(c: Comment) {
   editingId.value = c.id
@@ -272,6 +300,26 @@ async function post() {
     comments.value.push(created)
     draft.value = ''
     toast('评论已发表', 'success')
+    // 旧版在发表后跑一次成就检查（公告评论数成就）
+    legacy.checkCountAchievements?.()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/** 编辑：回列表页并用 ?edit=<id> 打开编辑器（旧版就是跳 announcements.html?edit=id） */
+function editItem() {
+  if (!item.value) return
+  window.location.href = `announcements.html?edit=${item.value.id}`
+}
+
+async function removeItem() {
+  if (!item.value) return
+  if (!window.confirm('确定删除此公告吗？此操作不可撤销。')) return
+  try {
+    await apiDel(`/api/announcements/${item.value.id}`)
+    toast('公告已删除', 'success')
+    window.location.href = 'announcements.html'
   } catch (err) {
     toast((err as Error).message, 'error')
   }
@@ -293,6 +341,12 @@ onMounted(load)
   align-items: flex-start;
   gap: 10px;
   flex-wrap: wrap;
+}
+.ad-head-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex: none;
 }
 .ad-meta {
   margin-top: 8px;

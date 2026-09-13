@@ -97,20 +97,19 @@
         </div>
       </div>
 
-      <!-- ── 自定义时间 ── -->
+      <!-- ── 自定义时间 ──
+           ComboBox 的 SelectionChanged 只带 {AddedItems,RemovedItems}，没有 SelectedIndex；
+           四个下拉都必须用 v-model:SelectedIndex，否则每次选择都被重置回 0，
+           起止时间恒为 07:00–07:00 → 提交永远弹「结束时间必须晚于开始时间」。 -->
       <div class="hall-custom-row">
         <span class="hall-custom-label">自定义</span>
-        <ComboBox :ItemsSource="HOURS" :SelectedIndex="startHIndex"
-                  @SelectionChanged="(a) => (startHIndex = a?.SelectedIndex ?? 0)" class="hall-custom-h" />
+        <ComboBox :ItemsSource="HOURS" v-model:SelectedIndex="startHIndex" class="hall-custom-h" />
         <span class="hall-custom-sep">:</span>
-        <ComboBox :ItemsSource="MINUTES" :SelectedIndex="startMIndex"
-                  @SelectionChanged="(a) => (startMIndex = a?.SelectedIndex ?? 0)" class="hall-custom-m" />
+        <ComboBox :ItemsSource="MINUTES" v-model:SelectedIndex="startMIndex" class="hall-custom-m" />
         <span class="hall-custom-sep">至</span>
-        <ComboBox :ItemsSource="HOURS" :SelectedIndex="endHIndex"
-                  @SelectionChanged="(a) => (endHIndex = a?.SelectedIndex ?? 0)" class="hall-custom-h" />
+        <ComboBox :ItemsSource="HOURS" v-model:SelectedIndex="endHIndex" class="hall-custom-h" />
         <span class="hall-custom-sep">:</span>
-        <ComboBox :ItemsSource="MINUTES" :SelectedIndex="endMIndex"
-                  @SelectionChanged="(a) => (endMIndex = a?.SelectedIndex ?? 0)" class="hall-custom-m" />
+        <ComboBox :ItemsSource="MINUTES" v-model:SelectedIndex="endMIndex" class="hall-custom-m" />
         <button class="btn btn-sm btn-primary" type="button" @click="openBookingFromCustom">预约</button>
       </div>
       <p class="yali-muted hall-hint">在上方时段表按住拖动也可以直接选时间段</p>
@@ -535,6 +534,33 @@ async function submitBooking() {
   }
   if (d.start >= d.end) return toast('结束时间必须晚于开始时间', 'error')
   if (!d.purpose.trim()) return toast('请填写用途', 'error')
+
+  /* 冲突预检：旧版会把当天与他人预约的重叠分钟数累计，超过 10 分钟就提示确认。
+     不拦的话很容易提交一段必然被驳回的时间。 */
+  const sMin = timeToMin(d.start)
+  const eMin = timeToMin(d.end)
+  const conflicts: Array<{ applicant: string; start_time: string; end_time: string; overlap: number }> = []
+  let totalOverlap = 0
+  for (const b of bookings.value) {
+    // 自己的预约不算冲突（旧版同样跳过）
+    if (user && (b.user_id === (user as { userId?: number }).userId || b.applicant === user.name)) continue
+    if (b.status === 'cancelled' || b.status === 'rejected') continue
+    if (b.date !== d.date) continue
+    const overlap = Math.min(eMin, timeToMin(b.end_time)) - Math.max(sMin, timeToMin(b.start_time))
+    if (overlap > 0) {
+      conflicts.push({ applicant: b.applicant, start_time: b.start_time, end_time: b.end_time, overlap })
+      totalOverlap += overlap
+    }
+  }
+  if (totalOverlap > 10) {
+    let msg = `所选时间段（${d.start}─${d.end}）与他人预约重叠总计 ${totalOverlap} 分钟：\n`
+    for (const c of conflicts) {
+      msg += `  · ${c.applicant} ${c.start_time}─${c.end_time}（重叠 ${c.overlap} 分钟）\n`
+    }
+    msg += '\n建议重新选择。仍要提交吗？'
+    if (!window.confirm(msg)) return
+  }
+
   busy.value = true
   try {
     await apiPost('/api/hall/bookings', {
@@ -552,6 +578,15 @@ async function submitBooking() {
   } finally {
     busy.value = false
   }
+}
+
+/** 'HH:MM' → 分钟数（旧版 timeToMin） */
+function timeToMin(t: string) {
+  const [h, m] = String(t || '').split(':')
+  const hh = Number(h)
+  const mm = Number(m)
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return 0
+  return hh * 60 + mm
 }
 
 /* ── 撤回 / 删除 / 审核 ── */

@@ -40,7 +40,11 @@
           <div v-if="resultsLoading" class="yali-muted pv-gap">加载中…</div>
           <template v-else>
             <div v-for="(qr, qi) in results" :key="qi" class="pv-result">
-              <TextBlock :Text="(qi + 1) + '. ' + qr.title" :FontSize="14" :FontWeight="500" />
+              <TextBlock :Text="(qi + 1) + '. ' + qr.title" :FontSize="14" :FontWeight="500" TextWrapping="Wrap" />
+              <button v-if="qr.image_url" class="pv-q-image" type="button" title="点击查看大图"
+                      @click="openLightbox(toBlobUrl(qr.image_url))">
+                <img :src="qr.image_url" alt="题目配图" loading="lazy" />
+              </button>
               <div v-if="qr.result?.options" class="pv-result-options">
                 <div v-for="(opt, oi) in qr.result.options" :key="oi" class="pv-result-opt">
                   <div class="pv-result-head">
@@ -53,9 +57,11 @@
                   <ProgressBar :Value="(qr.result.counts?.[oi] ?? 0)" :Maximum="Math.max(...(qr.result.counts ?? [1]), 1)"
                                :MinHeight="6" />
                 </div>
+                <p class="pv-text pv-total">共 {{ qr.result.total ?? 0 }} 票</p>
               </div>
-              <div v-else-if="qr.result?.texts" class="pv-result-texts">
-                <p v-for="(t, ti) in qr.result.texts" :key="ti" class="pv-text">{{ t }}</p>
+              <!-- 主观题：接口字段是 result.answers（旧版 renderResults 同名字段） -->
+              <div v-else-if="qr.result?.answers" class="pv-result-texts">
+                <p v-for="(t, ti) in qr.result.answers" :key="ti" class="pv-text">{{ t }}</p>
               </div>
             </div>
             <Button class="pv-back" @Click="go('polls.html')">
@@ -89,6 +95,12 @@
               <span class="yali-chip">{{ typeText(q.type) }}</span>
             </div>
 
+            <!-- 题目配图（旧版 poll.js renderQuestions 的 imageHtml 分支） -->
+            <button v-if="q.image_url" class="pv-q-image" type="button" title="点击查看大图"
+                    @click="openLightbox(toBlobUrl(q.image_url))">
+              <img :src="q.image_url" alt="题目配图" loading="lazy" />
+            </button>
+
             <RadioButtons v-if="q.type === 'single'" :ItemsSource="q.options ?? []"
                           :SelectedIndex="singleIdx[qi] ?? -1" class="pv-gap"
                           @SelectionChanged="(a) => (singleIdx[qi] = a?.SelectedIndex ?? -1)" />
@@ -98,7 +110,8 @@
                         :Content="opt" v-model:IsChecked="multiSel[qi][oi]" />
             </div>
 
-            <TextBox v-else v-model:Text="textAns[qi]" PlaceholderText="填写你的回答" :MaxLength="1000"
+            <TextBox v-else v-model:Text="textAns[qi]" PlaceholderText="填写你的回答"
+                     :MaxLength="q.max_length || 1000"
                      AcceptsReturn TextWrapping="Wrap" class="pv-gap pv-textarea" />
           </section>
 
@@ -128,13 +141,17 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiGet, apiPost, getUser, legacy, toast } from '../../shared/api'
+import { apiGet, apiPost, getUser, legacy, openLightbox, toast, toBlobUrl } from '../../shared/api'
 
 interface Question {
   id: number
   type: 'single' | 'multiple' | 'text'
   title: string
   options?: string[]
+  /** 题目配图（base64 data URL，后端校验长度上限 2MB） */
+  image_url?: string
+  /** 主观题字数上限，创建时设置，默认 1000 */
+  max_length?: number
 }
 interface Poll {
   id: number
@@ -152,7 +169,8 @@ interface Poll {
 interface QuestionResult {
   title: string
   type: string
-  result?: { options?: string[]; counts?: number[]; total?: number; texts?: string[] }
+  image_url?: string
+  result?: { options?: string[]; counts?: number[]; total?: number; answers?: string[] }
 }
 
 const id = new URLSearchParams(window.location.search).get('id')
@@ -400,6 +418,31 @@ html.theme-dark .pv-error {
   font-size: 13px;
   background: var(--subtle-secondary);
   color: var(--text-primary);
+}
+.pv-total {
+  background: none;
+  padding: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+/* 题目配图：与旧版一致限制高度，点击走 lightbox 看大图 */
+.pv-q-image {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 4px;
+  background: none;
+  cursor: zoom-in;
+  overflow: hidden;
+  line-height: 0;
+  max-width: 100%;
+}
+.pv-q-image img {
+  max-height: 200px;
+  max-width: 100%;
+  width: auto;
+  display: block;
 }
 .pv-back {
   margin-top: 20px;

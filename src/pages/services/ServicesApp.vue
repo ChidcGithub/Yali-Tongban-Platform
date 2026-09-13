@@ -117,10 +117,29 @@
                         <span class="yali-comment-author">{{ c.created_by }}</span>
                         <span class="yali-comment-time">{{ formatTime(c.created_at) }}</span>
                       </div>
-                      <p class="yali-comment-text">{{ c.content }}</p>
-                      <div v-if="canEditComment(c)" class="yali-comment-actions">
-                        <Button @Click="removeComment(item, c)">删除</Button>
-                      </div>
+                      <template v-if="editingCommentId === c.id">
+                        <TextBox v-model:Text="editCommentDraft" :MaxLength="500" AcceptsReturn
+                                 class="yali-comment-input" />
+                        <div class="yali-comment-actions">
+                          <Button @Click="saveCommentEdit(item, c)">
+                            <span class="yali-btn-inner"><span>保存</span></span>
+                          </Button>
+                          <Button @Click="cancelCommentEdit">
+                            <span class="yali-btn-inner"><span>取消</span></span>
+                          </Button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <p class="yali-comment-text">{{ c.content }}</p>
+                        <div v-if="canEditComment(c) || canDeleteComment(c)" class="yali-comment-actions">
+                          <Button v-if="canEditComment(c)" @Click="startCommentEdit(c)">
+                            <span class="yali-btn-inner"><span>编辑</span></span>
+                          </Button>
+                          <Button v-if="canDeleteComment(c)" @Click="removeComment(item, c)">
+                            <span class="yali-btn-inner"><span>删除</span></span>
+                          </Button>
+                        </div>
+                      </template>
                     </div>
                   </template>
 
@@ -381,9 +400,44 @@ async function loadComments(issue: Issue) {
   }
 }
 
+/** 改评论：仅作者本人（后端 comments.js 只放行作者，admin 也会 403） */
 function canEditComment(c: Comment) {
   const u = getUser()
+  return !!u && u.name === c.created_by
+}
+
+/** 删评论：作者本人，或管理员 / 站长 */
+function canDeleteComment(c: Comment) {
+  const u = getUser()
   return !!u && (u.name === c.created_by || u.role === 'admin' || u.role === 'owner')
+}
+
+/* ── 就地编辑评论（旧版 editIssueComment / saveEditIssueComment） ── */
+const editingCommentId = ref<number | null>(null)
+const editCommentDraft = ref('')
+
+function startCommentEdit(c: Comment) {
+  editingCommentId.value = c.id
+  editCommentDraft.value = c.content
+}
+
+function cancelCommentEdit() {
+  editingCommentId.value = null
+  editCommentDraft.value = ''
+}
+
+async function saveCommentEdit(issue: Issue, c: Comment) {
+  const content = editCommentDraft.value.trim()
+  if (!content) return toast('评论内容不能为空', 'error')
+  if (content.length > 500) return toast('评论内容为1-500字', 'error')
+  try {
+    await apiPut(`/api/comments/${c.id}`, { content })
+    c.content = content
+    cancelCommentEdit()
+    toast('评论已修改', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
 }
 
 async function postComment(issue: Issue) {

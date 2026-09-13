@@ -4,8 +4,8 @@
       <div class="err-card">
         <span class="err-label">ERROR {{ code }}</span>
         <TextBlock class="err-code" :Text="String(code)" />
-        <TextBlock class="err-question" :Text="question" />
-        <TextBlock class="err-hint" :Text="hint" />
+        <TextBlock class="err-question" :Text="questionText" />
+        <TextBlock class="err-hint" :Text="hintText" />
 
         <div class="err-actions">
           <Button :Style="'{StaticResource AccentButtonStyle}'" @Click="go('services.html')">
@@ -21,6 +21,10 @@
         </div>
 
         <p v-if="extra" class="err-extra">{{ extra }}</p>
+        <!-- 旧版 410 页脚有反馈入口，迁移时丢了；这里补一个（404/410 共用） -->
+        <p class="err-feedback">
+          如果有疑问，请<button class="err-link" type="button" @click="go('feedback.html')">点击此处</button>反馈
+        </p>
       </div>
 
       <!-- 「伪装入侵」彩蛋的容器：仅在 404 且带 ?from= 时渲染。
@@ -48,6 +52,10 @@ const extra = ref('')
 const intruderActive = ref(false)
 const intruderMarkup = INTRUDER_MARKUP
 
+/** 可被 ?from= 覆盖的文案（旧版 410.html 会改写标题与提示） */
+const questionText = ref(props.question)
+const hintText = ref(props.hint)
+
 function go(href: string) {
   window.location.href = href
 }
@@ -62,10 +70,16 @@ onMounted(async () => {
   const check = (window as unknown as { checkSiteClosed?: () => void }).checkSiteClosed
   check?.()
 
-  if (props.code !== 404) return
-
   const from = new URLSearchParams(window.location.search).get('from')
   if (!from) return
+
+  /* 410 带 from：改写标题与提示（旧版 410.html 的行为），不播彩蛋 */
+  if (props.code !== 404) {
+    questionText.value = `你访问的 ${from} 页面已被永久删除`
+    hintText.value = '此页面已不存在，请检查链接是否正确'
+    extra.value = `来源页面：${from}`
+    return
+  }
 
   /* 带 from 说明是从站内某处越权跳来的 —— 播放原页面的「伪装入侵」彩蛋。
      注意 intruder / frequent_404 两个成就是由动画脚本在收尾时解锁的
@@ -127,5 +141,23 @@ onMounted(async () => {
   margin-top: 16px;
   font-size: 12px;
   color: var(--text-tertiary);
+}
+.err-feedback {
+  margin: 20px 0 0;
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+.err-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-base);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+.err-link:hover {
+  text-decoration: underline;
 }
 </style>

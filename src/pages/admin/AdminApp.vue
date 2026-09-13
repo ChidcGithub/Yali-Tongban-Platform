@@ -1,8 +1,10 @@
 <template>
   <YaliShell current="admin" title="管理">
     <div class="yali-page">
-      <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="ad-tabs"
-                   @SelectionChanged="(a) => (tabIndex = a?.SelectedIndex ?? 0)" />
+    <!-- SelectorBar 的 SelectionChanged 首参是 sender，只暴露 Items / SelectedItem，
+         没有 SelectedIndex —— 必须自己 indexOf，否则 tabIndex 恒被写回 0 -->
+    <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="ad-tabs"
+                 @SelectionChanged="(a) => (tabIndex = a?.Items?.indexOf(a.SelectedItem) ?? 0)" />
 
       <!-- ── 注册审批 ── -->
       <template v-if="tabIndex === 0">
@@ -49,13 +51,21 @@
             <span class="ad-name">{{ u.name }}</span>
             <span class="yali-muted">{{ u.class_name || '—' }}</span>
             <span class="yali-chip">{{ u.department || '未分配' }}</span>
-            <ComboBox :ItemsSource="ROLE_LABELS" v-model:SelectedIndex="roleIndex[u.id]"
-                      class="ad-role" @SelectionChanged="(a) => changeRole(u, a)" />
+            <!-- ComboBox 的 SelectionChanged 不含 SelectedIndex，索引只从 update:SelectedIndex 出来 -->
+            <ComboBox :ItemsSource="ROLE_LABELS" :SelectedIndex="roleIndex[u.id]"
+                      class="ad-role" @update:SelectedIndex="(i) => changeRole(u, i)" />
             <div class="ad-actions">
+              <Button @Click="renameUser(u)">
+                <span class="yali-btn-inner"><span>改名</span></span>
+              </Button>
+              <Button @Click="changeDept(u)">
+                <span class="yali-btn-inner"><span>改部门</span></span>
+              </Button>
               <Button @Click="resetPassword(u)">
                 <span class="yali-btn-inner"><span>重置密码</span></span>
               </Button>
-              <Button @Click="removeUser(u)">
+              <!-- 自己删不了（后端 admin.js 明确拒绝）；站长也不能被删 -->
+              <Button v-if="canDeleteUser(u)" @Click="removeUser(u)">
                 <span class="yali-btn-inner">
                   <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>删除</span>
                 </span>
@@ -90,6 +100,14 @@
               <span class="yali-chip" :class="announceChip(a.status)">{{ a.status || '已通过' }}</span>
             </div>
             <TextBlock :Text="a.content" TextWrapping="Wrap" class="yali-item-body" />
+            <!-- 公告缩略图：旧版 loadAdminAnnImages 会按批拉 /api/announcements/images?ids= -->
+            <div v-if="announceImages[a.id] && announceImages[a.id].length" class="yali-img-row">
+              <img v-for="(u, i) in announceImages[a.id]" :key="i" :src="toBlobUrl(u)" alt="公告图片"
+                   @click="openLightbox(toBlobUrl(u))" />
+            </div>
+            <div v-else-if="a.has_image" class="yali-img-skeleton" aria-hidden="true">
+              <div class="yali-shimmer" />
+            </div>
             <div v-if="a.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ a.reject_reason }}</div>
             <div class="yali-item-meta">
               <span>{{ a.created_by }}</span>
@@ -164,9 +182,75 @@
         </section>
       </template>
 
+      <!-- ── 报修管理（旧版 admin.js 的问题反馈管理） ── -->
+      <template v-else-if="tabIndex === 5">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'报修记录（' + issues.length + '）'" :FontSize="15" :FontWeight="500" />
+            <Button @Click="loadIssues">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" /><span>刷新</span>
+              </span>
+            </Button>
+          </div>
+          <p v-if="issuesError" class="yali-muted ad-gap">加载失败：{{ issuesError }}</p>
+          <p v-else-if="!issues.length" class="yali-muted ad-gap">暂无报修记录</p>
+          <div v-for="it in issues" :key="it.id" class="yali-item">
+            <div class="yali-item-head">
+              <TextBlock :Text="it.location" class="yali-item-title" TextWrapping="Wrap" />
+              <span class="yali-chip">{{ it.status }}</span>
+            </div>
+            <TextBlock :Text="it.description" TextWrapping="Wrap" class="yali-item-body" />
+            <p v-if="it.notes" class="yali-muted">备注：{{ it.notes }}</p>
+            <div class="yali-item-meta">
+              <span>{{ it.submitted_by }}</span>
+              <span>{{ formatTime(it.created_at) }}</span>
+            </div>
+            <div v-if="issueImages[it.id]" class="ad-review-media">
+              <img :src="toBlobUrl(issueImages[it.id])" alt="报修图片" class="ad-review-img"
+                   @click="openLightbox(toBlobUrl(issueImages[it.id]))" />
+            </div>
+            <div class="yali-item-actions">
+              <button class="btn btn-sm btn-danger-outline" type="button" @click="removeIssue(it)">删除</button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- ── 财务记录管理（旧版 admin.js 的财务记录，DELETE /api/admin/finance/:id） ── -->
+      <template v-else-if="tabIndex === 6">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'财务记录（' + financeList.length + '）'" :FontSize="15" :FontWeight="500" />
+            <Button @Click="loadFinance">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" /><span>刷新</span>
+              </span>
+            </Button>
+          </div>
+          <p v-if="financeError" class="yali-muted ad-gap">加载失败：{{ financeError }}</p>
+          <p v-else-if="!financeList.length" class="yali-muted ad-gap">暂无财务记录</p>
+          <div v-for="f in financeList" :key="f.id" class="ad-row">
+            <span class="yali-chip" :class="f.type === '收入' ? 'yali-chip-accent' : 'yali-chip-warn'">{{ f.type }}</span>
+            <span class="ad-name">¥{{ f.amount }}</span>
+            <span class="yali-muted">{{ f.status }}</span>
+            <span class="yali-muted">{{ f.department || '—' }}</span>
+            <span class="yali-muted">{{ f.created_by }} · {{ formatTime(f.created_at) }}</span>
+            <div class="ad-actions">
+              <img v-if="financeImages[f.id]" :src="toBlobUrl(financeImages[f.id])" alt="票据"
+                   class="ad-review-img ad-fin-thumb"
+                   @click="openLightbox(toBlobUrl(financeImages[f.id]))" />
+              <button class="btn btn-sm btn-danger-outline" type="button" @click="removeFinance(f)">删除</button>
+            </div>
+          </div>
+        </section>
+      </template>
+
       <!-- ── 站点设置 ── -->
       <template v-else>
-        <section class="yali-section">
+        <!-- 维护开关只对站长开放：PUT /api/admin/settings 在路由表标了 owner:true，
+             普通管理员点了必然 403（旧版 admin.js 也是仅 owner 渲染这块） -->
+        <section v-if="isOwner" class="yali-section">
           <TextBlock Text="站点开关" :FontSize="15" :FontWeight="500" />
           <div class="yali-setting-row">
             <div class="yali-setting-label">
@@ -192,7 +276,19 @@
           </p>
         </section>
 
-        <section v-if="storage" class="yali-section">
+        <section v-if="storageError" class="yali-section">
+          <TextBlock Text="存储统计" :FontSize="15" :FontWeight="500" />
+          <p class="yali-muted ad-gap">加载失败：{{ storageError }}</p>
+          <div class="yali-form-actions">
+            <Button @Click="loadStorage">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" /><span>重试</span>
+              </span>
+            </Button>
+          </div>
+        </section>
+
+        <section v-else-if="storage" class="yali-section">
           <TextBlock Text="存储统计" :FontSize="15" :FontWeight="500" />
 
           <div class="ad-bar-row">
@@ -226,7 +322,8 @@
           </div>
         </section>
 
-        <section class="yali-section">
+        <!-- 清空数据只对站长开放：POST /api/admin/clear-all 在路由表标了 owner:true -->
+        <section v-if="isOwner" class="yali-section">
           <TextBlock Text="危险操作" :FontSize="15" :FontWeight="500" />
           <div class="yali-setting-row">
             <div class="yali-setting-label">
@@ -248,7 +345,7 @@
                    @update:IsOpen="importOpen = $event">
       <div class="yali-form">
         <SelectorBar :Items="importModes" :SelectedItem="importModes[importMode]"
-                     @SelectionChanged="(a) => { importMode = a?.SelectedIndex ?? 0; importParsed = [] }" />
+                     @SelectionChanged="(a) => { importMode = a?.Items?.indexOf(a.SelectedItem) ?? 0; importParsed = [] }" />
 
         <label v-if="importMode === 0" class="yali-field ad-gap">
           <span class="yali-field-label">上传 CSV 文件</span>
@@ -305,9 +402,12 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, formatTime, openLightbox, toast, toBlobUrl } from '../../shared/api'
+import { apiDel, apiGet, apiPost, apiPut, formatTime, getUser, isAdmin, openLightbox, toast, toBlobUrl } from '../../shared/api'
 
-const TABS = ['注册审批', '成员管理', '公告审核', '审核记录', '反馈', '站点设置']
+/* 标签顺序与旧后台一致：注册审批 / 成员 / 公告审核 / 审核记录 / 反馈 / 报修管理 / 财务记录 / 站点设置。
+   后两个标签在迁移时被漏掉了，导致 /api/issues 的删除入口和 DELETE /api/admin/finance/:id
+   一度没有任何消费者。站点设置固定放在最后，loadForTab 的兜底分支对应它。 */
+const TABS = ['注册审批', '成员管理', '公告审核', '审核记录', '反馈', '报修管理', '财务记录', '站点设置']
 const tabItems = TABS.map((Text) => ({ Text }))
 
 /** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
@@ -320,6 +420,9 @@ const initialTab = (() => {
   return Number.isInteger(n) && n >= 0 && n < TABS.length ? n : 0
 })()
 const tabIndex = ref(initialTab)
+
+/** 站长专属操作（维护开关、清空数据）的判断依据 */
+const isOwner = computed(() => getUser()?.role === 'owner')
 
 watch(tabIndex, (i) => {
   const url = new URL(window.location.href)
@@ -346,9 +449,39 @@ interface Feedback {
   version?: string
   created_at: string
 }
+/** GET /api/issues（列表接口只给 has_image 标记） */
+interface Issue {
+  id: number
+  location: string
+  description: string
+  notes?: string
+  status: string
+  submitted_by: string
+  created_at: string
+  has_image?: number | boolean
+}
+/** GET /api/finance */
+interface FinanceRow {
+  id: number
+  type: string
+  amount: number | string
+  status: string
+  department?: string
+  notes?: string
+  created_by: string
+  created_at: string
+  has_image?: number | boolean
+}
 
-const ROLE_LABELS = ['待审批', '公共用户', '成员', '教师', '管理员', '站长']
-const ROLE_VALUES = ['pending', 'public', 'member', 'teacher', 'admin', 'owner']
+/* 可改角色：与后端 handleUpdateRole 的白名单一致
+   （['member','admin','owner','teacher','public']）。早先表里有 '待审批'→'pending'，
+   后端明确拒绝，选中就会报「无效角色」。 */
+const ROLE_LABELS = ['公共用户', '成员', '教师', '管理员', '站长']
+const ROLE_VALUES = ['public', 'member', 'teacher', 'admin', 'owner']
+/** 与后端 DEPARTMENTS 白名单一致（_utils.js） */
+const DEPARTMENTS = ['书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室']
+/** 角色不在白名单时的兜底显示索引（成员） */
+const ROLE_FALLBACK = ROLE_VALUES.indexOf('member')
 
 /* ── 注册审批 ── */
 const registrations = ref<User[]>([])
@@ -425,7 +558,7 @@ async function loadUsers(reset = false) {
     hasMoreUsers.value = !!data?.hasMore
     for (const u of arr) {
       const i = ROLE_VALUES.indexOf(u.role)
-      roleIndex[u.id] = i >= 0 ? i : 2
+      roleIndex[u.id] = i >= 0 ? i : ROLE_FALLBACK
     }
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -444,11 +577,20 @@ const filteredUsers = computed(() => {
   return kw ? users.value.filter((u) => u.name.includes(kw)) : users.value
 })
 
-async function changeRole(u: User, args: { SelectedIndex?: number }) {
-  const i = args?.SelectedIndex
-  if (i == null || i < 0) return
+async function changeRole(u: User, i: number) {
+  if (i == null || i < 0 || i >= ROLE_VALUES.length) return
   const role = ROLE_VALUES[i]
+  roleIndex[u.id] = i // 受控回写：ComboBox 只读 :SelectedIndex
   if (role === u.role) return
+  // 与后端一致：只有站长能授予站长；站长本人的角色不可改
+  const me = getUser()
+  if (u.role === 'owner') return toast('不能修改站长的角色', 'error')
+  if (role === 'owner' && me?.role !== 'owner') return toast('只有站长可以授予站长权限', 'error')
+  if (role === 'public' && !window.confirm(`将 ${u.name} 改为公共账号？公共账号全站仅允许一个。`)) {
+    const old = ROLE_VALUES.indexOf(u.role)
+    roleIndex[u.id] = old >= 0 ? old : ROLE_FALLBACK
+    return
+  }
   try {
     await apiPut(`/api/admin/users/${u.id}/role`, { role })
     u.role = role
@@ -456,15 +598,19 @@ async function changeRole(u: User, args: { SelectedIndex?: number }) {
   } catch (err) {
     toast((err as Error).message, 'error')
     const old = ROLE_VALUES.indexOf(u.role)
-    roleIndex[u.id] = old >= 0 ? old : 2
+    roleIndex[u.id] = old >= 0 ? old : ROLE_FALLBACK
   }
 }
 
+/** 初始密码：与后端 handleResetPassword 同一口径（校验通过） */
+const RESET_PASSWORD = 'Yali@1234'
+
 async function resetPassword(u: User) {
-  if (!window.confirm(`确定重置 ${u.name} 的密码吗？`)) return
+  if (!window.confirm(`确定把 ${u.name} 的密码重置为初始密码吗？`)) return
   try {
-    await apiPut(`/api/admin/users/${u.id}/reset-password`)
-    toast('密码已重置为初始密码', 'success')
+    // 后端要求 body.password，不传 body 会直接返回「请提供新密码」
+    await apiPut(`/api/admin/users/${u.id}/reset-password`, { password: RESET_PASSWORD })
+    toast(`密码已重置为 ${RESET_PASSWORD}`, 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
   }
@@ -476,6 +622,53 @@ async function removeUser(u: User) {
     await apiDel(`/api/admin/users/${u.id}`)
     users.value = users.value.filter((x) => x.id !== u.id)
     toast('用户已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* 后端的删除限制：不能删自己、不能删站长（admin.js）
+   这里也把 admin/teacher 之外的角色之外的情况收一收，避免点了必然 403 */
+function canDeleteUser(u: User) {
+  const me = getUser()
+  if (me && me.name === u.name) return false
+  return u.role !== 'owner'
+}
+
+/** 改名：PUT /api/admin/users/:id/name { name }（2-20 字、不能与站长重名、不能改站长） */
+async function renameUser(u: User) {
+  if (u.role === 'owner') return toast('不能修改站长姓名', 'error')
+  const input = window.prompt(`修改 ${u.name} 的姓名（2-20 字）`, u.name)
+  if (input === null) return
+  const name = input.trim()
+  if (name.length < 2 || name.length > 20) return toast('姓名长度需在2-20字之间', 'error')
+  if (name === u.name) return
+  try {
+    await apiPut(`/api/admin/users/${u.id}/name`, { name })
+    u.name = name
+    toast('姓名已更新', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/** 改部门：PUT /api/admin/users/:id/department { department }（空串 = 未分配） */
+async function changeDept(u: User) {
+  const options = ['未分配', ...DEPARTMENTS]
+  const input = window.prompt(
+    `修改 ${u.name} 的部门\n可选：${options.join(' / ')}`,
+    u.department || '未分配'
+  )
+  if (input === null) return
+  const raw = input.trim()
+  if (raw && !DEPARTMENTS.includes(raw) && raw !== '未分配') {
+    return toast('部门不在可选范围内', 'error')
+  }
+  const department = raw === '未分配' ? '' : raw
+  try {
+    await apiPut(`/api/admin/users/${u.id}/department`, { department })
+    u.department = department
+    toast('部门已更新', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
   }
@@ -494,6 +687,8 @@ interface AdminAnnouncement {
   created_at: string
   reject_reason?: string
   comment_count?: number
+  /** 列表接口是 v2 瘦身结构，只给标记；图片走 /api/announcements/images?ids= */
+  has_image?: number | boolean
 }
 
 const ANNOUNCE_FILTERS = ['all', '待审核', '已通过', '已拒绝']
@@ -519,9 +714,34 @@ function announceChip(status?: string) {
 async function loadAnnouncements() {
   try {
     announcements.value = (await apiGet<AdminAnnouncement[]>('/api/announcements')) ?? []
+    void loadAnnounceImagesLazy()
   } catch (err) {
     toast((err as Error).message, 'error')
     announcements.value = []
+  }
+}
+
+/* 公告缩略图：每批 4 条（旧版 loadAdminAnnImages 同一策略） */
+const announceImages = reactive<Record<number, string[]>>({})
+
+async function loadAnnounceImagesLazy() {
+  const pending = announcements.value
+    .filter((a) => a.has_image && !(a.id in announceImages))
+    .map((a) => a.id)
+  for (let i = 0; i < pending.length; i += 4) {
+    const batch = pending.slice(i, i + 4)
+    let map: Record<string, string[]> = {}
+    try {
+      map = await apiGet<Record<string, string[]>>(
+        `/api/announcements/images?ids=${batch.join(',')}`
+      )
+    } catch {
+      map = {}
+    }
+    for (const id of batch) {
+      const urls = map?.[id]
+      announceImages[id] = Array.isArray(urls) ? urls : []
+    }
   }
 }
 
@@ -600,7 +820,12 @@ async function loadReviewImagesLazy() {
     } catch {
       map = {}
     }
-    for (const id of batch) reviewImages[id] = map?.[id] ?? ''
+    // 取不到图就不要登记这个 key —— 登记成空串会让 `v-else-if="r.has_image"` 的
+    // 骨架屏永远转下去（既不显示图，也不显示「无图」）
+    for (const id of batch) {
+      const url = map?.[id]
+      if (url) reviewImages[id] = url
+    }
   }
 }
 
@@ -761,6 +986,101 @@ async function removeFeedback(f: Feedback) {
   }
 }
 
+/* ── 报修管理（旧版 admin.js 的问题反馈管理） ── */
+const issues = ref<Issue[]>([])
+const issuesError = ref('')
+const issueImages = reactive<Record<number, string>>({})
+
+async function loadIssues() {
+  issuesError.value = ''
+  try {
+    issues.value = (await apiGet<Issue[]>('/api/issues')) ?? []
+    void loadIssueImagesLazy()
+  } catch (err) {
+    // 失败与「一条都没有」长得一样，必须显式区分
+    issuesError.value = (err as Error).message || '加载失败'
+    issues.value = []
+  }
+}
+
+/** 每批 4 条取图（与站点其它列表同一策略） */
+async function loadIssueImagesLazy() {
+  const pending = issues.value
+    .filter((i) => i.has_image && !(i.id in issueImages))
+    .map((i) => i.id)
+  for (let i = 0; i < pending.length; i += 4) {
+    const batch = pending.slice(i, i + 4)
+    let map: Record<string, string> = {}
+    try {
+      map = await apiGet<Record<string, string>>(`/api/issues/images?ids=${batch.join(',')}`)
+    } catch {
+      map = {}
+    }
+    for (const id of batch) {
+      const url = map?.[id]
+      if (url) issueImages[id] = url
+    }
+  }
+}
+
+async function removeIssue(it: Issue) {
+  if (!window.confirm(`确定删除报修「${it.location}」吗？此操作不可撤销。`)) return
+  try {
+    await apiDel(`/api/issues/${it.id}`)
+    issues.value = issues.value.filter((x) => x.id !== it.id)
+    toast('已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* ── 财务记录管理 ── */
+const financeList = ref<FinanceRow[]>([])
+const financeError = ref('')
+const financeImages = reactive<Record<number, string>>({})
+
+async function loadFinance() {
+  financeError.value = ''
+  try {
+    financeList.value = (await apiGet<FinanceRow[]>('/api/finance')) ?? []
+    void loadFinanceImagesLazy()
+  } catch (err) {
+    financeError.value = (err as Error).message || '加载失败'
+    financeList.value = []
+  }
+}
+
+async function loadFinanceImagesLazy() {
+  const pending = financeList.value
+    .filter((f) => f.has_image && !(f.id in financeImages))
+    .map((f) => f.id)
+  for (let i = 0; i < pending.length; i += 8) {
+    const batch = pending.slice(i, i + 8)
+    let map: Record<string, string> = {}
+    try {
+      map = await apiGet<Record<string, string>>(`/api/finance/images?ids=${batch.join(',')}`)
+    } catch {
+      map = {}
+    }
+    for (const id of batch) {
+      const url = map?.[id]
+      if (url) financeImages[id] = url
+    }
+  }
+}
+
+async function removeFinance(f: FinanceRow) {
+  if (!window.confirm('确定删除这条财务记录吗？此操作不可撤销。')) return
+  try {
+    // 管理端删除走 /api/admin/finance/:id（路由标了 owner+ 权限），不是 /api/finance/:id
+    await apiDel(`/api/admin/finance/${f.id}`)
+    financeList.value = financeList.value.filter((x) => x.id !== f.id)
+    toast('已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 /* ── 设置 ── */
 const settings = reactive({
   site_closed: false,
@@ -790,6 +1110,8 @@ interface StorageStats {
 
 const D1_LIMIT = 5 * 1024 * 1024 * 1024
 const storage = ref<StorageStats | null>(null)
+/** 存储统计加载失败的原因；失败时区块不能整块消失（否则和「没有这个功能」没区别） */
+const storageError = ref('')
 
 function fmtMB(bytes?: number) {
   return ((bytes ?? 0) / 1024 / 1024).toFixed(2) + ' MB'
@@ -823,7 +1145,10 @@ async function loadSettings() {
   try {
     const d = await apiGet<Record<string, unknown>>('/api/admin/settings')
     Object.assign(settings, {
-      site_closed: !!d?.site_closed,
+      // settings 表里 value 是 TEXT：'true' / 'false'。
+      // `!!'false'` 是 true —— 早先这样写会把「已恢复开放」的站点显示成「已关闭」，
+      // 管理员再点保存就把 'true' 写回去，真的把站点关掉。
+      site_closed: d?.site_closed === 'true',
       site_closed_message: (d?.site_closed_message as string) ?? '',
       site_closed_by: (d?.site_closed_by as string) ?? ''
     })
@@ -835,8 +1160,11 @@ async function loadSettings() {
 async function loadStorage() {
   try {
     storage.value = await apiGet<StorageStats>('/api/admin/storage')
-  } catch {
+    storageError.value = ''
+  } catch (err) {
+    // 失败不能与「还没有数据」同貌：区块会整块消失，看起来像功能不存在
     storage.value = null
+    storageError.value = (err as Error).message || '存储统计加载失败'
   }
 }
 
@@ -848,9 +1176,12 @@ async function saveSettings() {
   saving.value = true
   try {
     await apiPut('/api/admin/settings', {
-      site_closed: settings.site_closed,
+      site_closed: settings.site_closed ? 'true' : 'false',
+      // 后端只写传入的 key，漏了这个字段「上次由谁操作」会永远停在旧值
+      site_closed_by: getUser()?.name ?? '',
       site_closed_message: settings.site_closed_message
     })
+    settings.site_closed_by = getUser()?.name ?? ''
     toast('设置已保存', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -862,6 +1193,8 @@ async function saveSettings() {
 async function clearAll() {
   if (!window.confirm('确定清空全部业务数据吗？此操作不可撤销。')) return
   if (!window.confirm('再次确认：清空后无法恢复，是否继续？')) return
+  // 旧版是三级确认（admin.js），这里保留第三级，避免误触
+  if (!window.confirm('最后确认：真的要清空所有业务数据吗？')) return
   try {
     await apiPost('/api/admin/clear-all')
     toast('已清空全部数据', 'success')
@@ -876,6 +1209,8 @@ function loadForTab(i: number) {
   else if (i === 2) loadAnnouncements()
   else if (i === 3) loadReviews()
   else if (i === 4) loadFeedback()
+  else if (i === 5) loadIssues()
+  else if (i === 6) loadFinance()
   else {
     loadSettings()
     loadStorage()
@@ -884,7 +1219,15 @@ function loadForTab(i: number) {
 
 watch(tabIndex, loadForTab)
 
-onMounted(() => loadForTab(tabIndex.value))
+onMounted(() => {
+  /* 非管理员进来只会看到满屏 403 报错 —— 直接请回服务页
+     （旧版 admin.js 开头就是 requireAdmin()） */
+  if (!isAdmin()) {
+    window.location.replace('services.html')
+    return
+  }
+  loadForTab(tabIndex.value)
+})
 </script>
 
 <style>
@@ -1036,6 +1379,12 @@ onMounted(() => loadForTab(tabIndex.value))
   width: auto;
   border-radius: 6px;
   cursor: pointer;
+}
+/* 财务票据缩略图：跟在操作按钮行里，得压小并去掉上外边距 */
+.ad-fin-thumb {
+  margin-top: 0;
+  max-height: 40px;
+  border-radius: 4px;
 }
 .ad-counts {
   display: grid;

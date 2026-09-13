@@ -29,5 +29,13 @@ export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   }
 
   app.mount(host)
+
+  /* 站点维护模式：把 checkSiteClosed() 收在这里统一调用。
+     旧页面各自在自己 HTML 末尾调一次（login.html:21 / feedback.html:24 / about.html:39
+     / changelog.html:33 / thanks.html:23 / debug.html:50）—— 迁移时逐页抄漏，
+     结果服务器关了站，这些页面照常能用。
+     api.js 未加载或页面没有 #sco 容器时该函数自身会安全返回。 */
+  ;(window as unknown as { checkSiteClosed?: () => void }).checkSiteClosed?.()
+
   return app
 }

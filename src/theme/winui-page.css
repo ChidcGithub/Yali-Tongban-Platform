@@ -76,6 +76,13 @@
   flex-direction: column;
   gap: 6px;
 }
+/* 可点击跳转详情的列表项（公告列表）。交互子区域用 @click.stop 拦住冒泡 */
+.yali-item.ann-item {
+  cursor: pointer;
+}
+.yali-item.ann-item:hover .yali-item-title {
+  color: var(--accent-base);
+}
 .yali-item-head {
   display: flex;
   align-items: flex-start;

@@ -24,7 +24,8 @@
       <section class="yali-section">
         <TextBlock Text="账号信息" :FontSize="16" :FontWeight="600" />
 
-        <div class="yali-setting-row">
+        <!-- 站长不可改名：后端 handleChangeName 对 owner 直接 403，露出来只会让人白点 -->
+        <div v-if="user?.role !== 'owner'" class="yali-setting-row">
           <div class="yali-setting-label">
             <span class="yali-setting-title">显示名</span>
             <span class="yali-setting-desc">当前：{{ user?.name ?? '—' }}</span>
@@ -33,7 +34,7 @@
             <span class="yali-btn-inner"><span>{{ open === 'name' ? '收起' : '修改' }}</span></span>
           </Button>
         </div>
-        <div v-if="open === 'name'" class="set-form">
+        <div v-if="open === 'name' && user?.role !== 'owner'" class="set-form">
           <TextBox v-model:Text="form.name" PlaceholderText="新的显示名" :MaxLength="20" />
           <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveName">
@@ -68,7 +69,7 @@
           </Button>
         </div>
         <div v-if="open === 'dept'" class="set-form">
-          <ComboBox :ItemsSource="DEPARTMENTS" v-model:SelectedIndex="deptIndex" PlaceholderText="选择部门" />
+          <ComboBox :ItemsSource="deptItems" v-model:SelectedIndex="deptIndex" PlaceholderText="选择部门" />
           <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveDept">
             <span class="yali-btn-inner"><span>保存</span></span>
@@ -87,7 +88,11 @@
           <label class="yali-field">
             <span class="yali-field-label">新密码</span>
             <PasswordBox v-model:Password="form.new_password"
-                         PlaceholderText="至少6位，含字母和数字" />
+                         PlaceholderText="至少6位，含字母和数字" :MaxLength="50" />
+          </label>
+          <label class="yali-field">
+            <span class="yali-field-label">确认新密码</span>
+            <PasswordBox v-model:Password="form.new_password2" PlaceholderText="再次输入新密码" :MaxLength="50" />
           </label>
           <div class="yali-form-actions">
             <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="savePassword">
@@ -136,13 +141,19 @@ const form = reactive({
   class_name: '',
   confirm_password: '',
   old_password: '',
-  new_password: ''
+  new_password: '',
+  new_password2: ''
 })
 
 const DEPARTMENTS = [
   '书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室'
 ]
-const deptIndex = ref(-1)
+/* 第 0 项是「未设置」：后端接受空串（auth.js change-department），
+   旧版也允许把部门清空；而且必须按当前部门预选，否则每次进来都从第一项开始。 */
+const deptItems = ['未设置', ...DEPARTMENTS]
+const deptIndex = ref(
+  user.value?.department ? Math.max(0, deptItems.indexOf(user.value.department)) : 0
+)
 
 const initial = computed(() => (user.value?.name ?? '?').slice(0, 1).toUpperCase())
 
@@ -249,11 +260,11 @@ async function saveClass() {
 }
 
 async function saveDept() {
-  if (deptIndex.value < 0) return toast('请选择部门', 'error')
   if (!requirePassword()) return
   busy.value = true
   try {
-    const dept = DEPARTMENTS[deptIndex.value]
+    // index 0 = 未设置 → 提交空串，允许清空部门
+    const dept = deptIndex.value > 0 ? DEPARTMENTS[deptIndex.value - 1] : ''
     const data = await apiPost<{ user?: unknown }>('/api/auth/change-department', {
       department: dept,
       password: form.confirm_password
@@ -272,6 +283,8 @@ async function saveDept() {
 async function savePassword() {
   if (!form.old_password || !form.new_password) return toast('请填写完整', 'error')
   if (form.new_password.length < 6) return toast('新密码至少 6 位', 'error')
+  // 旧版要求两次输入一致（settings.js），少了这步打错一位就得靠登录失败才发现
+  if (form.new_password !== form.new_password2) return toast('两次输入的新密码不一致', 'error')
   busy.value = true
   try {
     await apiPost('/api/auth/change-password', {
@@ -280,6 +293,7 @@ async function savePassword() {
     })
     form.old_password = ''
     form.new_password = ''
+    form.new_password2 = ''
     toast('密码已修改', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')

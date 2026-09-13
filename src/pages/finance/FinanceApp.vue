@@ -42,8 +42,14 @@
                           @Toggled="onPendingToggle" />
           </div>
           <div class="yali-head-tools">
-            <ComboBox :ItemsSource="MONTHS" v-model:SelectedIndex="monthIndex"
-                      @SelectionChanged="onMonthChange" class="fin-month" />
+            <!-- 部门筛选：仅管理员，默认「全部」（不带 department 参数，后端不按部门过滤） -->
+            <ComboBox v-if="admin" :ItemsSource="deptFilterItems" v-model:SelectedIndex="deptFilterIndex"
+                      class="fin-dept" />
+            <!-- 月份只靠 v-model:SelectedIndex 驱动。
+                 早先还挂了 @SelectionChanged="onMonthChange"，而 ComboBox 的
+                 SelectionChanged 只带 {AddedItems,RemovedItems}，取不到 SelectedIndex
+                 → 每次选择都被 onMonthChange 重置回 0（本月）。 -->
+            <ComboBox :ItemsSource="MONTHS" v-model:SelectedIndex="monthIndex" class="fin-month" />
             <Button @Click="reload">
               <span class="yali-btn-inner">
                 <FontIcon :Glyph="GLYPH.refresh" :FontSize="14" /><span>刷新</span>
@@ -225,11 +231,12 @@ const loading = ref(true)
 const saving = ref(false)
 const onlyPending = ref(false)
 
-/* ── 月份 ── */
+/* ── 月份 ──
+   覆盖近 3 年：旧版支持 4 年 + 最近 6 个月快选，只给 12 个月会让去年的记录查不到 */
 const now = new Date()
 const MONTHS: string[] = []
 const MONTH_KEYS: string[] = []
-for (let i = 0; i < 12; i++) {
+for (let i = 0; i < 36; i++) {
   const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
   const y = d.getFullYear()
   const m = d.getMonth() + 1
@@ -240,10 +247,18 @@ const monthIndex = ref(0)
 const currentMonth = computed(() => MONTH_KEYS[monthIndex.value])
 const monthLabel = computed(() => MONTHS[monthIndex.value])
 
-function onMonthChange(args: { SelectedIndex?: number }) {
-  const i = args?.SelectedIndex ?? 0
-  if (i >= 0) monthIndex.value = i
-}
+/* ── 部门筛选（仅管理员可见，与旧版 buildDeptTabs 一致） ──
+   旧版默认 `_filterDept = ''`，即**不带 department 参数**（后端不按部门过滤），
+   由管理员用标签主动切换。早先默认就带上自己的部门，管理员反而看不到别的部门。 */
+const deptFilter = ref('')
+const deptFilterItems = computed(() => ['全部', ...DEPARTMENTS])
+const deptFilterIndex = computed({
+  get: () => (deptFilter.value ? deptFilterItems.value.indexOf(deptFilter.value) : 0),
+  set: (i: number) => {
+    deptFilter.value = i > 0 ? deptFilterItems.value[i] ?? '' : ''
+    reload()
+  }
+})
 
 /* ── 类型筛选 ── */
 const TYPE_TABS = [
@@ -271,7 +286,8 @@ const monthScoped = computed(() =>
 const visible = computed(() =>
   monthScoped.value.filter((f) => {
     if (typeFilter.value !== 'all' && f.type !== typeFilter.value) return false
-    if (onlyPending.value && f.status !== '待完成') return false
+    // 旧版口径：支出且未报销（已完成的支出也属于待办），不是仅 status==='待完成'
+    if (onlyPending.value && !(f.type === '支出' && f.status !== '已报销')) return false
     return true
   })
 )
@@ -323,7 +339,7 @@ function tagsOf(f: FinanceRecord): string[] {
 async function reload() {
   loading.value = true
   try {
-    const dept = admin && user.value?.department ? `?department=${encodeURIComponent(user.value.department)}` : ''
+    const dept = deptFilter.value ? `?department=${encodeURIComponent(deptFilter.value)}` : ''
     all.value = await apiGet<FinanceRecord[]>(`/api/finance${dept}`)
     loadImagesLazy()
   } catch (err) {
@@ -409,6 +425,15 @@ watch(dialogOpen, async (open) => {
 function onPickImage(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0] ?? null
+  // 旧版在上传前就拦掉超大文件（后端只在 base64 超 200 万字符时才报错，
+  // 用户得等压缩+发送走完才看到失败）
+  if (file && file.size > 25 * 1024 * 1024) {
+    toast('图片不能超过 25MB', 'error')
+    input.value = ''
+    draft.file = null
+    draft.preview = ''
+    return
+  }
   draft.file = file
   if (!file) {
     draft.preview = ''
@@ -534,6 +559,9 @@ html.theme-dark .fin-out {
 }
 .fin-month {
   width: 150px;
+}
+.fin-dept {
+  width: 110px;
 }
 .fin-amount-row {
   display: flex;

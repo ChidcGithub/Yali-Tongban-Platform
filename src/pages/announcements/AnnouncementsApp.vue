@@ -37,16 +37,18 @@
 
         <ListView v-else :ItemsSource="visibleList" SelectionMode="None" class="yali-list">
           <template #item="{ item }">
-            <div class="yali-item">
+            <!-- 点卡片进详情页（旧版点击行为）；所有交互子区域都要 .stop，
+                 否则点编辑/图片/评论都会顺带跳走 -->
+            <div class="yali-item ann-item" @click="go('announcement.html?id=' + item.id)">
               <div class="yali-item-head">
                 <TextBlock :Text="item.title" class="yali-item-title" TextWrapping="Wrap" />
                 <div class="yali-item-actions">
                   <span v-if="isNew(item)" class="yali-chip yali-chip-accent">NEW</span>
                   <span v-if="item.status && item.status !== '已通过'" class="yali-chip">{{ item.status }}</span>
-                  <Button v-if="canEdit(item)" @Click="openEditor(item)">
+                  <Button v-if="canEdit(item)" @Click.stop="openEditor(item)">
                     <span class="yali-btn-inner"><span>编辑</span></span>
                   </Button>
-                  <Button v-if="canEdit(item)" @Click="remove(item)">
+                  <Button v-if="canEdit(item)" @Click.stop="remove(item)">
                     <span class="yali-btn-inner">
                       <FontIcon :Glyph="GLYPH.delete" :FontSize="14" /><span>删除</span>
                     </span>
@@ -58,9 +60,9 @@
 
               <!-- 两段式图片：列表接口只给 has_image，图片按批异步取回；
                    未到达时先显示扫光占位，全部解码就绪后一次性替换 -->
-              <div v-if="imageMap[item.id] && imageMap[item.id].length" class="yali-img-row">
+              <div v-if="imageMap[item.id] && imageMap[item.id].length" class="yali-img-row" @click.stop>
                 <img v-for="(url, i) in imageMap[item.id]" :key="i" :src="toBlobUrl(url)"
-                     alt="公告图片" @click="openLightbox(toBlobUrl(url))" />
+                     alt="公告图片" @click.stop="openLightbox(toBlobUrl(url))" />
               </div>
               <div v-else-if="item.has_image" class="yali-img-skeleton" aria-hidden="true">
                 <div class="yali-shimmer"></div>
@@ -71,7 +73,7 @@
                 <span>{{ formatTime(item.created_at) }}</span>
               </div>
 
-              <Expander class="yali-comments"
+              <Expander class="yali-comments" @click.stop
                         :Header="'评论 (' + (item.comment_count || 0) + ')'"
                         :HeaderIcon="GLYPH.feedback"
                         @Expanding="loadComments(item)">
@@ -85,11 +87,29 @@
                         <span class="yali-comment-time">{{ formatTime(c.created_at) }}</span>
                       </div>
                       <p class="yali-comment-text">{{ c.content }}</p>
-                      <div v-if="canEditComment(c)" class="yali-comment-actions">
-                        <Button @Click="removeComment(item, c)">
-                          <span class="yali-btn-inner"><span>删除</span></span>
-                        </Button>
-                      </div>
+                      <template v-if="editingCommentId === c.id">
+                        <TextBox v-model:Text="editCommentDraft" :MaxLength="500" AcceptsReturn
+                                 class="yali-comment-input" />
+                        <div class="yali-comment-actions">
+                          <Button @Click="saveCommentEdit(item, c)">
+                            <span class="yali-btn-inner"><span>保存</span></span>
+                          </Button>
+                          <Button @Click="cancelCommentEdit">
+                            <span class="yali-btn-inner"><span>取消</span></span>
+                          </Button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <p class="yali-comment-text">{{ c.content }}</p>
+                        <div v-if="canEditComment(c) || canDeleteComment(c)" class="yali-comment-actions">
+                          <Button v-if="canEditComment(c)" @Click="startCommentEdit(c)">
+                            <span class="yali-btn-inner"><span>编辑</span></span>
+                          </Button>
+                          <Button v-if="canDeleteComment(c)" @Click="removeComment(item, c)">
+                            <span class="yali-btn-inner"><span>删除</span></span>
+                          </Button>
+                        </div>
+                      </template>
                     </div>
                   </template>
 
@@ -112,7 +132,8 @@
       </section>
     </div>
 
-    <button v-if="user" class="yali-fab" type="button" aria-label="发布公告" @click="openEditor()">
+    <!-- 待审批（pending）用户不能发布公告，与旧版一致 -->
+    <button v-if="user && user.role !== 'pending'" class="yali-fab" type="button" aria-label="发布公告" @click="openEditor()">
       <FontIcon :Glyph="GLYPH.add" :FontSize="18" />
     </button>
 
@@ -307,9 +328,44 @@ async function loadComments(a: Announcement) {
   }
 }
 
+/** 改评论：仅作者本人（后端 comments.js 只放行作者，admin 也会 403） */
 function canEditComment(c: Comment) {
   const u = user.value
+  return !!u && u.name === c.created_by
+}
+
+/** 删评论：作者本人，或管理员 / 站长 */
+function canDeleteComment(c: Comment) {
+  const u = user.value
   return !!u && (u.name === c.created_by || u.role === 'admin' || u.role === 'owner')
+}
+
+/* ── 就地编辑评论 ── */
+const editingCommentId = ref<number | null>(null)
+const editCommentDraft = ref('')
+
+function startCommentEdit(c: Comment) {
+  editingCommentId.value = c.id
+  editCommentDraft.value = c.content
+}
+
+function cancelCommentEdit() {
+  editingCommentId.value = null
+  editCommentDraft.value = ''
+}
+
+async function saveCommentEdit(item: Announcement, c: Comment) {
+  const content = editCommentDraft.value.trim()
+  if (!content) return toast('评论内容不能为空', 'error')
+  if (content.length > 500) return toast('评论内容为1-500字', 'error')
+  try {
+    await apiPut(`/api/comments/${c.id}`, { content })
+    c.content = content
+    cancelCommentEdit()
+    toast('评论已修改', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
 }
 
 async function postComment(a: Announcement) {
@@ -364,6 +420,35 @@ function openEditor(item?: Announcement) {
   draft.files = []
   draft.previews = []
   editorOpen.value = true
+  // 编辑已有公告时把它的图片取回来展示（列表接口是 v2 瘦身结构，没有 image_url）
+  if (item?.has_image && !imageMap[item.id]) loadItemImages(item.id)
+}
+
+/** 单条取图（详情页的「编辑」按钮跳过来时，列表里可能还没有这条的图） */
+async function loadItemImages(id: number) {
+  try {
+    const map = await apiGet<Record<string, string[]>>(`/api/announcements/images?ids=${id}`)
+    imageMap[id] = map?.[String(id)] ?? []
+  } catch {
+    imageMap[id] = []
+  }
+}
+
+/** 深链：announcements.html?edit=<id> —— 详情页「编辑」按钮的目标（旧版同一约定） */
+async function handleEditDeepLink() {
+  const raw = new URLSearchParams(window.location.search).get('edit')
+  if (!raw) return
+  const targetId = Number(raw)
+  if (!Number.isFinite(targetId)) return
+  const found = list.value.find((a) => a.id === targetId)
+  if (found && canEdit(found)) return openEditor(found)
+  // 列表里没有（例如刚发布还没刷新）就单独取详情行，仍然要求有编辑权
+  try {
+    const one = await apiGet<Announcement>(`/api/announcements/${targetId}`)
+    if (one && canEdit(one)) openEditor(one)
+  } catch {
+    /* 取不到就当没有深链 */
+  }
 }
 
 function onPickFiles(e: Event) {
@@ -400,18 +485,21 @@ async function save() {
 
     if (editing.value) {
       const keep = imageMap[editing.value.id] ?? []
-      const data = await apiPut<{ image_url?: string }>(
-        `/api/announcements/${editing.value.id}`,
-        { title: draft.title, content: draft.content, image_urls: [...keep, ...uploaded] }
-      )
-      imageMap[editing.value.id] = uploaded.length ? [...keep, ...uploaded] : keep
-      editing.value.title = draft.title
-      editing.value.content = draft.content
-      editing.value.has_image = imageMap[editing.value.id].length ? 1 : 0
-      void data
-      toast('公告已更新', 'success')
+      // 重新选图 = 替换，未选图才沿用旧图。后端 replaceAnnounceImages 是整表替换语义，
+      // 写成 [...keep, ...uploaded] 会让旧图永远删不掉、重选时越堆越多（旧版是二选一）。
+      const image_urls = uploaded.length ? uploaded : keep
+      const updated = await apiPut<Announcement>(`/api/announcements/${editing.value.id}`, {
+        title: draft.title,
+        content: draft.content,
+        image_urls
+      })
+      imageMap[editing.value.id] = image_urls
+      // 后端编辑会把 status 重置为「待审核」并返回整行 —— 必须用服务端返回行覆盖，
+      // 否则条目还以「已通过」留在默认列表里，chip 与实际审核状态不一致。
+      Object.assign(editing.value, updated, { has_image: image_urls.length ? 1 : 0 })
+      toast('公告已更新，等待审核', 'success')
     } else {
-      const created = await apiPost<{ id: number }>('/api/announcements', {
+      const created = await apiPost<Announcement>('/api/announcements', {
         title: draft.title,
         content: draft.content,
         image_urls: []
@@ -421,17 +509,10 @@ async function save() {
       }
       // 直接登记已上传的图片，省去回读详情（详情接口已是 v2 瘦身结构）
       imageMap[created.id] = uploaded
-      list.value.unshift({
-        id: created.id,
-        title: draft.title,
-        content: draft.content,
-        status: '待审核',
-        created_by: getUser()?.name ?? '',
-        created_at: new Date().toISOString(),
-        comment_count: 0,
-        has_image: uploaded.length ? 1 : 0
-      })
-      toast('公告已提交，等待审核', 'success')
+      // 用服务端返回行，别自己编 status —— announcements.status 的默认值是「已通过」，
+      // 早先写死 '待审核' 会让刚发布的公告在默认筛选下立刻从列表消失。
+      list.value.unshift({ ...created, has_image: uploaded.length ? 1 : 0 })
+      toast('公告已发布', 'success')
     }
     editorOpen.value = false
     legacy.checkNovice?.()
@@ -474,6 +555,9 @@ watch(editorOpen, (open) => {
   editing.value = null
 })
 
-onMounted(loadList)
+onMounted(async () => {
+  await loadList()
+  await handleEditDeepLink()
+})
 </script>
 

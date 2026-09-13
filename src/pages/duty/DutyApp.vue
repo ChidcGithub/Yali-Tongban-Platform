@@ -59,6 +59,7 @@
               <span>开始</span>
               <span>{{ data.staff_a?.name || 'A' }}</span>
               <span>{{ data.staff_b?.name || 'B' }}</span>
+              <span>计分</span>
             </div>
             <div v-for="(p, i) in data.periods" :key="i" class="duty-row">
               <span class="duty-label">{{ p.label }}</span>
@@ -95,10 +96,14 @@
                 </span>
                 <span v-else class="yali-chip yali-chip-danger">缺岗</span>
               </div>
+              <!-- 计分对照列：与旧版 renderDutyScore 同格式（姓名+分，0 分不显示） -->
+              <span class="duty-score-cell" :class="{ 'is-zero': dutyScore(p) === '0' }">
+                {{ dutyScore(p) }}
+              </span>
             </div>
           </div>
           <p class="yali-muted duty-tip">
-            时段结束后 {{ data.periods[0]?.auto_absent_min ?? 0 }} 分钟内未签到将自动标记缺岗
+            各时段在结束后按各自的宽限分钟数自动标记缺岗；具体分钟数见表内提示
           </p>
         </section>
 
@@ -175,7 +180,12 @@ function initial(name?: string) {
 
 function elapsed(st: Attendance) {
   if (!st.sign_in_time) return ''
-  const start = new Date(st.sign_in_time.replace(' ', 'T') + (st.sign_in_time.endsWith('Z') ? '' : '+08:00'))
+  // 后端写的是 datetime('now')，也就是 **UTC**（DB 里形如 `2026-09-13 04:00:00`）。
+  // 补 '+08:00' 会把它当北京时间，在岗时长直接多出 8 小时；必须补 'Z'。
+  // 旧版 duty.js 的 startDutyTimer 同样补 'Z'。
+  const raw = st.sign_in_time
+  const iso = raw.includes('T') ? raw : raw.replace(' ', 'T')
+  const start = new Date(iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z')
   if (isNaN(start.getTime())) return ''
   void tick.value
   const min = Math.max(0, Math.floor((Date.now() - start.getTime()) / 60000))
@@ -184,6 +194,21 @@ function elapsed(st: Attendance) {
 
 function signed(v: number) {
   return v > 0 ? `+${v}` : String(v)
+}
+
+/** 本时段两人得分对照（旧版 renderDutyScore）：
+    两人都还没签到 → '-'；都 0 分 → '0'；否则只列出非 0 的「姓名+分」 */
+function dutyScore(p: { a: Attendance; b: Attendance }) {
+  if (p.a.status === 'pending' && p.b.status === 'pending') return '-'
+  const at = p.a.total || 0
+  const bt = p.b.total || 0
+  if (at === 0 && bt === 0) return '0'
+  const nameA = data.value?.staff_a?.name || 'A'
+  const nameB = data.value?.staff_b?.name || 'B'
+  const parts: string[] = []
+  if (at !== 0) parts.push(`${nameA}${at > 0 ? '+' : ''}${at}`)
+  if (bt !== 0) parts.push(`${nameB}${bt > 0 ? '+' : ''}${bt}`)
+  return parts.join(' ') || '0'
 }
 
 async function load() {
@@ -293,11 +318,19 @@ onBeforeUnmount(() => {
 }
 .duty-row {
   display: grid;
-  grid-template-columns: 88px 76px 1fr 1fr;
+  grid-template-columns: 88px 76px 1fr 1fr 150px;
   gap: 12px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--stroke-divider);
+}
+.duty-score-cell {
+  font-size: 12px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.duty-score-cell.is-zero {
+  color: var(--text-tertiary);
 }
 .duty-row-head {
   font-size: 12px;
@@ -331,7 +364,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 640px) {
   .duty-row {
-    grid-template-columns: 70px 1fr 1fr;
+    grid-template-columns: 62px 1fr 1fr;
+    gap: 6px;
+  }
+  /* 窄屏隐藏「开始」列，计分列换到第二行整行显示 */
+  .duty-score-cell {
+    grid-column: 1 / -1;
+    font-size: 11px;
   }
   .duty-row > :nth-child(2) {
     display: none;
