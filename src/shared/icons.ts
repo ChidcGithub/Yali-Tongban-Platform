@@ -1,68 +1,52 @@
 /**
  * 图标字形映射
  *
- * 全部取自随包分发的 SEGOEICONS.TTF，并已用 cmap 校验过码位真实存在
- * （该字体是子集，仅 1993 个码位，上游自身用到的 70 个字形里有 20 个不在其中）。
- * 因此这里只使用「已确认覆盖」的码位，保证 Android / iOS 上也不会出现豆腐块。
+ * 全部取自随包字体 SEGOEICONS.TTF。该字体已按「实际用到的码位」做过子集化
+ * （见 scripts/subset-icons.mjs），因此**新增字形必须重新生成子集**：
+ *   node scripts/subset-icons.mjs
+ * 构建前会自动跑 scripts/check-glyphs.mjs 拦住漏收的字形，不会静默出现豆腐块。
  *
- * 新增字形前，先用 .check-winui/cmapcheck.js 校验覆盖：
- *   node .check-winui/cmapcheck.js E7B8,E8B7
- *
- * ⚠️ 语义是首版判断，看效果后可直接改这里的常量，不影响其他代码。
+ * 语义参考了原站点 nav.js 的图标名（clipboard / zap / megaphone / wallet /
+ * shield / message-square …）—— 但随包字体并不包含全部对应字形，
+ * 缺字形的按下表注释里的说明取了最接近的替代。
+ * 表里只保留真正被引用的条目；看效果后可直接改常量，不影响其他代码。
  */
 
 export const GLYPH = {
-  /* 主导航 */
-  services: '\uE90F', // 扳手 —— 报修服务
-  moment: '\uE8F2', // 对话框 —— 动态
-  announcements: '\uE8A5', // 文档 —— 公告
-  polls: '\uE8FB', // 对勾 —— 投票
-  finance: '\uE825', // 钱袋 —— 财务
-  activities: '\uE8BF', // 日历 —— 活动
-  duty: '\uE916', // 计时 —— 值日
-  admin: '\uE72E', // 锁 —— 管理
-  feedback: '\uE8BD', // 留言 —— 反馈
+  /* 主导航（对应原 nav.js 的 tabPages） */
+  services: '\uE77F', // 剪贴板 —— 服务（原为 clipboard）
+  moment: '\uE8F2', // 对话气泡 —— 动态（原为 zap，字体无闪电字形）
+  announcements: '\uE767', // 喇叭 —— 公告（原为 megaphone）
+  polls: '\uE8FB', // 对勾 —— 投票（原为 check-circle，字体无圆环对勾）
+  finance: '\uE825', // 银行柱式建筑 —— 财务（原为 wallet，无钱包字形）
+  activities: '\uE787', // 日历 —— 活动（原为 calendar）
+  duty: '\uE916', // 秒表 —— 值日（原为 clock）
+  admin: '\uE72E', // 锁 —— 管理（原为 shield，字体无盾牌字形）
+  feedback: '\uE8BD', // 对话气泡 —— 反馈（原为 message-square）
 
-  /* 顶栏与账户 */
+  /* 侧栏底部与账户 */
   messages: '\uEA8F', // 铃铛 —— 消息
   settings: '\uE713', // 齿轮 —— 个性化
   user: '\uE77B', // 人像 —— 账户
   logout: '\uE711', // 叉 —— 登出
-  about: '\uE946', // 信息 —— 关于
+  about: '\uE946', // 信息圈 —— 关于
 
   /* 通用动作 */
-  search: '\uE721',
   add: '\uE710',
-  edit: '\uE70F',
-  save: '\uE74E',
   delete: '\uE74D',
   refresh: '\uE72C',
-  back: '\uE76C',
-  forward: '\uE71C',
-  menu: '\uE700',
-  more: '\uE712',
-  copy: '\uE8C8',
-  download: '\uE896',
-  upload: '\uE898',
-  filter: '\uE71C',
-  sort: '\uE8EF',
+  back: '\uE72B', // 左箭头 —— 返回
+  forward: '\uE72A', // 右箭头 —— 前进
   close: '\uE711',
   check: '\uE8FB',
+  download: '\uE896',
 
   /* 对象与分类 */
-  package: '\uE7B8', // 包 —— 依赖 / 库
-  folder: '\uE8B7',
-  library: '\uE8F1',
-  document: '\uE8A5',
-  image: '\uE8B9',
-  calendar: '\uE8BF',
+  calendar: '\uE787',
   clock: '\uE916',
   star: '\uE734',
   starFilled: '\uE735',
-  flag: '\uE7C1',
-  chart: '\uE8EC', // 注意：字体子集里没有真正的图表字形（E9D2/E9D9 均缺），暂用此码位
-  table: '\uE80A',
-  list: '\uE8FD',
+  package: '\uE7B8', // 盒子 —— 依赖包（关于页 / 致谢页）
   person: '\uE77B',
   people: '\uE716',
   lock: '\uE72E',

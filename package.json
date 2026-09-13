@@ -5,7 +5,7 @@
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-glyphs.mjs && node scripts/check-components.mjs && vite build",
+    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && vite build",
     "preview": "vite preview",
     "dev:pages": "wrangler pages dev dist/",
     "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
@@ -15,7 +15,10 @@
     "verify": "node scripts/verify-page.mjs",
     "check:components": "node scripts/check-components.mjs",
     "regress": "node scripts/regress.mjs",
-    "regress:dev": "node scripts/regress.mjs --dev"
+    "regress:dev": "node scripts/regress.mjs --dev",
+    "check:icons": "node scripts/icon-refs.mjs",
+    "subset:icons": "node scripts/subset-icons.mjs",
+    "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

@@ -1,80 +1,72 @@
 /**
  * 图标字形校验
  *
- * src/shared/icons.ts 里的字形必须真实存在于随包字体 SEGOEICONS.TTF 中，
- * 否则在 Android / iOS 上会渲染成豆腐块（该字体是子集，仅 1993 个码位）。
+ * 随包字体 SEGOEICONS.TTF 已按实际用到的码位做过子集化（见 scripts/subset-icons.mjs），
+ * 只保留约 100 个字形。因此任何新增图标都必须跑这道校验，
+ * 否则在 Android / iOS 上会渲染成豆腐块。
+ *
+ * 校验两件事：
+ *  1. src/shared/icons.ts 的每个字形都在子集字体里
+ *  2. src/ 下任何位置引用到的字形，只要原字体本来就有，子集里也必须还有
+ *     （防止子集化时漏收 —— 这条由 subset-icons.mjs 保证，这里做回归兜底）
  *
  * 用法：node scripts/check-glyphs.mjs   （或 npm run check:glyphs）
- * 退出码非 0 表示存在缺失字形。
  */
-import { readFileSync } from 'node:fs'
-import { resolve, dirname } from 'node:path'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
+import { resolve, join, dirname, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFontCodepoints } from './font-cmap.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const FONT_DIR = join(root, 'src/winui/assets/Fonts')
+const SUBSET = join(FONT_DIR, 'SEGOEICONS.TTF')
+const FULL = join(FONT_DIR, 'SEGOEICONS.full.ttf')
 
-/** 解析 TTF 的 cmap，返回已映射的码位集合 */
-function readFontCodepoints(file) {
-  const buf = readFileSync(file)
-  const numTables = buf.readUInt16BE(4)
-  let cmapOff = 0
-  for (let i = 0; i < numTables; i++) {
-    const off = 12 + i * 16
-    if (buf.toString('ascii', off, off + 4) === 'cmap') {
-      cmapOff = buf.readUInt32BE(off + 8)
-    }
-  }
-  if (!cmapOff) throw new Error('字体中未找到 cmap 表')
+const hex = (c) => 'U+' + c.toString(16).toUpperCase()
+const font = readFontCodepoints(SUBSET)
 
-  const n = buf.readUInt16BE(cmapOff + 2)
-  let best = 0
-  for (let i = 0; i < n; i++) {
-    const rec = cmapOff + 4 + i * 8
-    const sub = cmapOff + buf.readUInt32BE(rec + 4)
-    if (buf.readUInt16BE(sub) === 4 && !best) best = sub
-  }
-  if (!best) throw new Error('未找到 cmap format 4 子表')
-
-  const segX2 = buf.readUInt16BE(best + 6)
-  const seg = segX2 / 2
-  const endO = best + 14
-  const startO = endO + segX2 + 2
-  const deltaO = startO + segX2
-  const rangeO = deltaO + segX2
-
-  const set = new Set()
-  for (let i = 0; i < seg; i++) {
-    const end = buf.readUInt16BE(endO + i * 2)
-    const start = buf.readUInt16BE(startO + i * 2)
-    if (start === 0xffff) continue
-    const delta = buf.readInt16BE(deltaO + i * 2)
-    const ro = buf.readUInt16BE(rangeO + i * 2)
-    for (let c = start; c <= end && c < 0xffff; c++) {
-      if (ro === 0) {
-        set.add((c + delta) & 0xffff)
-      } else {
-        const gi = buf.readUInt16BE(rangeO + i * 2 + ro + (c - start) * 2)
-        if (gi !== 0) set.add((c + delta) & 0xffff)
-      }
-    }
-  }
-  return set
-}
-
-const font = readFontCodepoints(resolve(root, 'src/winui/assets/Fonts/SEGOEICONS.TTF'))
+/* ── 1. icons.ts 的字形 ── */
 const src = readFileSync(resolve(root, 'src/shared/icons.ts'), 'utf8')
-
 const entries = [...src.matchAll(/^\s*([A-Za-z][A-Za-z0-9]*):\s*'\\u([0-9A-Fa-f]{4})'/gm)].map(
   (m) => ({ name: m[1], code: m[2].toUpperCase() })
 )
-
 const missing = entries.filter((e) => !font.has(parseInt(e.code, 16)))
 
-console.log(`图标表共 ${entries.length} 个字形，字体覆盖 ${entries.length - missing.length} 个`)
+console.log(`图标表共 ${entries.length} 个字形，子集字体覆盖 ${entries.length - missing.length} 个`)
 if (missing.length) {
   console.error('\n以下字形不在字体子集内（会渲染成豆腐块）：')
   for (const m of missing) console.error(`  ${m.name}  U+${m.code}`)
-  console.error('\n请换用已覆盖的码位。')
+  console.error('\n若是新加的图标，改完 icons.ts 后跑一次：node scripts/subset-icons.mjs')
   process.exit(1)
 }
+
+/* ── 2. 全量引用覆盖回归（只有完整字体在时才做） ── */
+if (existsSync(FULL)) {
+  const full = readFontCodepoints(FULL)
+  const walk = (dir, out = []) => {
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name)
+      if (statSync(p).isDirectory()) walk(p, out)
+      else if (['.vue', '.ts', '.css', '.js'].includes(extname(name))) out.push(p)
+    }
+    return out
+  }
+  const referenced = new Set()
+  for (const file of walk(join(root, 'src'))) {
+    const s = readFileSync(file, 'utf8')
+    for (const m of s.matchAll(/&#x([0-9A-Fa-f]{4,5});/g)) referenced.add(parseInt(m[1], 16))
+    for (const m of s.matchAll(/\\u([EFef][0-9A-Fa-f]{3})/g)) referenced.add(parseInt(m[1], 16))
+    for (const m of s.matchAll(/'([EFef][0-9A-Fa-f]{3})'/g)) referenced.add(parseInt(m[1], 16))
+  }
+  const lost = [...referenced].filter((c) => full.has(c) && !font.has(c)).sort((a, b) => a - b)
+  if (lost.length) {
+    console.error(`\n✗ 源码引用了 ${lost.length} 个原字体中存在、但子集里缺失的字形：`)
+    console.error('  ' + lost.map(hex).join(' '))
+    console.error('\n跑一次 node scripts/subset-icons.mjs 重新生成子集。')
+    process.exit(1)
+  }
+  const unusable = [...referenced].filter((c) => !full.has(c)).length
+  console.log(`源码引用的字形中，原字体本就缺失的有 ${unusable} 个（不阻塞，渲染时会回退）`)
+}
+
 console.log('✅ 全部字形均可用')
