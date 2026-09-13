@@ -149,6 +149,25 @@ const FIXTURES = {
       { department: '办公室', count: 8, score: 24 }
     ]
   },
+  'duty-admin': {
+    schedule: [
+      { date: '2026-09-13', a_name: '张三', b_name: '李四' },
+      { date: '2026-09-14', a_name: '王五', b_name: '赵六' },
+      { date: '2026-09-15', a_name: '孙七', b_name: '周八' }
+    ],
+    staff: [
+      { id: 11, name: '张三', class: '2517', department: '办公室' },
+      { id: 12, name: '李四', class: '2518', department: '组织部' }
+    ],
+    scores: [
+      { id: 71, date: '2026-09-12', name: '张三', period: '大课间', score: 2, reason: '按时到岗' },
+      { id: 72, date: '2026-09-11', name: '李四', period: '午自习', score: -1, reason: '迟到', is_cancelled: false }
+    ],
+    periods: [
+      { label: '大课间', start_time: '09:10', end_time: '09:30', auto_absent_min: 10 },
+      { label: '午自习', start_time: '12:40', end_time: '13:00', auto_absent_min: 10 }
+    ]
+  },
   activities: {
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
@@ -205,6 +224,13 @@ const stub = `
     if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
+    if (fx.schedule && url.indexOf('/api/duty/schedule?') === 0) return fx.schedule;
+    if (fx.schedule && url.indexOf('/api/duty/schedule') === 0) return fx.schedule;
+    if (fx.staff && url.indexOf('/api/duty/staff') === 0) return fx.staff;
+    if (fx.scores && url.indexOf('/api/duty/scores') === 0) return fx.scores;
+    if (fx.periods && url.indexOf('/api/duty/periods') === 0) return fx.periods;
+    if (fx.staff && url.indexOf('/api/duty/admins') === 0) return [];
+    if (fx.staff && url.indexOf('/api/duty/department-stats') === 0) return [];
     if (fx.dutyToday && url.indexOf('/api/duty/department-stats') === 0) return fx.deptStats;
     if (fx.dutyToday && url.indexOf('/api/duty/attendance/today') === 0) return fx.dutyToday;
     if (fx.finance && url.indexOf('/api/finance/images') === 0) return {};
