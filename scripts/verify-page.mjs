@@ -204,11 +204,6 @@ const stub = `
   } catch (e) {}
 
   window.__errors = [];
-  window.__search = location.search;
-  var dbg = document.createElement('div');
-  dbg.id = '__search';
-  dbg.textContent = 'search=' + location.search + '; pathname=' + location.pathname;
-  document.documentElement.appendChild(dbg);
   function record(msg) {
     window.__errors.push(String(msg));
     var el = document.getElementById('__errors');
