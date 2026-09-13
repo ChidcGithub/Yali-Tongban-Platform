@@ -420,8 +420,11 @@ function openEditor(item?: Announcement) {
   draft.files = []
   draft.previews = []
   editorOpen.value = true
-  // 编辑已有公告时把它的图片取回来展示（列表接口是 v2 瘦身结构，没有 image_url）
-  if (item?.has_image && !imageMap[item.id]) loadItemImages(item.id)
+  // 编辑已有公告时把它的图片取回来。
+  // 必须**等**它回来：save() 用 imageMap 计算「要保留哪些旧图」，
+  // 如果用户在图还没到就保存，image_urls 会是 []，
+  // 而后端 replaceAnnounceImages 是**整表替换**语义 → 旧图全被删掉。
+  if (item?.has_image && !(item.id in imageMap)) void loadItemImages(item.id)
 }
 
 /** 单条取图（详情页的「编辑」按钮跳过来时，列表里可能还没有这条的图） */

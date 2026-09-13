@@ -241,10 +241,13 @@ async function load() {
     needName.value = !!poll.value.require_name && !user.value
     initMulti()
 
-    /* 是否已投过 */
+    /* 是否已投过：`/api/polls/:id/my-vote` 返回的是**对象** `{voted:false}` /
+       `{voted:true, response, answers}`，不是数组。
+       早先写成 `!!mine && (!Array.isArray(mine) || mine.length > 0)` ——
+       `!Array.isArray({})` 为 true，于是 voted 恒为 true，**投票表单永远不出现**。 */
     try {
-      const mine = await apiGet<unknown>(`/api/polls/${id}/my-vote`)
-      voted.value = !!mine && (!Array.isArray(mine) || mine.length > 0)
+      const mine = await apiGet<{ voted?: boolean }>(`/api/polls/${id}/my-vote`)
+      voted.value = !!mine?.voted
     } catch {
       voted.value = false
     }

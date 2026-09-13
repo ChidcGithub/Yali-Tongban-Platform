@@ -66,10 +66,8 @@ function goBack() {
 }
 
 onMounted(async () => {
-  /* 站点维护状态（沿用站点既有实现） */
-  const check = (window as unknown as { checkSiteClosed?: () => void }).checkSiteClosed
-  check?.()
-
+  /* 维护模式的 checkSiteClosed() 已由 mountWinUI 统一调用（见 shared/bootstrap.ts），
+     这里不再重复请求一次 /api/settings */
   const from = new URLSearchParams(window.location.search).get('from')
   if (!from) return
 

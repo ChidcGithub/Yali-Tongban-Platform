@@ -165,7 +165,7 @@ import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, mountCaptcha, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, mountCaptcha, toast } from '../../shared/api'
 
 interface Activity {
   id: number
@@ -387,6 +387,17 @@ async function create() {
     saving.value = false
   }
 }
+
+/* 关闭发布对话框时清空草稿：只在创建成功后重置的话，
+   「取消」再打开会带着上次勾的部门/名称/时间，很容易误发 */
+watch(dialogOpen, (open) => {
+  if (open) return
+  draft.name = ''
+  draft.time = ''
+  draft.location = ''
+  draft.need_volunteers = false
+  for (const d of DEPARTMENTS) deptChecked[d] = false
+})
 
 onMounted(load)
 </script>

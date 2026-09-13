@@ -215,7 +215,10 @@ function clearConfirm() {
 }
 
 async function saveName() {
-  if (!form.name.trim()) return toast('请填写新的显示名', 'error')
+  const name = form.name.trim()
+  if (!name) return toast('请填写新的显示名', 'error')
+  // 后端 NAME_MIN = 2，前端先拦一下省一次往返
+  if (name.length < 2 || name.length > 20) return toast('姓名长度需在2-20字之间', 'error')
   if (!requirePassword()) return
   busy.value = true
   try {

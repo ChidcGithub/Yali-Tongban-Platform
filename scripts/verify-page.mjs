@@ -140,7 +140,10 @@ const FIXTURES = {
         { id: 3, type: 'text', title: '其他建议', max_length: 500 }
       ]
     },
-    myVote: []
+    /* 真实返回是**对象** `{voted:false}` / `{voted:true,response,answers}`（见
+       polls.js handleGetMyVote）。早先这里写的是 `[]`，恰好让
+       「把对象当数组判断」的 bug 躲过了检查 —— 桩必须照抄后端形状。 */
+    myVote: { voted: false }
   },
   finance: {
     finance: [

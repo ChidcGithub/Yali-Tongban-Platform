@@ -136,11 +136,14 @@
               <span class="yali-chip" :class="reviewChip(r.status)">{{ r.status }}</span>
               <span class="yali-muted">{{ r.created_by }} · {{ formatTime(r.created_at) }}</span>
             </div>
+            <!-- 骨架只在「还没发起取图」时显示；取图失败也要登记 key（值为空串），
+                 否则 `has_image` 为真而图永远不来 → 骨架一直转 -->
             <div v-if="reviewImages[r.id]" class="ad-review-media">
               <img :src="toBlobUrl(reviewImages[r.id])" alt="审核材料"
                    class="ad-review-img" @click="openLightbox(toBlobUrl(reviewImages[r.id]))" />
             </div>
-            <div v-else-if="r.has_image" class="yali-img-skeleton ad-review-skeleton" aria-hidden="true">
+            <div v-else-if="r.has_image && !(r.id in reviewImages)"
+                 class="yali-img-skeleton ad-review-skeleton" aria-hidden="true">
               <div class="yali-shimmer" />
             </div>
             <div v-if="r.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ r.reject_reason }}</div>
@@ -498,8 +501,10 @@ const isOwner = computed(() => getUser()?.role === 'owner')
 
 watch(tabIndex, (i) => {
   const url = new URL(window.location.href)
+  // 写**标签名**而不是序号：标签会增减，序号深链会指向别的标签
+  // （此前 ?tab=5 从「站点设置」漂移到了「报修管理」）
   if (i === 0) url.searchParams.delete('tab')
-  else url.searchParams.set('tab', String(i))
+  else url.searchParams.set('tab', TABS[i] ?? String(i))
   window.history.replaceState(null, '', url)
 })
 const saving = ref(false)
@@ -627,7 +632,6 @@ const roleIndex = reactive<Record<number, number>>({})
 let userOffset = 0
 /** 后端 handleGetAllUsers 的 limit 是写死的 200，这里必须与之保持一致，
     否则 offset 步进对不上（传 limit=50 也只返回 200 条） */
-const PAGE = 200
 
 async function loadUsers(reset = false) {
   if (usersLoading.value) return
@@ -666,28 +670,40 @@ const filteredUsers = computed(() => {
   return kw ? users.value.filter((u) => u.name.includes(kw)) : users.value
 })
 
+/** 把下拉的显示索引退回跟当前角色一致（ComboBox 是单向 :SelectedIndex） */
+function syncRoleIndex(u: User) {
+  const i = ROLE_VALUES.indexOf(u.role)
+  roleIndex[u.id] = i >= 0 ? i : ROLE_FALLBACK
+}
+
 async function changeRole(u: User, i: number) {
   if (i == null || i < 0 || i >= ROLE_VALUES.length) return
   const role = ROLE_VALUES[i]
-  roleIndex[u.id] = i // 受控回写：ComboBox 只读 :SelectedIndex
   if (role === u.role) return
-  // 与后端一致：只有站长能授予站长；站长本人的角色不可改
+  // 与后端一致：只有站长能授予站长；站长本人的角色不可改。
+  // 注意这两个守卫必须在乐观写回 roleIndex **之前** return ——
+  // 否则下拉会一直显示被拒绝的那个角色，而且选同一项不会再 emit，无法自愈。
   const me = getUser()
-  if (u.role === 'owner') return toast('不能修改站长的角色', 'error')
-  if (role === 'owner' && me?.role !== 'owner') return toast('只有站长可以授予站长权限', 'error')
+  if (u.role === 'owner') {
+    syncRoleIndex(u)
+    return toast('不能修改站长的角色', 'error')
+  }
+  if (role === 'owner' && me?.role !== 'owner') {
+    syncRoleIndex(u)
+    return toast('只有站长可以授予站长权限', 'error')
+  }
   if (role === 'public' && !window.confirm(`将 ${u.name} 改为公共账号？公共账号全站仅允许一个。`)) {
-    const old = ROLE_VALUES.indexOf(u.role)
-    roleIndex[u.id] = old >= 0 ? old : ROLE_FALLBACK
+    syncRoleIndex(u)
     return
   }
+  roleIndex[u.id] = i // 受控回写：ComboBox 只读 :SelectedIndex
   try {
     await apiPut(`/api/admin/users/${u.id}/role`, { role })
     u.role = role
     toast(`${u.name} 的角色已改为${ROLE_LABELS[i]}`, 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
-    const old = ROLE_VALUES.indexOf(u.role)
-    roleIndex[u.id] = old >= 0 ? old : ROLE_FALLBACK
+    syncRoleIndex(u)
   }
 }
 
@@ -695,6 +711,7 @@ async function changeRole(u: User, i: number) {
 const RESET_PASSWORD = 'Yali@1234'
 
 async function resetPassword(u: User) {
+  if (u.role === 'owner') return toast('不能重置站长密码', 'error')
   if (!window.confirm(`确定把 ${u.name} 的密码重置为初始密码吗？`)) return
   try {
     // 后端要求 body.password，不传 body 会直接返回「请提供新密码」
@@ -721,7 +738,9 @@ async function removeUser(u: User) {
 function canDeleteUser(u: User) {
   const me = getUser()
   if (me && me.name === u.name) return false
-  return u.role !== 'owner'
+  // 后端 handleDeleteUser 只放行 member / pending / teacher（admin.js），
+  // admin / owner / public 点了必然 400，干脆不露出来
+  return u.role === 'member' || u.role === 'pending' || u.role === 'teacher'
 }
 
 /** 改名：PUT /api/admin/users/:id/name { name }（2-20 字、不能与站长重名、不能改站长） */
@@ -909,12 +928,9 @@ async function loadReviewImagesLazy() {
     } catch {
       map = {}
     }
-    // 取不到图就不要登记这个 key —— 登记成空串会让 `v-else-if="r.has_image"` 的
-    // 骨架屏永远转下去（既不显示图，也不显示「无图」）
-    for (const id of batch) {
-      const url = map?.[id]
-      if (url) reviewImages[id] = url
-    }
+    // 必须登记 key（取不到就是空串）：骨架的条件是「has_image 且还没登记」，
+    // 不登记的话每次都会重新请求，而骨架也永远转下去
+    for (const id of batch) reviewImages[id] = map?.[id] ?? ''
   }
 }
 
@@ -1105,10 +1121,8 @@ async function loadIssueImagesLazy() {
     } catch {
       map = {}
     }
-    for (const id of batch) {
-      const url = map?.[id]
-      if (url) issueImages[id] = url
-    }
+    // 取不到也要登记（空串）：骨架条件是「has_image 且还没登记」，不登记就永远转
+    for (const id of batch) issueImages[id] = map?.[id] ?? ''
   }
 }
 
@@ -1151,10 +1165,8 @@ async function loadFinanceImagesLazy() {
     } catch {
       map = {}
     }
-    for (const id of batch) {
-      const url = map?.[id]
-      if (url) financeImages[id] = url
-    }
+    // 取不到也要登记（空串），否则每次重渲染都会重新请求
+    for (const id of batch) financeImages[id] = map?.[id] ?? ''
   }
 }
 

@@ -113,7 +113,7 @@
               </button>
             </div>
 
-            <div v-if="q.type !== 'text'" class="poll-options">
+            <div v-if="qType(q) !== 'text'" class="poll-options">
               <div v-for="(_, oi) in q.options" :key="oi" class="poll-option">
                 <TextBox v-model:Text="q.options[oi]" :PlaceholderText="'选项 ' + (oi + 1)" :MaxLength="200" />
                 <button class="poll-del" type="button" title="删除选项" @click="q.options.splice(oi, 1)">
@@ -309,6 +309,14 @@ function blankQuestion(): DraftQuestion {
   return { title: '', options: ['', ''], type: 'single', _typeIndex: 0, image_url: '', max_length: 1000 }
 }
 
+/* 题型**只有一个真实来源**：下拉绑的 `_typeIndex`。
+   早先模板与校验读的是 `q.type`，而 `q.type` 建题后再也不更新 ——
+   结果「字数限制」控件永远不渲染、「主观题」提交时还按选择题校验被拒。
+   统一用 qType() 取。 */
+function qType(q: DraftQuestion): string {
+  return TYPE_VALUES[q._typeIndex] ?? q.type ?? 'single'
+}
+
 const dialogOpen = ref(false)
 const saving = ref(false)
 const roleIndex = ref(0)
@@ -370,7 +378,7 @@ async function create() {
   const questions = draft.questions
     .filter((q) => q.title.trim())
     .map((q) => {
-      const type = TYPE_VALUES[q._typeIndex] ?? 'single'
+      const type = qType(q)
       const base = {
         type,
         title: q.title.trim(),

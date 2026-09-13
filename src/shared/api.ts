@@ -93,7 +93,11 @@ export type CaptchaInstance = {
  */
 export function mountCaptcha(containerId: string): CaptchaInstance | null {
   const Ctor = w.CaptchaWidget
-  if (!Ctor) return null
+  if (!Ctor) {
+    // 页面没加载 /js/captcha.js —— 同样要可见，别静默
+    console.warn(`[winui] CAPTCHA_WIDGET_NOT_MOUNTED：页面未加载 captcha.js（#${containerId}）`)
+    return null
+  }
 
   const container = document.getElementById(containerId)
   if (!container) {

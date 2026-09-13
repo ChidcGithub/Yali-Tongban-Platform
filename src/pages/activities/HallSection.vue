@@ -359,7 +359,7 @@ const dayCards = computed(() => {
     const top = ((sh - HALL_START * 60) / 60) * PX_PER_HOUR + PAD_TOP
     const height = Math.max(((eh - sh) / 60) * PX_PER_HOUR, 24)
     const { col, numCols } = meta.get(b.id) ?? { col: 0, numCols: 1 }
-    const mine = Number(b.user_id) === Number(user?.userId)
+    const mine = isMine(b)
     let cls = 'hall-timeline-card'
     if (numCols > 1) {
       if (col > 0) cls += ' hall-timeline-card-touch-left'
@@ -388,14 +388,28 @@ const dayCards = computed(() => {
   })
 })
 
+/**
+ * 这条预约是不是自己的。
+ *
+ * ⚠️ localStorage 里的 user 字段名是 **`id`**（后端 respondWithToken 组的是
+ * `{ id, name, role, class_name, department }`），**没有** `userId`。
+ * 早先三处都读 `user?.userId` → 恒为 undefined → 「我的预约」永远为空、
+ * 用户也撤不回/删不掉自己的预约（只有管理员能动）。
+ */
+function isMine(b: HallBooking) {
+  if (!user) return false
+  const uid = (user as { id?: number }).id
+  if (uid != null && b.user_id != null) return Number(b.user_id) === Number(uid)
+  return !!b.applicant && b.applicant === user.name
+}
+
 const myPendingOrRejected = computed(() =>
   bookings.value.filter(
-    (b) => Number(b.user_id) === Number(user?.userId) && (b.status === 'pending' || b.status === 'rejected')
+    (b) => isMine(b) && (b.status === 'pending' || b.status === 'rejected')
   )
 )
 
-const canDelete = (b: HallBooking) =>
-  b.status !== 'cancelled' && (Number(b.user_id) === Number(user?.userId) || isAdmin())
+const canDelete = (b: HallBooking) => b.status !== 'cancelled' && (isMine(b) || isAdmin())
 
 /* ── 数据 ── */
 async function reload() {
@@ -543,9 +557,12 @@ async function submitBooking() {
   let totalOverlap = 0
   for (const b of bookings.value) {
     // 自己的预约不算冲突（旧版同样跳过）
-    if (user && (b.user_id === (user as { userId?: number }).userId || b.applicant === user.name)) continue
+    if (isMine(b)) continue
     if (b.status === 'cancelled' || b.status === 'rejected') continue
     if (b.date !== d.date) continue
+    // 时间格式非法的条目直接跳过：timeToMin 对坏值返回 0，会被当成 00:00 参与比较，
+    // 产生莫名其妙的「重叠」提示
+    if (!/^\d{1,2}:\d{2}$/.test(b.start_time) || !/^\d{1,2}:\d{2}$/.test(b.end_time)) continue
     const overlap = Math.min(eMin, timeToMin(b.end_time)) - Math.max(sMin, timeToMin(b.start_time))
     if (overlap > 0) {
       conflicts.push({ applicant: b.applicant, start_time: b.start_time, end_time: b.end_time, overlap })

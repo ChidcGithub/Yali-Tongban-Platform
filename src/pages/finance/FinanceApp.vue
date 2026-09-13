@@ -96,7 +96,7 @@
                 <img :src="toBlobUrl(imageMap[item.id])" alt="财务凭证"
                      @click="openLightbox(toBlobUrl(imageMap[item.id]))" />
               </div>
-              <div v-else-if="item.has_image" class="yali-img-skeleton" aria-hidden="true">
+              <div v-else-if="item.has_image && !(item.id in imageMap)" class="yali-img-skeleton" aria-hidden="true">
                 <div class="yali-shimmer"></div>
               </div>
 
@@ -200,9 +200,7 @@ import {
   apiPost,
   apiPut,
   formatTime,
-  getUser,
   isAdmin,
-  legacy,
   mountCaptcha,
   openLightbox,
   toBlobUrl,
@@ -225,19 +223,18 @@ interface FinanceRecord {
 }
 
 const admin = isAdmin()
-const user = ref(getUser())
-
 const all = ref<FinanceRecord[]>([])
 const loading = ref(true)
 const saving = ref(false)
 const onlyPending = ref(false)
 
 /* ── 月份 ──
-   覆盖近 3 年：旧版支持 4 年 + 最近 6 个月快选，只给 12 个月会让去年的记录查不到 */
+   覆盖近 4 年（48 个月）：旧版 finance.js 就是按「当前年份往前 3 年」生成的，
+   只给 12 / 36 个月会让更早的记录查不到 */
 const now = new Date()
 const MONTHS: string[] = []
 const MONTH_KEYS: string[] = []
-for (let i = 0; i < 36; i++) {
+for (let i = 0; i < 48; i++) {
   const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
   const y = d.getFullYear()
   const m = d.getMonth() + 1
@@ -356,12 +353,15 @@ async function loadImagesLazy() {
   const pending = all.value.filter((f) => f.has_image && !(f.id in imageMap)).map((f) => f.id)
   for (let i = 0; i < pending.length; i += 8) {
     const batch = pending.slice(i, i + 8)
+    let map: Record<string, string> = {}
     try {
-      const map = await apiGet<Record<string, string>>(`/api/finance/images?ids=${batch.join(',')}`)
-      for (const id of batch) imageMap[id] = map?.[id] ?? ''
+      map = await apiGet<Record<string, string>>(`/api/finance/images?ids=${batch.join(',')}`)
     } catch {
-      for (const id of batch) imageMap[id] = ''
+      map = {}
     }
+    // 取不到也要登记（空串）：骨架的条件是「has_image 且还没登记」，
+    // 不登记的话每次重渲染都会重新请求，骨架也一直转
+    for (const id of batch) imageMap[id] = map?.[id] ?? ''
   }
 }
 
@@ -417,10 +417,14 @@ type Captcha = { getData: () => Record<string, string>; refresh: () => void }
 let captcha: Captcha | null = null
 
 watch(dialogOpen, async (open) => {
-  if (!open) return
+  if (!open) {
+    // 关闭时内容被移除，旧实例指向已脱离文档的节点 → 必须置空，否则第二次打开是空白
+    captcha = null
+    return
+  }
   await nextTick()
   // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body）
-  if (!captcha) captcha = mountCaptcha('yaliFinanceCaptcha')
+  captcha = mountCaptcha('yaliFinanceCaptcha')
 })
 
 function onPickImage(e: Event) {

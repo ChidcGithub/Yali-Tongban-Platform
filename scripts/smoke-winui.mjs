@@ -361,10 +361,16 @@ async function smokeMomentFeed() {
   }
 }
 
-/** 投票详情：题目配图要从 image_url 渲染出来；主观题字数上限生效 */
+/** 投票详情：题目配图；**未投票时必须能进答题分支**；主观题字数上限 */
 async function smokePollImage() {
   const { page, pageErrors } = await openPage('poll', '?id=5')
   try {
+    /* 关键回归点：`/api/polls/:id/my-vote` 返回的是对象 `{voted:false}`。
+       早先写成 `!!mine && (!Array.isArray(mine) || ...)` → voted 恒为 true，
+       **投票表单永远不出现，所有人都投不了票**。 */
+    const submitBtn = await page.locator('.yali-form-actions button', { hasText: '提交投票' }).count()
+    check('poll：未投票时能进入答题分支（提交按钮存在）', submitBtn > 0, `${submitBtn} 个`)
+
     const imgs = await page.locator('.pv-q-image img').count()
     check('poll：题目配图渲染', imgs > 0, `${imgs} 张`)
 
@@ -381,6 +387,78 @@ async function smokePollImage() {
     check('poll：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
   } finally {
     await page.close()
+  }
+}
+
+/** 发起投票：把某题改成主观题后，选项编辑器隐藏、字数限制出现（题型只有一个真实来源） */
+async function smokePollsQuestionType() {
+  const { page, pageErrors } = await openPage('polls')
+  try {
+    // 打开发起投票对话框
+    await page.locator('.yali-fab').first().click()
+    await page.waitForTimeout(500)
+
+    const firstQ = page.locator('.poll-question').first()
+    check('polls：选择题默认显示选项编辑器', (await firstQ.locator('.poll-option').count()) > 0,
+      `${await firstQ.locator('.poll-option').count()} 个选项`)
+    check('polls：选择题默认不显示字数限制', (await firstQ.locator('.poll-maxlen').count()) === 0)
+
+    // 题型下拉 → 选「主观题」（第 3 项）
+    await firstQ.locator(SEL.comboRoot).first().locator(SEL.comboBtn).first().click()
+    await page.waitForTimeout(300)
+    const opts = page.locator(`${SEL.comboItem}:visible`)
+    const typeCount = await opts.count()
+    if (typeCount >= 3) await opts.nth(2).click()
+    await page.waitForTimeout(400)
+
+    const maxLenBox = await firstQ.locator('.poll-maxlen').count()
+    const optionRows = await firstQ.locator('.poll-option').count()
+    check('polls：切到主观题后出现「字数限制」', maxLenBox === 1, `${maxLenBox} 个（题型项 ${typeCount}）`)
+    check('polls：切到主观题后选项编辑器隐藏', optionRows === 0, `${optionRows} 个选项`)
+
+    check('polls：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
+/** 验证码对话框「打开 → 取消 → 再打开」后必须仍有验证码（关闭会移除容器） */
+async function smokeCaptchaReopen() {
+  // 报修
+  {
+    const { page } = await openPage('services')
+    try {
+      await page.locator('.yali-fab').first().click()
+      await page.waitForTimeout(500)
+      const first = await page.locator('#yaliIssueCaptcha .captcha-input').count()
+      // 关闭（取消按钮在对话框底部）
+      await page.locator('.content-dialog button', { hasText: '取消' }).first().click()
+      await page.waitForTimeout(500)
+      await page.locator('.yali-fab').first().click()
+      await page.waitForTimeout(600)
+      const second = await page.locator('#yaliIssueCaptcha .captcha-input').count()
+      check('services：再次打开表单验证码仍在', first === 1 && second === 1, `第一次 ${first}，第二次 ${second}`)
+    } finally {
+      await page.close()
+    }
+  }
+
+  // 财务
+  {
+    const { page } = await openPage('finance')
+    try {
+      await page.locator('.yali-fab').first().click()
+      await page.waitForTimeout(500)
+      const first = await page.locator('#yaliFinanceCaptcha .captcha-input').count()
+      await page.locator('.content-dialog button', { hasText: '取消' }).first().click()
+      await page.waitForTimeout(500)
+      await page.locator('.yali-fab').first().click()
+      await page.waitForTimeout(600)
+      const second = await page.locator('#yaliFinanceCaptcha .captcha-input').count()
+      check('finance：再次打开表单验证码仍在', first === 1 && second === 1, `第一次 ${first}，第二次 ${second}`)
+    } finally {
+      await page.close()
+    }
   }
 }
 
@@ -600,6 +678,7 @@ async function smokeDutyAdminBatchCancel() {
 const CASES = [
   ['登录页：验证码挂载 + 单次提交', smokeLogin],
   ['对话框内验证码（报修 / 财务 / 活动报名）', smokeDialogCaptchas],
+  ['验证码对话框：关闭后再打开仍在', smokeCaptchaReopen],
   ['管理面板：标签页切换 + 补回的标签', smokeAdminTabs],
   ['活动页：标签页切换 + 自定义时间', smokeActivitiesTabs],
   ['值日管理：标签页切换 + 手动排班入口', smokeDutyAdminTabs],
@@ -608,7 +687,8 @@ const CASES = [
   ['财务：月份选择 + 部门筛选', smokeFinanceMonth],
   ['公告列表：进入详情', smokeAnnouncementsNavigation],
   ['动态：可跳转 / 评论作者 / 通知分类', smokeMomentFeed],
-  ['投票：题目配图 + 验证码 + 字数上限', smokePollImage],
+  ['投票详情：可答题 + 配图 + 验证码', smokePollImage],
+  ['发起投票：题型切换联动', smokePollsQuestionType],
   ['个性化：字号滑块', smokePersonalizeSlider],
   ['410：?from= 文案改写 + 反馈入口', smokeGone]
 ]

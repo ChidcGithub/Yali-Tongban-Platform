@@ -531,11 +531,15 @@ const form = reactive({
 let captcha: { getData: () => Record<string, string>; refresh: () => void } | null = null
 
 watch(dialogOpen, async (open) => {
-  if (!open) return
+  if (!open) {
+    // ContentDialog 关闭时会把内容从 DOM 里移除（v-if），旧实例指向的是已脱离文档的节点。
+    // 不置空的话第二次打开时 `!captcha` 不成立 → 新容器空白 → 提交必然「人机验证失败」。
+    captcha = null
+    return
+  }
   await nextTick()
-  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body），必须等下一帧再挂；
-  // mountCaptcha 在容器缺失时会显式告警，而不是静默失败
-  if (!captcha) captcha = mountCaptcha('yaliIssueCaptcha')
+  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body）
+  captcha = mountCaptcha('yaliIssueCaptcha')
 })
 
 function onPickImage(e: Event) {
