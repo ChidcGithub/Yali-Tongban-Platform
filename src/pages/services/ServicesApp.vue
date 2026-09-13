@@ -82,7 +82,9 @@
               </div>
 
               <div class="yali-item-meta">
-                <span>提交人：{{ item.submitted_by }}</span>
+                <!-- submitted_by 只对已登录用户返回（未登录时后端不暴露） -->
+                <span v-if="item.submitted_by">提交人：{{ item.submitted_by }}</span>
+                <span v-else>匿名提交</span>
                 <span>{{ formatTime(item.created_at) }}</span>
                 <span v-if="item.updated_by">最后处理：{{ item.updated_by }}</span>
               </div>
@@ -336,12 +338,13 @@ async function changeStatus(issue: Issue, status: string) {
     }
   }
   if (issue.status !== '待处理') {
+    // modal.js 的配置键是 footer（不是 actions），按钮形状 { text, variant, onClick }
     legacy.openModal?.({
       title: '确认修改状态',
       body: `<p>当前状态为「${issue.status}」，确定要改为「${status}」吗？</p>`,
-      actions: [
-        { text: '取消', type: 'outline', action: 'closeActiveModal' },
-        { text: '确定', type: 'primary', onClick: apply }
+      footer: [
+        { text: '取消', variant: 'outline', onClick: () => legacy.closeActiveModal?.() },
+        { text: '确定', variant: 'primary', onClick: apply }
       ]
     })
     return

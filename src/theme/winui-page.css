@@ -429,3 +429,113 @@ html.theme-dark .yali-chip-warn {
 .yali-search {
   width: 240px;
 }
+
+/* ══════════════════════════════════════════════════════════
+   遗留浮层组件的按钮样式
+   页面通过 legacy.toast / legacy.openModal / openLightbox 复用站点既有实现，
+   这些组件注入的 DOM 用的是旧设计系统的 .btn 类。布局样式由
+   /css/material/components/overlay.css 提供，这里只补 .btn 本体
+   （controls.css 其余部分是旧表单控件，WinUI 页面不需要）。
+   依赖 theme-light/dark.css 提供 --md-* / --success / --warning 等 token。
+   ══════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: var(--md-shape-full, 999px);
+  font-size: 0.88rem;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
+  font-family: inherit;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+  letter-spacing: 0.01em;
+  position: relative;
+  overflow: hidden;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary { background: var(--md-primary); color: var(--md-on-primary); }
+.btn-primary:hover:not(:disabled) { background: var(--md-primary-dim); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover:not(:disabled) { background: var(--btn-success-hover); }
+.btn-danger { background: var(--md-error); color: var(--md-on-error); }
+.btn-danger:hover:not(:disabled) { background: var(--btn-danger-hover); }
+.btn-warning { background: var(--warning); color: #fff; }
+.btn-warning:hover:not(:disabled) { background: var(--btn-warning-hover); }
+.btn-outline {
+  background: transparent;
+  color: var(--md-primary);
+  border: 1.5px solid var(--md-outline-variant);
+}
+.btn-outline:hover:not(:disabled) { background: var(--md-primary-container); }
+.btn-danger-outline {
+  background: transparent;
+  color: var(--md-error);
+  border: 1.5px solid color-mix(in srgb, var(--md-error) 40%, transparent);
+}
+.btn-danger-outline:hover:not(:disabled) { background: color-mix(in srgb, var(--md-error) 10%, transparent); }
+.btn-ghost {
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  border: 1.5px solid var(--md-outline-variant);
+}
+.btn-ghost:hover:not(:disabled) { background: var(--md-surface-container); }
+.btn-sm { padding: 6px 16px; font-size: 0.82rem; }
+.btn-xs { padding: 4px 10px; font-size: 0.75rem; }
+.btn-block { width: 100%; }
+.btn-text {
+  background: transparent;
+  color: var(--md-primary);
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+.btn-text:hover:not(:disabled) { background: var(--md-primary-container); }
+
+/* ══════════════════════════════════════════════════════════
+   验证码组件（js/captcha.js 自研组件，按约定保留原实现）
+   它注入的 DOM 用 .captcha-wrap / .captcha-img / .captcha-input，
+   样式原本在旧设计系统的 controls.css 里，这里按原样移植。
+   ══════════════════════════════════════════════════════════ */
+.captcha-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.captcha-img {
+  width: 120px;
+  height: 42px;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm, 8px);
+  cursor: pointer;
+  background: var(--md-surface-container, #f4f4f4);
+  flex-shrink: 0;
+  transition: border-color 0.15s ease;
+}
+.captcha-img:hover {
+  border-color: var(--md-primary);
+}
+.captcha-input {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  color: var(--md-on-surface);
+  background: var(--md-surface-container, #f4f4f4);
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-sm, 8px);
+  outline: none;
+  transition: border-color 0.15s ease;
+  font-family: inherit;
+}
+.captcha-input:focus {
+  border-color: var(--md-primary);
+}
+.captcha-input::placeholder {
+  color: var(--md-on-surface-variant);
+}

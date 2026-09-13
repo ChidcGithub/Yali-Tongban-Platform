@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>投票详情 - 雅礼团委-通办</title>
   <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+  <!-- 站点自己的 M3 design token（现行 UI 路线就是以这套 --md-* 为基础）。
+       除了作为 WinUI accent 的来源，遗留脚本注入的浮层（toast / 模态框 / 灯箱 /
+       Cookie 提示 / 成就提示）也依赖这些 token，否则会渲染成无样式裸元素。 -->
+  <link rel="stylesheet" href="/css/material/theme-light.css">
+  <link rel="stylesheet" href="/css/material/theme-dark.css">
+  <!-- 上述浮层组件的布局样式（纯 overlay 层，不复用旧设计系统的其它部分） -->
+  <link rel="stylesheet" href="/css/material/components/overlay.css">
 </head>
 <body>
   <div id="winui-root"></div>

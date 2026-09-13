@@ -2,26 +2,25 @@ import { rateLimit, json, error, parseBody, verifyCaptcha, isValidImageUrl, isAd
 
 // 列表瘦身：不返回 image_url 全文（单张可达数 MB），只返回 has_image 标记，
 // 图片走 /api/issues/images?ids= 批量按需取。与 announcements / finance 的做法一致。
-// 同时保持原有的字段可见性差异：未登录不暴露 contact / submitted_by。
+//
+// 字段可见性：
+// - 未登录：不含 submitted_by / contact
+// - 已登录成员：只多给 submitted_by（页面上本来就展示「提交人」）
+// - 联系方式 contact 属个人信息，仅管理员可见
+const BASE_COLS = `issues.id, issues.location, issues.status, issues.description, issues.notes,
+              issues.created_at, issues.updated_by, issues.updated_at`;
 const HAS_IMAGE_COL = `CASE WHEN issues.image_url IS NOT NULL AND issues.image_url != '' THEN 1 ELSE 0 END AS has_image,
               COALESCE(c.cnt, 0) AS comment_count`;
+const ISSUE_JOIN = `FROM issues
+       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
+       ORDER BY issues.created_at DESC LIMIT 200`;
 
 export async function handleGetIssues(env, user) {
-  const isLoggedIn = !!user;
-  const rows = await env.DB.prepare(isLoggedIn
-    ? `SELECT issues.id, issues.location, issues.status, issues.description, issues.notes,
-              issues.created_at, issues.updated_by, issues.updated_at,
-              issues.contact, issues.submitted_by,
-              ${HAS_IMAGE_COL}
-       FROM issues
-       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
-       ORDER BY issues.created_at DESC LIMIT 200`
-    : `SELECT issues.id, issues.location, issues.status, issues.description, issues.notes,
-              issues.created_at, issues.updated_by, issues.updated_at,
-              ${HAS_IMAGE_COL}
-       FROM issues
-       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
-       ORDER BY issues.created_at DESC LIMIT 200`
+  let cols = BASE_COLS;
+  if (user && isAdmin(user)) cols += ', issues.submitted_by, issues.contact';
+  else if (user) cols += ', issues.submitted_by';
+  const rows = await env.DB.prepare(
+    `SELECT ${cols}, ${HAS_IMAGE_COL} ${ISSUE_JOIN}`
   ).all();
   return json(rows.results);
 }

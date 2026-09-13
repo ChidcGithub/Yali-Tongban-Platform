@@ -81,6 +81,10 @@ export const legacy = {
   get closeModal() {
     return w.closeModal
   },
+  /** utils.js 里的全局关闭函数，模态框自定义 footer 按钮会用到 */
+  get closeActiveModal() {
+    return (w as unknown as { closeActiveModal?: () => void }).closeActiveModal
+  },
   get CaptchaWidget() {
     return w.CaptchaWidget
   },

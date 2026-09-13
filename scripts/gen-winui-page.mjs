@@ -10,7 +10,7 @@
  * 用法：node scripts/gen-winui-page.mjs index thanks changelog ...
  *       node scripts/gen-winui-page.mjs --all
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -28,6 +28,10 @@ const SCRIPTS = {
 
 /** 页面 → 需要的脚本组合 */
 const PAGE_SCRIPTS = {
+  // 最早的两个试点页（生成器出现之前手写），必须登记：
+  // 未登记会被静默跳过 —— 公共部分（如 design token 的 <link>）就永远同步不过去
+  services: ['base', 'captcha', 'auth', 'lightbox'],
+  announcements: ['base', 'auth', 'lightbox'],
   index: ['version', 'base'],
   thanks: ['base', 'auth'],
   changelog: ['base', 'auth', 'changelogData'],
@@ -53,6 +57,23 @@ const PAGE_SCRIPTS = {
 
 const ALL = Object.keys(PAGE_SCRIPTS)
 
+/* 有意不迁移的页面：纯重定向桩（12 行，meta refresh 跳 /410）。
+   它们没有内容可迁移，也不是 WinUI 页面，自检时排除。 */
+const REDIRECT_STUBS = ['cultural', 'review', 'tasks']
+
+/* 自检：根目录下的每个页面 HTML 都必须登记脚本组合。
+   没登记就会被静默跳过，公共部分（如 design token 的 <link>）永远同步不过去 ——
+   services / announcements 正是这样漏掉过。 */
+const unregistered = readdirSync(root)
+  .filter((f) => f.endsWith('.html'))
+  .map((f) => f.replace(/\.html$/, ''))
+  .filter((n) => !PAGE_SCRIPTS[n] && !REDIRECT_STUBS.includes(n))
+if (unregistered.length) {
+  console.error(`✗ 以下页面 HTML 存在但未在 PAGE_SCRIPTS 登记，无法生成：${unregistered.join(', ')}`)
+  console.error('  请在 PAGE_SCRIPTS 中补上它们的脚本组合（或加入 REDIRECT_STUBS）后重跑。')
+  process.exit(1)
+}
+
 const argNames = process.argv.slice(2)
 const targets = argNames.includes('--all') || argNames.length === 0 ? ALL : argNames
 
@@ -74,6 +95,14 @@ function componentName(name) {
     .join('')
 }
 
+/* 特例：组件文件名与「由页面名推导」的结果不同。
+   数字开头的名字（404 / 410）无法作为合法 JS 标识符，必须显式映射，
+   否则生成出的 import 会指向不存在的 404App.vue 并把构建打断。 */
+const COMPONENT_OVERRIDE = {
+  404: 'NotFoundApp',
+  410: 'GoneApp'
+}
+
 function buildHtml(name) {
   const title = resolveTitle(name)
   const keys = PAGE_SCRIPTS[name] ?? ['base']
@@ -87,6 +116,13 @@ function buildHtml(name) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
   <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+  <!-- 站点自己的 M3 design token（现行 UI 路线就是以这套 --md-* 为基础）。
+       除了作为 WinUI accent 的来源，遗留脚本注入的浮层（toast / 模态框 / 灯箱 /
+       Cookie 提示 / 成就提示）也依赖这些 token，否则会渲染成无样式裸元素。 -->
+  <link rel="stylesheet" href="/css/material/theme-light.css">
+  <link rel="stylesheet" href="/css/material/theme-dark.css">
+  <!-- 上述浮层组件的布局样式（纯 overlay 层，不复用旧设计系统的其它部分） -->
+  <link rel="stylesheet" href="/css/material/components/overlay.css">
 </head>
 <body>
   <div id="winui-root"></div>
@@ -103,11 +139,15 @@ ${scriptTags}
 }
 
 function buildMain(name) {
+  const override = COMPONENT_OVERRIDE[name]
   const comp = componentName(name)
+  // 组件名可以被覆盖（如 404 → NotFoundApp），但导入标识符必须合法
+  const ident = override ? override.replace(/\.vue$/, '') : `${comp}App`
+  const file = override ? override.replace(/\.vue$/, '') : `${comp}App`
   return `import { mountWinUI } from '../../shared/bootstrap'
-import ${comp}App from './${comp}App.vue'
+import ${ident} from './${file}.vue'
 
-mountWinUI(${comp}App)
+mountWinUI(${ident})
 `
 }
 
