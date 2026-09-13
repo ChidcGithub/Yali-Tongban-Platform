@@ -87,6 +87,9 @@ const props = defineProps<{
 
 const user = ref(currentUser())
 const messagesEnabled = ref(false)
+/** 消息未读数：NavigationView 的菜单项原生支持 infoBadge，
+    而 InfoBadge 只接受数字 Value（Value >= 0 时显示、-1 为隐藏） */
+const unreadCount = ref(0)
 
 /* 主菜单 */
 const menuItems = computed<NavEntry[]>(() => toMenuItems(visibleNavItems()))
@@ -102,7 +105,8 @@ const footerItems = computed<NavEntry[]>(() => {
       href: 'messages.html',
       Content: '消息',
       Icon: GLYPH.messages,
-      Tag: 'messages'
+      Tag: 'messages',
+      ...(unreadCount.value > 0 ? { InfoBadge: { Value: unreadCount.value } } : {})
     })
   }
   items.push(
@@ -203,9 +207,20 @@ onMounted(() => {
   if (typeof check === 'function') {
     check('messages').then((enabled) => {
       messagesEnabled.value = !!enabled
+      if (enabled) void loadUnread()
     })
   }
 })
+
+/** 拉取未读消息数（仅在功能开启且已登录时才有意义，失败静默） */
+async function loadUnread() {
+  try {
+    const d = await apiGet<{ count?: number }>('/api/messages/unread-count')
+    unreadCount.value = Number(d?.count) || 0
+  } catch {
+    unreadCount.value = 0
+  }
+}
 
 onBeforeUnmount(() => {
   window.removeEventListener('yali:nav-loading', onLegacyLoading)

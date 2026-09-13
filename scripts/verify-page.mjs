@@ -300,7 +300,8 @@ const stub = `
     if (url.indexOf('/api/settings') === 0) return {};
     if (url.indexOf('/api/sync') === 0) return {};
     if (url.indexOf('/api/auth/me') === 0) return { name: '测试用户', role: 'admin' };
-    if (url.indexOf('/api/messages/unread-count') === 0) return { count: 0 };
+    // 故意给非零值：让未读角标路径每次回归都被走到
+    if (url.indexOf('/api/messages/unread-count') === 0) return { count: 3 };
     if (url.indexOf('/api/captcha') === 0) return { token: 't', svg: '<svg/>' };
     return null;
   }
