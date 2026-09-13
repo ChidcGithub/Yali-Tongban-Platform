@@ -4,46 +4,22 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>公告详情 - 雅礼团委-通办</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" onload="this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap"></noscript>
-  <link rel="stylesheet" href="/css/material/style.css">
   <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
 </head>
 <body>
-  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+  <div id="winui-root"></div>
+
+  <!-- 遗留脚本：提供 getUser / isAdmin / toast / fetchWithCache / apiGet 等全局能力。
+       winui-legacy-bridge.js 必须最先加载（api.js 会调用 nav.js 的加载指示函数，
+       而 WinUI 页面不加载 nav.js）。nav.js 本身一律不要 —— 导航由 NavigationView 承担。 -->
+  <script src="/js/winui-legacy-bridge.js"></script>
+  <script src="/js/features.js"></script>
   <script src="/js/modal.js"></script>
   <script src="/js/api.js"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/auth.js"></script>
-  <script src="/js/nav.js"></script>
-  <script>
-    renderNav('announcements');
-    checkSiteClosed();
-  </script>
-
-  <div class="container">
-    <div style="margin-bottom:16px">
-      <a href="/announcements.html" style="color:var(--text-secondary);font-size:.9rem">&larr; 返回公告列表</a>
-    </div>
-    <div id="announceDetail">
-      <!-- 文字骨架：数据到达后由 renderAnnouncement 覆盖 -->
-      <div class="card">
-        <div class="card-header"><div class="g-skeleton" style="height:20px;width:55%"></div></div>
-        <div class="card-body">
-          <div class="g-skeleton" style="height:13px;width:32%;margin-bottom:16px"></div>
-          <div class="g-skeleton" style="height:14px;width:92%;margin-bottom:8px"></div>
-          <div class="g-skeleton" style="height:14px;width:78%;margin-bottom:8px"></div>
-          <div class="g-skeleton" style="height:14px;width:85%;margin-bottom:8px"></div>
-          <div class="g-skeleton" style="height:14px;width:64%;margin-bottom:8px"></div>
-          <div class="g-skeleton" style="height:14px;width:71%"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <script src="/js/lightbox.js"></script>
-  <script src="/js/announcement.js"></script>
+
+  <script type="module" src="/src/pages/announcement/main.ts"></script>
 </body>
 </html>
