@@ -141,7 +141,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiGet, apiPost, getUser, legacy, openLightbox, toast, toBlobUrl } from '../../shared/api'
+import { apiGet, apiPost, getUser, legacy, mountCaptcha, openLightbox, toast, toBlobUrl } from '../../shared/api'
 
 interface Question {
   id: number
@@ -250,16 +250,18 @@ async function load() {
     }
 
     if (voted.value) await loadResults()
-
-    await nextTick()
-    const Ctor = legacy.CaptchaWidget
-    if (Ctor && canVote.value) captcha = new Ctor('yaliPollCaptcha')
   } catch (err) {
     toast((err as Error).message, 'error')
     poll.value = null
   } finally {
     loading.value = false
   }
+
+  /* 验证码必须等 loading 关掉之后再挂 —— 表单在 `v-if="loading"` 之后的分支里，
+     loading 期间 #yaliPollCaptcha 根本不在 DOM 中，CaptchaWidget 会静默 return，
+     于是 getData() 永远空 token，投票必然被判「人机验证失败」。 */
+  await nextTick()
+  if (canVote.value && !captcha) captcha = mountCaptcha('yaliPollCaptcha')
 }
 
 function initMulti() {

@@ -80,7 +80,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
-import { apiGet, apiPost, legacy, toast } from '../../shared/api'
+import { apiGet, apiPost, legacy, mountCaptcha, toast } from '../../shared/api'
 
 const TABS = [
   { Text: '登录', Tag: 'login' },
@@ -109,10 +109,10 @@ let regCaptcha: Captcha | null = null
 
 onMounted(async () => {
   await nextTick()
-  const Ctor = legacy.CaptchaWidget
-  if (!Ctor) return
-  loginCaptcha = new Ctor('yaliLoginCaptcha')
-  regCaptcha = new Ctor('yaliRegCaptcha')
+  /* 两个表单都用 v-show，所以两个容器在挂载时都已存在（见模板注释）。
+     mountCaptcha 在容器缺失时会显式告警，而不是静默失败。 */
+  loginCaptcha = mountCaptcha('yaliLoginCaptcha')
+  regCaptcha = mountCaptcha('yaliRegCaptcha')
 })
 
 /* ── 登录 ── */

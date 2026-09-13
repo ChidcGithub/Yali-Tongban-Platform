@@ -165,7 +165,7 @@ import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, mountCaptcha, toast } from '../../shared/api'
 
 interface Activity {
   id: number
@@ -242,8 +242,8 @@ function signup(a: Activity) {
 watch(signupOpen, async (open) => {
   if (!open) return
   await nextTick()
-  const Ctor = legacy.CaptchaWidget
-  if (Ctor) captcha = new Ctor('yaliVolunteerCaptcha')
+  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body）
+  captcha = mountCaptcha('yaliVolunteerCaptcha')
 })
 
 function confirmAnonymous() {

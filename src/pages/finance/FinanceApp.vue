@@ -203,6 +203,7 @@ import {
   getUser,
   isAdmin,
   legacy,
+  mountCaptcha,
   openLightbox,
   toBlobUrl,
   toast
@@ -418,8 +419,8 @@ let captcha: Captcha | null = null
 watch(dialogOpen, async (open) => {
   if (!open) return
   await nextTick()
-  const Ctor = legacy.CaptchaWidget
-  if (Ctor && !captcha) captcha = new Ctor('yaliFinanceCaptcha')
+  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body）
+  if (!captcha) captcha = mountCaptcha('yaliFinanceCaptcha')
 })
 
 function onPickImage(e: Event) {

@@ -240,6 +240,7 @@ import {
   getUser,
   isAdmin,
   legacy,
+  mountCaptcha,
   openLightbox,
   toBlobUrl,
   toast
@@ -532,8 +533,9 @@ let captcha: { getData: () => Record<string, string>; refresh: () => void } | nu
 watch(dialogOpen, async (open) => {
   if (!open) return
   await nextTick()
-  const Ctor = legacy.CaptchaWidget
-  if (Ctor && !captcha) captcha = new Ctor('yaliIssueCaptcha')
+  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body），必须等下一帧再挂；
+  // mountCaptcha 在容器缺失时会显式告警，而不是静默失败
+  if (!captcha) captcha = mountCaptcha('yaliIssueCaptcha')
 })
 
 function onPickImage(e: Event) {

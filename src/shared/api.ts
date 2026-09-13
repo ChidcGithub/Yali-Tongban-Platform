@@ -74,6 +74,46 @@ export const confirmAction = (msg: string, cb: (ok: boolean) => void): void =>
 export const toBlobUrl = (dataUrl: string): string =>
   w.dataUrlToBlobUrl?.(dataUrl) ?? dataUrl
 
+export type CaptchaInstance = {
+  getData: () => Record<string, string>
+  refresh: () => void
+}
+
+/**
+ * 挂载站点自研验证码组件（`public/js/captcha.js` 的 `CaptchaWidget`）。
+ *
+ * ⚠️ 为什么必须走这个函数而不是直接 `new Ctor(id)`：
+ * `CaptchaWidget` 的构造函数在**拿不到容器时静默 return**（不 render、不 load），
+ * 于是 `getData()` 永远返回空 token，提交必然被后端判「人机验证失败」——
+ * 而且不报任何错。实测踩过两次：注册表单用 `v-if` 隐藏（容器不在 DOM 里），
+ * 以及投票页在 `loading` 分支还开着的时候就去实例化。
+ *
+ * 这里把「容器不存在 / 没渲染出来」变成显式 `console.warn`，
+ * 回归脚本会把生产构建里出现的任何 warn 判为失败 —— 让它不可能再静默。
+ */
+export function mountCaptcha(containerId: string): CaptchaInstance | null {
+  const Ctor = w.CaptchaWidget
+  if (!Ctor) return null
+
+  const container = document.getElementById(containerId)
+  if (!container) {
+    console.warn(
+      `[winui] CAPTCHA_WIDGET_NOT_MOUNTED：容器 #${containerId} 不在 DOM 里 ` +
+        `（多半被 v-if 挡在条件分支后，或实例化早于渲染完成）`
+    )
+    return null
+  }
+
+  const instance = new Ctor(containerId) as CaptchaInstance
+  if (!container.querySelector('.captcha-wrap')) {
+    console.warn(
+      `[winui] CAPTCHA_WIDGET_NOT_MOUNTED：容器 #${containerId} 存在但未被渲染`
+    )
+    return null
+  }
+  return instance
+}
+
 export const legacy = {
   get openModal() {
     return w.openModal

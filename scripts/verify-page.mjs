@@ -101,16 +101,23 @@ const FIXTURES = {
   },
 
   moment: {
+    /* 注意：ref_type / ref_id 在**真实后端**里是序列化进 system_data 的
+       （chat_messages 表没有这两列，见 _utils.insertChatSystemMessage）。
+       先前这里把 ref_type 放在顶层，等于按前端的错误假设造桩 ——
+       于是「动态全部不可点击」这个 bug 一直被桩掩盖着。 */
     feedPayload: {
       messages: [
-        { id: 31, type: 'system', content: '团委办公室 通过了你提交的报修「投影仪无法开机」', created_at: ts(0), ref_type: 'issue', ref_id: 1, system_data: JSON.stringify({ status: '已完成' }) },
-        { id: 32, type: 'system', content: '发布了一条新公告：关于开展秋季志愿服务的通知', created_at: ts(7200), ref_type: 'announcement', ref_id: 21 },
-        { id: 33, type: 'system', content: '发起了新投票：秋季运动会项目征集', created_at: ts(86400), ref_type: 'poll', ref_id: 5 }
+        { id: 31, type: 'system', content: '团委办公室 通过了你提交的报修「投影仪无法开机」', created_at: ts(0), system_data: JSON.stringify({ action: '处理报修', status: '已完成', ref_type: 'issue', ref_id: 1 }) },
+        { id: 32, type: 'system', content: '发布了一条新公告：关于开展秋季志愿服务的通知', created_at: ts(7200), system_data: JSON.stringify({ action: '发布公告', status: '待审核', ref_type: 'announcement', ref_id: 21 }) },
+        { id: 33, type: 'system', content: '发起了新投票：秋季运动会项目征集', created_at: ts(86400), system_data: JSON.stringify({ action: '发起投票', status: 'open', ref_type: 'poll', ref_id: 5 }) },
+        // 通知类条目：不应渲染评论框（后端 handleAddFeedComment 只接受 type='system'）
+        { id: 34, type: 'notification', content: '你的账号已通过审核', created_at: ts(90000), system_data: '' }
       ],
       nextCursor: null,
       hasMore: false
     },
-    comments: [{ id: 41, created_by: '王五', content: '收到', created_at: ts() }]
+    // feed_comments 的作者列名是 user_name（不是 created_by）
+    comments: [{ id: 41, user_name: '王五', content: '收到', created_at: ts() }]
   },
 
   polls: {
@@ -127,9 +134,10 @@ const FIXTURES = {
       id: 5, title: '秋季运动会项目征集', description: '请选择你希望增设的比赛项目',
       status: 'open', created_by: '团委办公室', total_votes: 42, require_name: 0,
       questions: [
-        { id: 1, type: 'single', title: '你最希望增设哪个项目？', options: ['4x100 米接力', '跳高', '趣味接力'] },
+        // image_url 是 poll_questions 的真实列（后端 handleCreatePoll 会写入）
+        { id: 1, type: 'single', title: '你最希望增设哪个项目？', options: ['4x100 米接力', '跳高', '趣味接力'], image_url: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7' },
         { id: 2, type: 'multiple', title: '你觉得哪些环节需要改进？（可多选）', options: ['检录流程', '场地布置', '计分公示'] },
-        { id: 3, type: 'text', title: '其他建议' }
+        { id: 3, type: 'text', title: '其他建议', max_length: 500 }
       ]
     },
     myVote: []
@@ -174,8 +182,13 @@ const FIXTURES = {
       { id: 12, name: '李四', class: '2518', department: '组织部' }
     ],
     scores: [
-      { id: 71, date: '2026-09-12', name: '张三', period: '大课间', score: 2, reason: '按时到岗' },
-      { id: 72, date: '2026-09-11', name: '李四', period: '午自习', score: -1, reason: '迟到', is_cancelled: false }
+      { id: 71, date: '2026-09-12', name: '张三', department: '办公室', period: '大课间', score: 2, reason: '按时到岗' },
+      { id: 72, date: '2026-09-11', name: '李四', department: '组织部', period: '午自习', score: -1, reason: '迟到', is_cancelled: false }
+    ],
+    /* 销分 / 批量销分要选「销分人」，形状照抄 handleDutyAdminsList */
+    admins: [
+      { id: 11, name: '站长', role: 'owner' },
+      { id: 12, name: '团委老师', role: 'teacher' }
     ],
     // 照抄后端 handleDutyPeriodsGet（duty_period_config 表，无 end_time）
     periods: [
@@ -206,13 +219,25 @@ const FIXTURES = {
     feedback: [
       { id: 91, content: '希望增加夜间模式', contact: 'chidcout@outlook.com', page: '/services', section: '其它', version: '3.0.0', created_at: ts(3600) }
     ],
+    /* 「报修管理」标签用：形状照抄 issues.js 的 BASE_COLS + has_image */
+    issues: [
+      { id: 1, location: '教学楼3楼301', description: '投影仪无法开机', status: '待处理', submitted_by: '张三', created_at: ts(), comment_count: 2, notes: '已联系厂商', has_image: 0 },
+      { id: 2, location: '体育馆器材室', description: '门锁损坏', status: '已完成', submitted_by: '李四', created_at: ts(86400), comment_count: 0, has_image: 0 }
+    ],
+    /* 「财务记录」标签用：形状照抄 finance.js 的 SELECT 列表 */
+    finance: [
+      { id: 61, type: '支出', amount: 128.5, status: '已完成', tags: '["办公用品"]', notes: '打印招新海报', created_by: '团委办公室', created_at: ts(86400), department: '办公室', has_image: 0 },
+      { id: 62, type: '收入', amount: 500, status: '待完成', tags: '["赞助"]', notes: '社团赞助款', created_by: '组织部', created_at: ts(3600), department: '组织部', has_image: 0 }
+    ],
     // 照抄 reviews.js：SELECT *（含 base64 image_url）
     reviewsPayload: [
       { id: 301, has_image: 1, status: '待审核', created_by: '张三', created_at: TODAY + ' 09:00:00' },
       { id: 302, has_image: 0, status: '通过', created_by: '李四', created_at: TODAY + ' 08:00:00', reviewed_by: '站长', reviewed_at: TODAY + ' 08:30:00' },
       { id: 303, has_image: 0, status: '拒绝', reject_reason: '图片不清晰', created_by: '王五', created_at: TODAY + ' 07:00:00', reviewed_by: '站长', reviewed_at: TODAY + ' 07:30:00' }
     ],
-    adminSettings: { site_closed: false, site_closed_message: '', site_closed_by: '' },
+    /* settings 表里 value 是 TEXT：真实返回是字符串 'true'/'false'，
+       写成布尔会让 `!!'false' === true` 这个坑躲过回归 */
+    adminSettings: { site_closed: 'false', site_closed_message: '', site_closed_by: '站长' },
     // 照抄 _utils.getStorageStats 的真实键名
     storage: {
       imageBytes: 7984000, textBytes: 132000, totalBytes: 8116000,
@@ -285,10 +310,16 @@ const stub = `
   console.warn = function () { recordWarn('warn', arguments); _warn.apply(console, arguments); };
   console.error = function () { recordWarn('error', arguments); _error.apply(console, arguments); };
 
-  window.getUser = function () { return { name: '测试用户', role: 'admin' }; };
-  window.isAdmin = function () { return true; };
+  /* 未登录态：query 里带 anon=1 时把测试用户置空。
+     有些流程（如活动报名）登录后走的是**另一条分支**（直接报名、不出验证码），
+     想验「匿名报名表单」就必须能切到未登录。 */
+  var __anon = ${JSON.stringify(query)}.indexOf('anon=1') >= 0;
+  window.getUser = function () {
+    return __anon ? null : { name: '测试用户', role: 'admin' };
+  };
+  window.isAdmin = function () { return !__anon; };
   localStorage.setItem('token', 'stub');
-  localStorage.setItem('user', JSON.stringify({ name: '测试用户', role: 'admin' }));
+  localStorage.setItem('user', JSON.stringify(__anon ? null : { name: '测试用户', role: 'admin' }));
   window.confirm = function () { return false; };
 
   window._fx = ${JSON.stringify(fx)};
@@ -321,6 +352,7 @@ const stub = `
     if (fx.staff && url.indexOf('/api/duty/staff') === 0) return fx.staff;
     if (fx.scores && url.indexOf('/api/duty/scores') === 0) return fx.scores;
     if (fx.periods && url.indexOf('/api/duty/periods') === 0) return fx.periods;
+    if (fx.admins && url.indexOf('/api/duty/admins') === 0) return fx.admins;
     if (fx.staff && url.indexOf('/api/duty/admins') === 0) return [];
     if (fx.staff && url.indexOf('/api/duty/department-stats') === 0) return [];
     if (fx.dutyToday && url.indexOf('/api/duty/department-stats') === 0) return fx.deptStats;

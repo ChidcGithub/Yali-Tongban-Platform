@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
-import { apiPost, legacy, toast } from '../../shared/api'
+import { apiPost, legacy, mountCaptcha, toast } from '../../shared/api'
 
 const SECTIONS = ['动态', '公告', '投票', '财务', '活动', '其它']
 const sectionIndex = ref(-1)
@@ -63,8 +63,7 @@ let captcha: Captcha | null = null
 
 onMounted(async () => {
   await nextTick()
-  const Ctor = legacy.CaptchaWidget
-  if (Ctor) captcha = new Ctor('yaliFeedbackCaptcha')
+  captcha = mountCaptcha('yaliFeedbackCaptcha')
 })
 
 async function submit() {
