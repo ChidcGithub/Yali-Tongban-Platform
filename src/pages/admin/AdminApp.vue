@@ -246,6 +246,47 @@
         </section>
       </template>
 
+      <!-- ── 功能开关（旧版 admin.js 的功能管理：启用 / 全员邀请 / 邀请详情 / 重置） ── -->
+      <template v-else-if="tabIndex === 7">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="`预定义功能（${features.length}）`" :FontSize="15" :FontWeight="500" />
+            <Button @Click="loadFeatures">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" /><span>刷新</span>
+              </span>
+            </Button>
+          </div>
+          <p v-if="featuresError" class="yali-muted ad-gap">加载失败：{{ featuresError }}</p>
+          <p v-else-if="!features.length" class="yali-muted ad-gap">暂无预定义功能</p>
+
+          <div v-for="f in features" :key="f.key" class="yali-item">
+            <div class="yali-item-head">
+              <TextBlock :Text="f.name" class="yali-item-title" />
+              <span class="yali-chip" :class="f.globally_enabled ? 'yali-chip-accent' : 'yali-chip-done'">
+                {{ f.globally_enabled ? '已启用' : '未启用' }}
+              </span>
+            </div>
+            <TextBlock :Text="f.description" TextWrapping="Wrap" class="yali-item-body" />
+            <div class="yali-item-meta">
+              <span>key：{{ f.key }}</span>
+              <span v-for="(n, st) in f.stats || {}" :key="st">{{ st }} {{ n }}</span>
+            </div>
+            <div class="yali-item-actions">
+              <Button @Click="toggleFeature(f, !f.globally_enabled)">
+                <span class="yali-btn-inner"><span>{{ f.globally_enabled ? '禁用' : '启用' }}</span></span>
+              </Button>
+              <Button :IsEnabled="!!f.globally_enabled" @Click="inviteAll(f)">
+                <span class="yali-btn-inner"><span>全员邀请</span></span>
+              </Button>
+              <Button @Click="showInvitations(f)">
+                <span class="yali-btn-inner"><span>邀请详情</span></span>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </template>
+
       <!-- ── 站点设置 ── -->
       <template v-else>
         <!-- 维护开关只对站长开放：PUT /api/admin/settings 在路由表标了 owner:true，
@@ -340,7 +381,26 @@
       </template>
     </div>
 
-    <!-- ── 批量导入成员 ── -->
+    <!-- 邀请详情（可重置某人的响应，让他能被重新邀请） -->
+    <ContentDialog :IsOpen="inviteDialog" :Title="'邀请详情 · ' + inviteFeatureName" CloseButtonText="关闭"
+                   @update:IsOpen="inviteDialog = $event">
+      <div class="yali-form">
+        <p v-if="inviteLoading" class="yali-muted">加载中…</p>
+        <p v-else-if="!invitations.length" class="yali-muted">还没有邀请记录</p>
+        <div v-for="iv in invitations" :key="iv.user_id" class="ad-row">
+          <span class="ad-name">{{ iv.name }}</span>
+          <span class="yali-chip">{{ iv.status }}</span>
+          <span class="yali-muted">{{ formatTime(iv.invited_at) }}</span>
+          <div class="ad-actions">
+            <Button @Click="resetInvitation(iv)">
+              <span class="yali-btn-inner"><span>重置</span></span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 批量导入成员 -->
     <ContentDialog :IsOpen="importOpen" Title="批量导入成员" CloseButtonText="关闭"
                    @update:IsOpen="importOpen = $event">
       <div class="yali-form">
@@ -404,10 +464,22 @@ import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiDel, apiGet, apiPost, apiPut, formatTime, getUser, isAdmin, openLightbox, toast, toBlobUrl } from '../../shared/api'
 
-/* 标签顺序与旧后台一致：注册审批 / 成员 / 公告审核 / 审核记录 / 反馈 / 报修管理 / 财务记录 / 站点设置。
-   后两个标签在迁移时被漏掉了，导致 /api/issues 的删除入口和 DELETE /api/admin/finance/:id
-   一度没有任何消费者。站点设置固定放在最后，loadForTab 的兜底分支对应它。 */
-const TABS = ['注册审批', '成员管理', '公告审核', '审核记录', '反馈', '报修管理', '财务记录', '站点设置']
+/* 标签顺序与旧后台一致：注册审批 / 成员 / 公告审核 / 审核记录 / 反馈 / 报修管理 /
+   财务记录 / 功能开关 / 站点设置。
+   后四个标签在迁移时被漏掉了，导致 /api/issues 的删除入口、DELETE /api/admin/finance/:id
+   以及整套 /api/admin/features* 一度没有任何消费者。站点设置固定放在最后，
+   loadForTab 的兜底分支对应它。 */
+const TABS = [
+  '注册审批',
+  '成员管理',
+  '公告审核',
+  '审核记录',
+  '反馈',
+  '报修管理',
+  '财务记录',
+  '功能开关',
+  '站点设置'
+]
 const tabItems = TABS.map((Text) => ({ Text }))
 
 /** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
@@ -471,6 +543,23 @@ interface FinanceRow {
   created_by: string
   created_at: string
   has_image?: number | boolean
+}
+/** GET /api/admin/features（键名见 features.js handleAdminGetFeatures） */
+interface AdminFeature {
+  key: string
+  name: string
+  description: string
+  icon?: string
+  globally_enabled: boolean
+  stats?: Record<string, number>
+}
+/** GET /api/admin/features/:key/invitations */
+interface AdminInvitation {
+  user_id: number
+  name: string
+  status: string
+  invited_at?: string
+  responded_at?: string
 }
 
 /* 可改角色：与后端 handleUpdateRole 的白名单一致
@@ -1081,6 +1170,84 @@ async function removeFinance(f: FinanceRow) {
   }
 }
 
+/* ── 功能开关：预定义功能的启用 / 邀请（旧版 admin.js 的功能管理） ──
+   接口：GET/POST /api/admin/features、POST .../invite、GET .../invitations、POST .../reset */
+const features = ref<AdminFeature[]>([])
+const featuresError = ref('')
+
+async function loadFeatures() {
+  featuresError.value = ''
+  try {
+    const data = await apiGet<{ features?: AdminFeature[] }>('/api/admin/features')
+    features.value = data?.features ?? []
+  } catch (err) {
+    featuresError.value = (err as Error).message || '加载失败'
+    features.value = []
+  }
+}
+
+async function toggleFeature(f: AdminFeature, enabled: boolean) {
+  try {
+    // 后端字段：{ key, globally_enabled }
+    await apiPost('/api/admin/features', { key: f.key, globally_enabled: enabled })
+    f.globally_enabled = enabled
+    toast(enabled ? `已启用「${f.name}」` : `已禁用「${f.name}」`, 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+async function inviteAll(f: AdminFeature) {
+  if (!window.confirm(`确定向全部已通过用户发送「${f.name}」邀请吗？`)) return
+  try {
+    // 后端要求 all:true（或 user_ids 数组）
+    const res = await apiPost<{ invited?: number; skipped?: number }>(
+      `/api/admin/features/${f.key}/invite`,
+      { all: true }
+    )
+    toast(`已邀请 ${res?.invited ?? 0} 人（跳过 ${res?.skipped ?? 0} 人）`, 'success')
+    loadFeatures()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+const inviteDialog = ref(false)
+const inviteLoading = ref(false)
+const inviteFeatureName = ref('')
+const inviteFeatureKey = ref('')
+const invitations = ref<AdminInvitation[]>([])
+
+async function showInvitations(f: AdminFeature) {
+  inviteFeatureKey.value = f.key
+  inviteFeatureName.value = f.name
+  invitations.value = []
+  inviteDialog.value = true
+  inviteLoading.value = true
+  try {
+    const data = await apiGet<{ invitations?: AdminInvitation[] }>(
+      `/api/admin/features/${f.key}/invitations`
+    )
+    invitations.value = data?.invitations ?? []
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    inviteLoading.value = false
+  }
+}
+
+async function resetInvitation(iv: AdminInvitation) {
+  if (!window.confirm(`重置 ${iv.name} 的响应？重置后可以重新邀请。`)) return
+  try {
+    await apiPost(`/api/admin/features/${inviteFeatureKey.value}/reset`, { user_id: iv.user_id })
+    invitations.value = invitations.value.filter((x) => x.user_id !== iv.user_id)
+    toast('已重置', 'success')
+    loadFeatures()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 /* ── 设置 ── */
 const settings = reactive({
   site_closed: false,
@@ -1211,6 +1378,7 @@ function loadForTab(i: number) {
   else if (i === 4) loadFeedback()
   else if (i === 5) loadIssues()
   else if (i === 6) loadFinance()
+  else if (i === 7) loadFeatures()
   else {
     loadSettings()
     loadStorage()

@@ -785,7 +785,10 @@ const adminNames = computed(() => admins.value.map((a) => `${a.name}（${a.role}
 
 async function loadAdmins() {
   try {
-    admins.value = (await apiGet<AdminUser[]>('/api/duty/admins')) ?? []
+    const data = await apiGet<AdminUser[]>('/api/duty/admins')
+    // 显式判数组：非数组会被下面的 adminNames.map 直接抛异常，
+    // 而调用方（销分/批量销分）是在「打开对话框」的路径上 —— 会连带把对话框也打不开
+    admins.value = Array.isArray(data) ? data : []
   } catch {
     admins.value = []
   }

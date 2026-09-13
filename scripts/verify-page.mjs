@@ -238,6 +238,25 @@ const FIXTURES = {
     /* settings 表里 value 是 TEXT：真实返回是字符串 'true'/'false'，
        写成布尔会让 `!!'false' === true` 这个坑躲过回归 */
     adminSettings: { site_closed: 'false', site_closed_message: '', site_closed_by: '站长' },
+    /* 「功能开关」标签用：形状照抄 features.js handleAdminGetFeatures */
+    featuresPayload: {
+      features: [
+        {
+          key: 'messages',
+          name: '消息提醒',
+          description: '在导航栏显示消息铃铛，接收公告、审核结果等 8 类消息通知。',
+          icon: 'bell',
+          globally_enabled: true,
+          stats: { pending: 3, accepted: 5, declined: 1 }
+        }
+      ]
+    },
+    invitations: {
+      invitations: [
+        { user_id: 11, name: '张三', status: 'pending', invited_at: TODAY + ' 09:00:00' },
+        { user_id: 12, name: '李四', status: 'accepted', invited_at: TODAY + ' 08:00:00', responded_at: TODAY + ' 08:10:00' }
+      ]
+    },
     // 照抄 _utils.getStorageStats 的真实键名
     storage: {
       imageBytes: 7984000, textBytes: 132000, totalBytes: 8116000,
@@ -342,6 +361,8 @@ const stub = `
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
     if (fx.reviewsPayload && url.indexOf('/api/reviews/images') === 0) return {};
     if (fx.reviewsPayload && url.indexOf('/api/reviews') === 0) return fx.reviewsPayload;
+    if (fx.invitations && url.indexOf('/invitations') > 0) return fx.invitations;
+    if (fx.featuresPayload && url.indexOf('/api/admin/features') === 0) return fx.featuresPayload;
     if (fx.registrations && url.indexOf('/api/admin/registrations') === 0) return fx.registrations;
     if (fx.usersPayload && url.indexOf('/api/admin/users') === 0) return fx.usersPayload;
     if (fx.feedback && url.indexOf('/api/admin/feedback') === 0) return fx.feedback;

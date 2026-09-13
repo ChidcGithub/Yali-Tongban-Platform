@@ -83,6 +83,10 @@ async function openPage(entry, query = '') {
   page.on('pageerror', (e) => pageErrors.push(String(e.message || e)))
   await page.goto(`${base}/__verify.html`, { waitUntil: 'load' })
   await page.waitForSelector('#__loaded', { timeout: 15000 })
+  // 等挂载完成：WinUI 外壳的导航渲染出来才算页面真的起来了
+  await page.waitForSelector('.win-selector-bar-item, .yali-page, .login-page, .err-page', {
+    timeout: 15000
+  })
   await page.waitForTimeout(350)
   return { page, pageErrors }
 }
@@ -151,7 +155,7 @@ async function smokeAdminTabs() {
   try {
     const tabs = page.locator(SEL.selectorItem)
     const n = await tabs.count()
-    check('admin：8 个标签都渲染出来', n === 8, `实际 ${n}`)
+    check('admin：9 个标签都渲染出来', n === 9, `实际 ${n}`)
 
     await tabs.nth(1).click()
     await page.waitForTimeout(400)
@@ -169,6 +173,18 @@ async function smokeAdminTabs() {
     await page.waitForTimeout(500)
     const financeRows = await page.locator('.ad-row').count()
     check('admin：切到第 7 个标签「财务记录」并渲染条目', financeRows > 0, `${financeRows} 条`)
+
+    // 第 8 个标签 = 功能开关（整套 /api/admin/features* 此前零消费者）
+    await tabs.nth(7).click()
+    await page.waitForTimeout(600)
+    const featureItems = await page.locator('.yali-item').count()
+    check('admin：切到第 8 个标签「功能开关」并渲染预定义功能', featureItems > 0, `${featureItems} 项`)
+
+    // 点「邀请详情」应真的把 invitations 渲染出来
+    await page.locator('.yali-item-actions button', { hasText: '邀请详情' }).first().click()
+    await page.waitForTimeout(600)
+    const inviteRows = await page.locator('.content-dialog .ad-row').count()
+    check('admin：功能开关的「邀请详情」能拉到名单', inviteRows > 0, `${inviteRows} 条`)
 
     check('admin：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
   } finally {
@@ -463,6 +479,122 @@ async function smokeDialogCaptchas() {
   }
 }
 
+/** 记录所有写请求的 URL 与 body，并让它们「成功」，以便走完成功分支。
+    用来断言**请求体的字段名**——这类错配不报错，后端直接 400，很难在 UI 上看出来。 */
+async function captureWrites(page) {
+  await page.evaluate(() => {
+    window.__posted = []
+    const passthrough = window.fetch
+    window.fetch = function (input, init) {
+      const url = typeof input === 'string' ? input : (input && input.url) || ''
+      const method = ((init && init.method) || 'GET').toUpperCase()
+      // 只拦写请求：读请求必须继续走原来的桩，
+      // 否则 GET 会拿到假的 {message:'ok'}，页面把它当数组用就会抛异常
+      if (method === 'GET' || method === 'HEAD') return passthrough.apply(this, arguments)
+      let body = null
+      try {
+        body = init && init.body ? JSON.parse(init.body) : null
+      } catch {
+        body = (init && init.body) || null
+      }
+      window.__posted.push({ url, method, body })
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        json: () => Promise.resolve({ success: true, data: { message: 'ok' } }),
+        text: () => Promise.resolve('{"success":true,"data":{"message":"ok"}}')
+      })
+    }
+  })
+}
+
+/** 值日管理：手动排班的**请求体字段名**（此前这两处就是写错过字段的地方） */
+async function smokeDutyAdminManualSchedule() {
+  const { page, pageErrors } = await openPage('duty-admin')
+  try {
+    await captureWrites(page)
+
+    await page.locator('button.da-cal-cell').nth(1).click()
+    await page.waitForTimeout(600)
+    const dialog = page.locator('.content-dialog').last()
+    const combos = dialog.locator(SEL.comboRoot)
+    const comboCount = await combos.count()
+    for (let i = 0; i < Math.min(comboCount, 2); i++) {
+      await combos.nth(i).locator(SEL.comboBtn).first().click()
+      await page.waitForTimeout(250)
+      const opts = page.locator(`${SEL.comboItem}:visible`)
+      if ((await opts.count()) > i) await opts.nth(i).click()
+      await page.waitForTimeout(200)
+    }
+    await dialog.locator('button', { hasText: '保存' }).first().click()
+    await page.waitForTimeout(600)
+
+    const post = await page.evaluate(
+      () => window.__posted.filter((p) => p.url.indexOf('/schedule/manual') >= 0)[0] || null
+    )
+    check(
+      'duty-admin：手动排班请求体字段正确（date + staff_a_id + staff_b_id）',
+      !!post &&
+        typeof post.body?.date === 'string' &&
+        typeof post.body?.staff_a_id === 'number' &&
+        typeof post.body?.staff_b_id === 'number',
+      JSON.stringify(post?.body ?? null)
+    )
+    check('duty-admin：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
+/** 值日管理：批量销分的**请求体字段名**与「先勾选才可提交」的约束 */
+async function smokeDutyAdminBatchCancel() {
+  // 直接落在「评分」标签（?tab=2），避免先弹一个对话框再想办法关掉
+  const { page, pageErrors } = await openPage('duty-admin', '?tab=2')
+  try {
+    await page.waitForTimeout(400)
+    const scoreRows = await page.locator('.da-score').count()
+    check('duty-admin：?tab=2 可直接落在「评分」', scoreRows > 0, `${scoreRows} 条`)
+
+    await captureWrites(page)
+    // 等元素真的出现再点（固定 sleep 在机器忙的时候会不够，click 会一直等到超时）
+    const firstCheckbox = page.locator('.da-row .win-checkbox').first()
+    await firstCheckbox.waitFor({ timeout: 10000 })
+    await firstCheckbox.click()
+    await page.waitForTimeout(300)
+
+    await page.locator('button', { hasText: '批量销分' }).first().click()
+    await page.waitForTimeout(600)
+    const dlg = page.locator('.content-dialog').last()
+    await dlg.locator(SEL.comboRoot).first().locator(SEL.comboBtn).first().click()
+    await page.waitForTimeout(300)
+    const adminOpts = page.locator(`${SEL.comboItem}:visible`)
+    if ((await adminOpts.count()) > 0) await adminOpts.first().click()
+    await dlg.locator('.win-textbox-field').first().fill('排班调整，原扣分作废')
+    const pwd = dlg.locator('.win-password-box .win-textbox-field').first()
+    if (await pwd.count()) await pwd.fill('Yali@1234')
+    await dlg.locator('button', { hasText: '确认销分' }).first().click()
+    await page.waitForTimeout(700)
+
+    const post = await page.evaluate(
+      () => window.__posted.filter((p) => p.url.indexOf('/scores/batch-cancel') >= 0)[0] || null
+    )
+    check(
+      'duty-admin：批量销分请求体字段正确（score_record_ids + reason + admin_id + password）',
+      !!post &&
+        Array.isArray(post.body?.score_record_ids) &&
+        post.body.score_record_ids.length > 0 &&
+        typeof post.body?.reason === 'string' &&
+        !!post.body?.admin_id &&
+        !!post.body?.password,
+      JSON.stringify(post?.body ?? null)
+    )
+    check('duty-admin：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -471,6 +603,8 @@ const CASES = [
   ['管理面板：标签页切换 + 补回的标签', smokeAdminTabs],
   ['活动页：标签页切换 + 自定义时间', smokeActivitiesTabs],
   ['值日管理：标签页切换 + 手动排班入口', smokeDutyAdminTabs],
+  ['值日管理：手动排班的请求体', smokeDutyAdminManualSchedule],
+  ['值日管理：批量销分的请求体', smokeDutyAdminBatchCancel],
   ['财务：月份选择 + 部门筛选', smokeFinanceMonth],
   ['公告列表：进入详情', smokeAnnouncementsNavigation],
   ['动态：可跳转 / 评论作者 / 通知分类', smokeMomentFeed],
