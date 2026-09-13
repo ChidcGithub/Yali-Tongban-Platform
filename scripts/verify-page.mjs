@@ -107,7 +107,9 @@ const FIXTURES = {
   polls: {
     polls: [
       { id: 5, title: '秋季运动会项目征集', description: '请选择你希望增设的比赛项目', status: 'open', min_role: '', created_by: '团委办公室', total_votes: 42, require_name: 0 },
-      { id: 6, title: '团委学生干事招新面试时间', description: '请选择方便的时间段', status: 'closed', min_role: 'member', created_by: '组织部', total_votes: 18, require_name: 1 }
+      { id: 6, title: '团委学生干事招新面试时间', description: '请选择方便的时间段', status: 'closed', min_role: 'member', created_by: '组织部', total_votes: 18, require_name: 1 },
+      // 班级白名单：列表接口是未解析的 JSON 字符串；测试用户无 class_name，应被过滤掉
+      { id: 7, title: '仅限 2517 班的问卷', description: '班级限定测试', status: 'open', min_role: null, created_by: '组织部', total_votes: 3, require_name: 0, allowed_classes: '["2517"]' }
     ]
   },
 
@@ -125,28 +127,31 @@ const FIXTURES = {
   },
   finance: {
     finance: [
-      { id: 61, type: '支出', amount: 128.5, status: '已完成', tags: '["办公用品","打印"]', notes: '打印招新海报', created_by: '团委办公室', created_at: ts(172800), department: '办公室', has_image: 0, reimbursed: false },
-      { id: 62, type: '收入', amount: 500, status: '待完成', tags: '["赞助"]', notes: '社团赞助款', created_by: '组织部', created_at: ts(86400), department: '组织部', has_image: 0, reimbursed: false },
-      { id: 63, type: '支出', amount: 60, status: '已完成', tags: '[]', notes: '', created_by: '宣传部', created_at: ts(3600), department: '宣传部', has_image: 0, reimbursed: true }
+      { id: 61, type: '支出', amount: 128.5, status: '已完成', tags: '["办公用品","打印"]', fund_type: '基金账单', notes: '打印招新海报', created_by: '团委办公室', created_at: ts(172800), department: '办公室', has_image: 0 },
+      { id: 62, type: '收入', amount: 500, status: '待完成', tags: '["赞助"]', notes: '社团赞助款', created_by: '组织部', created_at: ts(86400), department: '组织部', has_image: 0 },
+      { id: 63, type: '支出', amount: 60, status: '已报销', tags: '[]', notes: '', created_by: '宣传部', created_at: ts(3600), department: '宣传部', has_image: 0, fund_type: '流动资金库' }
     ]
   },
   duty: {
+    // 形状照抄后端 handleDutyAttendanceToday：staff_a/staff_b 是**对象**，
+    // periods[].a|b 是 {attendance_id,status,sign_in_time,sign_out_time,score_absent,score_duration,total}
     dutyToday: {
       date: '2026-09-13', schedule_id: 9001,
-      staff_a: '张三', staff_b: '李四', staff_a_id: 11, staff_b_id: 12,
+      staff_a: { id: 11, name: '张三', department: '办公室', class: '2517', user_id: 101 },
+      staff_b: { id: 12, name: '李四', department: '组织部', class: '2518', user_id: 102 },
       periods: [
-        { label: '大课间', start_time: '09:10', auto_absent_min: 10,
-          a: { status: 'completed', attendance_id: 501, sign_in_time: '2026-09-13 09:05:00', total: 3 },
-          b: { status: 'pending' } },
-        { label: '午自习', start_time: '12:40', auto_absent_min: 10,
-          a: { status: 'signed_in', attendance_id: 502, sign_in_time: '2026-09-13 12:35:00' },
-          b: { status: 'absent' } }
+        { label: '大课间', slot_type: 'big_break', sort_order: 2, start_time: '09:10', auto_absent_min: 10,
+          a: { attendance_id: 501, status: 'completed', sign_in_time: '2026-09-13 09:05:00', sign_out_time: '2026-09-13 09:28:00', score_absent: 0, score_duration: 3, total: 3 },
+          b: { attendance_id: 0, status: 'pending', sign_in_time: null, sign_out_time: null, score_absent: 0, score_duration: 0, total: 0 } },
+        { label: '午自习', slot_type: 'small_break', sort_order: 3, start_time: '12:40', auto_absent_min: 10,
+          a: { attendance_id: 502, status: 'signed_in', sign_in_time: '2026-09-13 12:35:00', sign_out_time: null, score_absent: 0, score_duration: 0, total: 0 },
+          b: { attendance_id: 0, status: 'absent', sign_in_time: null, sign_out_time: null, score_absent: -2, score_duration: 0, total: -2 } }
       ]
     },
     deptStats: [
-      { department: '组织部', count: 12, score: 36 },
-      { department: '宣传部', count: 10, score: 28 },
-      { department: '办公室', count: 8, score: 24 }
+      { department: '组织部', total_score: -12, record_count: 6 },
+      { department: '宣传部', total_score: -9, record_count: 5 },
+      { department: '办公室', total_score: -4, record_count: 2 }
     ]
   },
   'duty-admin': {
@@ -163,25 +168,38 @@ const FIXTURES = {
       { id: 71, date: '2026-09-12', name: '张三', period: '大课间', score: 2, reason: '按时到岗' },
       { id: 72, date: '2026-09-11', name: '李四', period: '午自习', score: -1, reason: '迟到', is_cancelled: false }
     ],
+    // 照抄后端 handleDutyPeriodsGet（duty_period_config 表，无 end_time）
     periods: [
-      { label: '大课间', start_time: '09:10', end_time: '09:30', auto_absent_min: 10 },
-      { label: '午自习', start_time: '12:40', end_time: '13:00', auto_absent_min: 10 }
+      { id: 1, label: '大课间', slot_type: 'big_break', sort_order: 1, start_time: '09:10', auto_absent_min: 10 },
+      { id: 2, label: '午自习', slot_type: 'small_break', sort_order: 2, start_time: '12:40', auto_absent_min: 10 },
+      { id: 3, label: '晚自习', slot_type: 'no_duty', sort_order: 3, start_time: '19:00', auto_absent_min: 10 }
     ]
   },
   admin: {
     registrations: [
-      { id: 81, name: '新同学甲', role: 'pending', class_name: '2601', department: '组织部' },
-      { id: 82, name: '新同学乙', role: 'pending', class_name: '2602', department: '' }
+      { id: 81, name: '新同学甲', class_name: '2601', department: '组织部' },
+      { id: 82, name: '新同学乙', class_name: '2602', department: '' }
     ],
-    users: [
-      { id: 11, name: '张三', role: 'member', class_name: '2517', department: '办公室' },
-      { id: 12, name: '李四', role: 'admin', class_name: '2518', department: '组织部' }
-    ],
+    // /api/admin/users 返回 { results, hasMore } 而非数组
+    usersPayload: {
+      results: [
+        { id: 11, name: '张三', role: 'member', class_name: '2517', department: '办公室', achievement_count: 3 },
+        { id: 12, name: '李四', role: 'admin', class_name: '2518', department: '组织部', achievement_count: 7 }
+      ],
+      hasMore: false
+    },
     feedback: [
       { id: 91, content: '希望增加夜间模式', contact: 'chidcout@outlook.com', page: '/services', section: '其它', version: '3.0.0', created_at: ts(3600) }
     ],
     adminSettings: { site_closed: false, site_closed_message: '', site_closed_by: '' },
-    storage: { announcements: 12, issues: 34, finance: 56, users: 78 }
+    // 照抄 _utils.getStorageStats 的真实键名
+    storage: {
+      imageBytes: 7984000, textBytes: 132000, totalBytes: 8116000,
+      limitBytes: 5368709120, percent: 0.1, totalPercent: 0.2,
+      financeCount: 30, userCount: 42, issueCount: 1, announceCount: 2,
+      reviewCount: 0, chatCount: 12, hallCount: 0, pollCount: 1,
+      commentCount: 4, volunteerCount: 8, feedCommentCount: 0
+    }
   },
   activities: {
     activities: [
@@ -235,7 +253,7 @@ const stub = `
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
     if (fx.registrations && url.indexOf('/api/admin/registrations') === 0) return fx.registrations;
-    if (fx.users && url.indexOf('/api/admin/users?') === 0) return fx.users;
+    if (fx.usersPayload && url.indexOf('/api/admin/users') === 0) return fx.usersPayload;
     if (fx.feedback && url.indexOf('/api/admin/feedback') === 0) return fx.feedback;
     if (fx.adminSettings && url.indexOf('/api/admin/settings') === 0) return fx.adminSettings;
     if (fx.storage && url.indexOf('/api/admin/storage') === 0) return fx.storage;

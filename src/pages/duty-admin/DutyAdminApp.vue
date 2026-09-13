@@ -220,7 +220,24 @@ import { apiDel, apiGet, apiPost, toast } from '../../shared/api'
 
 const TABS = ['排班', '干事', '评分', '时段']
 const tabItems = TABS.map((Text) => ({ Text }))
-const tabIndex = ref(0)
+
+/** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
+const initialTab = (() => {
+  const raw = new URLSearchParams(window.location.search).get('tab')
+  if (!raw) return 0
+  const byName = TABS.indexOf(raw)
+  if (byName >= 0) return byName
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n < TABS.length ? n : 0
+})()
+const tabIndex = ref(initialTab)
+
+watch(tabIndex, (i) => {
+  const url = new URL(window.location.href)
+  if (i === 0) url.searchParams.delete('tab')
+  else url.searchParams.set('tab', String(i))
+  window.history.replaceState(null, '', url)
+})
 const busy = ref(false)
 
 const DEPARTMENTS = ['书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室']
@@ -530,18 +547,22 @@ async function loadPeriods() {
   }
 }
 
-watch(tabIndex, (i) => {
+function loadForTab(i: number) {
   if (i === 0) loadSchedule()
   else if (i === 1) loadStaff()
   else if (i === 2) {
     loadScores()
     loadStaff()
   } else loadPeriods()
-})
+}
+
+watch(tabIndex, loadForTab)
 
 onMounted(() => {
   loadSchedule()
   loadStaff()
+  // 若通过 ?tab= 直接落在别的标签，补上该标签的数据
+  if (tabIndex.value !== 0) loadForTab(tabIndex.value)
 })
 </script>
 

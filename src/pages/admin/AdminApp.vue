@@ -174,7 +174,24 @@ import { apiDel, apiGet, apiPost, apiPut, formatTime, toast } from '../../shared
 
 const TABS = ['注册审批', '成员管理', '反馈', '站点设置']
 const tabItems = TABS.map((Text) => ({ Text }))
-const tabIndex = ref(0)
+
+/** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
+const initialTab = (() => {
+  const raw = new URLSearchParams(window.location.search).get('tab')
+  if (!raw) return 0
+  const byName = TABS.indexOf(raw)
+  if (byName >= 0) return byName
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n < TABS.length ? n : 0
+})()
+const tabIndex = ref(initialTab)
+
+watch(tabIndex, (i) => {
+  const url = new URL(window.location.href)
+  if (i === 0) url.searchParams.delete('tab')
+  else url.searchParams.set('tab', String(i))
+  window.history.replaceState(null, '', url)
+})
 const saving = ref(false)
 
 interface User {
@@ -460,7 +477,7 @@ async function clearAll() {
   }
 }
 
-watch(tabIndex, (i) => {
+function loadForTab(i: number) {
   if (i === 0) loadRegistrations()
   else if (i === 1) loadUsers(true)
   else if (i === 2) loadFeedback()
@@ -468,9 +485,11 @@ watch(tabIndex, (i) => {
     loadSettings()
     loadStorage()
   }
-})
+}
 
-onMounted(loadRegistrations)
+watch(tabIndex, loadForTab)
+
+onMounted(() => loadForTab(tabIndex.value))
 </script>
 
 <style>
