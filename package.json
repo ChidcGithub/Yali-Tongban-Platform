@@ -13,7 +13,9 @@
     "check:glyphs": "node scripts/check-glyphs.mjs",
     "gen:page": "node scripts/gen-winui-page.mjs",
     "verify": "node scripts/verify-page.mjs",
-    "check:components": "node scripts/check-components.mjs"
+    "check:components": "node scripts/check-components.mjs",
+    "regress": "node scripts/regress.mjs",
+    "regress:dev": "node scripts/regress.mjs --dev"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

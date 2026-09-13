@@ -22,15 +22,20 @@
 
         <p v-if="extra" class="err-extra">{{ extra }}</p>
       </div>
+
+      <!-- 「伪装入侵」彩蛋的容器：仅在 404 且带 ?from= 时渲染。
+           标记由旧 public/404.html 原样移植（src/pages/404/intruder.ts），
+           默认 display:none，动画脚本会在需要时接管整屏。 -->
+      <div v-if="intruderActive" v-html="intruderMarkup" />
     </div>
   </YaliShell>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import YaliShell from './YaliShell.vue'
 import { GLYPH } from '../shared/icons'
-import { toast } from '../shared/api'
+import { INTRUDER_MARKUP, startIntruder } from '../pages/404/intruder'
 
 const props = defineProps<{
   current: string
@@ -40,6 +45,8 @@ const props = defineProps<{
 }>()
 
 const extra = ref('')
+const intruderActive = ref(false)
+const intruderMarkup = INTRUDER_MARKUP
 
 function go(href: string) {
   window.location.href = href
@@ -50,44 +57,25 @@ function goBack() {
   else go('services.html')
 }
 
-function unlock(id: string) {
-  const fn = (window as unknown as {
-    unlockAchievement?: (i: string) => Promise<unknown>
-  }).unlockAchievement
-  const toastFn = (window as unknown as {
-    showAchievementToast?: (i: string) => void
-  }).showAchievementToast
-  fn?.(id).then((ok) => {
-    if (ok) toastFn?.(id)
-  })
-}
-
-onMounted(() => {
+onMounted(async () => {
   /* 站点维护状态（沿用站点既有实现） */
   const check = (window as unknown as { checkSiteClosed?: () => void }).checkSiteClosed
   check?.()
 
-  const params = new URLSearchParams(window.location.search)
-  const from = params.get('from')
+  if (props.code !== 404) return
 
-  if (props.code === 404) {
-    /* 累计访问 404 三次 → 404常客 */
-    const count = Number(localStorage.getItem('_404count') || 0) + 1
-    localStorage.setItem('_404count', String(count))
-    if (count >= 3) {
-      localStorage.removeItem('_404count')
-      unlock('frequent_404')
-    }
+  const from = new URLSearchParams(window.location.search).get('from')
+  if (!from) return
 
-    /* 带 from 参数说明是从站内某处越权跳来的 → 入侵者
-       （原页面这里还有一段伪装终端动画，属自成一体的彩蛋，
-        本轮未迁移；成就触发保留） */
-    if (from) {
-      extra.value = `来源页面：${from}`
-      unlock('intruder')
-      toast('检测到越权访问', 'error')
-    }
-  }
+  /* 带 from 说明是从站内某处越权跳来的 —— 播放原页面的「伪装入侵」彩蛋。
+     注意 intruder / frequent_404 两个成就是由动画脚本在收尾时解锁的
+     （与原页面一致：不加 from 时既不计数也不解锁），这里不重复触发。 */
+  extra.value = `来源页面：${from}`
+  intruderActive.value = true
+  // v-html 是异步渲染的，必须等 DOM 更新完再启动动画，
+  // 否则 startIntruder 拿不到 #intrSeq 会直接返回
+  await nextTick()
+  startIntruder(from)
 })
 </script>
 
