@@ -130,6 +130,25 @@ const FIXTURES = {
       { id: 63, type: '支出', amount: 60, status: '已完成', tags: '[]', notes: '', created_by: '宣传部', created_at: ts(3600), department: '宣传部', has_image: 0, reimbursed: true }
     ]
   },
+  duty: {
+    dutyToday: {
+      date: '2026-09-13', schedule_id: 9001,
+      staff_a: '张三', staff_b: '李四', staff_a_id: 11, staff_b_id: 12,
+      periods: [
+        { label: '大课间', start_time: '09:10', auto_absent_min: 10,
+          a: { status: 'completed', attendance_id: 501, sign_in_time: '2026-09-13 09:05:00', total: 3 },
+          b: { status: 'pending' } },
+        { label: '午自习', start_time: '12:40', auto_absent_min: 10,
+          a: { status: 'signed_in', attendance_id: 502, sign_in_time: '2026-09-13 12:35:00' },
+          b: { status: 'absent' } }
+      ]
+    },
+    deptStats: [
+      { department: '组织部', count: 12, score: 36 },
+      { department: '宣传部', count: 10, score: 28 },
+      { department: '办公室', count: 8, score: 24 }
+    ]
+  },
   activities: {
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
@@ -186,6 +205,8 @@ const stub = `
     if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
+    if (fx.dutyToday && url.indexOf('/api/duty/department-stats') === 0) return fx.deptStats;
+    if (fx.dutyToday && url.indexOf('/api/duty/attendance/today') === 0) return fx.dutyToday;
     if (fx.finance && url.indexOf('/api/finance/images') === 0) return {};
     if (fx.finance && url.indexOf('/api/finance') === 0) return fx.finance;
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
