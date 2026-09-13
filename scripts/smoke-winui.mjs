@@ -1029,6 +1029,41 @@ async function smokeClassPrompt() {
   }
 }
 
+/**
+ * 破图兜底
+ *
+ * 图片加载失败时浏览器会画一个「破图」占位 —— 在界面里就是一个空框，
+ * 很容易被当成「图标没渲染」。全站 19 处 <img> 之前一处错误处理都没有。
+ * 现在由 bootstrap 的全局 error 捕获（捕获阶段，因为 error 不冒泡）
+ * 把 src 换成一张淡色 SVG：这是唯一跨浏览器可靠的消框办法
+ * （CSS `content:''` 只有 Chromium 认）。
+ */
+async function smokeBrokenImage() {
+  const { page, pageErrors } = await openPage('services')
+  try {
+    const result = await page.evaluate(async () => {
+      const img = document.createElement('img')
+      img.src = '/definitely-missing-' + Date.now() + '.png'
+      img.style.width = '60px'
+      img.style.height = '40px'
+      document.body.appendChild(img)
+      await new Promise((r) => setTimeout(r, 900))
+      const out = {
+        marked: img.classList.contains('yali-img-broken'),
+        replaced: img.src.startsWith('data:image/svg+xml'),
+        stillOriginal: /definitely-missing/.test(img.src)
+      }
+      img.remove()
+      return out
+    })
+    check('破图兜底：失败的图片被标记出来', result.marked, JSON.stringify(result))
+    check('破图兜底：src 被换成淡色占位（不再画破图图标）', result.replaced && !result.stillOriginal)
+    check('破图兜底：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1051,7 +1086,8 @@ const CASES = [
   ['管理页标签栏：窄屏可横向滚动', smokeTabsOverflow],
   ['权限守卫：无权访问管理页跳 404', smokeGuards],
   ['Cookie 横幅：WinUI 版', smokeCookieBanner],
-  ['班级补填：未填班级强制补填', smokeClassPrompt]
+  ['班级补填：未填班级强制补填', smokeClassPrompt],
+  ['破图兜底：不显示破图框', smokeBrokenImage]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

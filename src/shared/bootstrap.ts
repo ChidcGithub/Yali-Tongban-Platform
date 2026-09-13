@@ -69,7 +69,51 @@ function mountClassPrompt() {
   mountSingleton(ClassPrompt, 'winui-class-host')
 }
 
+/**
+ * 图片加载失败的兜底（破图 → 不加处理的话就是浏览器那个「框框」图标）。
+ *
+ * 站点的图片是 base64 存在 D1、前端再转 blob URL 的，
+ * 数据损坏 / blob 失效 / 资源 404 时 `<img>` 会画出浏览器的破图占位图 ——
+ * 那东西看起来就是一个空框，和小尺寸图标混在一起时很容易被当成「图标没渲染」。
+ * 全站 19 处 `<img>` 之前一处错误处理都没有。
+ *
+ * 注意：error 事件**不冒泡**，必须用捕获阶段监听才能接住。
+ */
+let imageFallbackInstalled = false
+
+/** 1×1 的淡色 SVG：作为破图后的替身，任何浏览器都不会再画「破图」图标 */
+const BROKEN_PLACEHOLDER =
+  'data:image/svg+xml;charset=utf-8,' +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120">' +
+      '<rect width="100%" height="100%" fill="rgba(0,0,0,0.05)"/></svg>'
+  )
+
+function installImageFallback() {
+  if (imageFallbackInstalled) return
+  imageFallbackInstalled = true
+  document.addEventListener(
+    'error',
+    (e) => {
+      const el = e.target
+      if (!(el instanceof HTMLImageElement)) return
+      if (el.dataset.broken) return // 替身自己再失败也不能递归下去
+      el.dataset.broken = '1'
+      el.classList.add('yali-img-broken')
+      // 先把出错的地址记下来（下面就把 src 换掉了）
+      const failed = el.currentSrc || el.src
+      /* 直接换掉 src 是唯一**跨浏览器**可靠的消框办法 ——
+         CSS 的 `content:''` 只有 Chromium 认，Firefox 照旧画破图图标。 */
+      el.src = BROKEN_PLACEHOLDER
+      // 让失败的那张图可见，排查时不用猜（生产构建里这条 warn 会让回归变红）
+      console.warn('[winui] 图片加载失败：', failed.slice(0, 120))
+    },
+    true
+  )
+}
+
 export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
+  installImageFallback()
   initWinUITheme()
   /* Cookie 横幅先挂：它的标记要在 DOMContentLoaded（api.js 检查的时点）之前设好 */
   mountCookieBanner()

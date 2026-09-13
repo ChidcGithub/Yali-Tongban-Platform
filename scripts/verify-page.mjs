@@ -429,7 +429,14 @@ const stub = `
     }
     // 故意给非零值：让未读角标路径每次回归都被走到
     if (url.indexOf('/api/messages/unread-count') === 0) return { count: 3 };
-    if (url.indexOf('/api/captcha') === 0) return { token: 't', svg: '<svg/>' };
+    /* 验证码底图必须是**能真正解码**的 SVG：早先给的是 '<svg/>'（缺 xmlns），
+       浏览器解码失败 → 触发图片错误兜底 → 生产构建里打 warn → 回归红。
+       这类「桩造了个坏输入」的问题很容易被当成产品 bug，注释在这里留个记号。 */
+    if (url.indexOf('/api/captcha') === 0)
+      return {
+        token: 't',
+        svg: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="70" viewBox="0 0 200 70"><rect width="200" height="70" fill="#f4f4f4"/></svg>'
+      };
     return null;
   }
 

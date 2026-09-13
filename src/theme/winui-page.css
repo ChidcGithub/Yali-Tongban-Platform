@@ -619,3 +619,20 @@ html.theme-dark .yali-chip-warn {
   mask-image: none;
   -webkit-mask-image: none;
 }
+
+/* ══════════════════════════════════════════════════════
+   破图兜底
+   ──────────────────────────────────────────────────────
+   图片加载失败时，浏览器会画一个「破图」占位 —— 在界面里就是一个空框，
+   很容易被误认为「图标没渲染出来」。这里把它藏掉，只留一条低调的底纹，
+   让布局不至于塌，同时不再有那个扎眼的框。
+   类名由 shared/bootstrap.ts 的全局 error 捕获加上。
+   ══════════════════════════════════════════════════════ */
+img.yali-img-broken {
+  display: block;
+  min-height: 0;
+  background: var(--md-surface-variant, rgba(0, 0, 0, 0.04));
+  border-radius: 6px;
+  /* 图片内容区被替换成空 —— 浏览器就不再绘制破图图标 */
+  content: '';
+}
