@@ -536,6 +536,13 @@ async function smokeDialogCaptchas() {
   {
     const { page, pageErrors } = await openPage('services')
     try {
+      /* 先断言列表状态：桩里 1 号报修标了 has_image: 1，而图片接口返回空 map
+         —— 模拟「标记有图却取不到」。只判 has_image 的话骨架会永远转下去，
+         用户看到的就是一个灰框（这正是那条断言要防的回归）。 */
+      await page.waitForTimeout(1200)
+      const skeletons = await page.locator('.yali-img-skeleton').count()
+      check('services：取不到图时骨架会结束（不留永久灰框）', skeletons === 0, `残留 ${skeletons} 个`)
+
       await page.locator('.yali-fab').first().click()
       await page.waitForTimeout(600)
       const n = await page.locator('#yaliIssueCaptcha .captcha-input').count()

@@ -72,12 +72,16 @@
               </div>
 
               <!-- 两段式图片：列表接口只给 has_image，图片按批异步取回；
-                   未到达时先显示扫光占位（与公告页同一策略） -->
-              <div v-if="issueImageMap[item.id] && issueImageMap[item.id].length" class="yali-item-media">
+                   未到达时先显示扫光占位（与公告页同一策略）。
+                   ⚠️ 骨架的条件必须是「还没有结果」，不能只看 has_image ——
+                   `loadIssueImagesLazy` 在取不到图时会把该项登记成**空数组**，
+                   只判 has_image 的话骨架会永远转下去（用户看到的就是一个灰框）。 -->
+              <div v-if="issueImageMap[item.id]?.[0]" class="yali-item-media">
                 <img :src="toBlobUrl(issueImageMap[item.id][0])" alt="问题图片"
                      class="yali-item-img" @click="openLightbox(toBlobUrl(issueImageMap[item.id][0]))" />
               </div>
-              <div v-else-if="item.has_image" class="yali-img-skeleton" aria-hidden="true">
+              <div v-else-if="item.has_image && !(item.id in issueImageMap)"
+                   class="yali-img-skeleton" aria-hidden="true">
                 <div class="yali-shimmer"></div>
               </div>
 

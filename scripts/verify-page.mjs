@@ -56,7 +56,10 @@ const ts = (offsetSec = 0) => {
 const FIXTURES = {
   services: {
     issues: [
-      { id: 1, location: '教学楼3楼301', description: '投影仪无法开机', status: '待处理', submitted_by: '张三', created_at: ts(), comment_count: 2, notes: '已联系厂商' },
+      /* has_image: 1 但图片接口返回空 map —— 模拟「标记有图却取不到」。
+         这条分支此前从没被覆盖过（桩里 has_image 恒为 0），
+         于是「骨架永远转成灰框」这个 bug 躲过了全部检查。 */
+      { id: 1, location: '教学楼3楼301', description: '投影仪无法开机', status: '待处理', submitted_by: '张三', created_at: ts(), comment_count: 2, notes: '已联系厂商', has_image: 1 },
       { id: 2, location: '体育馆器材室', description: '门锁损坏', status: '处理中', submitted_by: '李四', created_at: ts(), comment_count: 0, updated_by: '王五' },
       { id: 3, location: '图书馆二楼自习区', description: '照明灯闪烁', status: '已完成', submitted_by: '匿名访客', created_at: ts(), comment_count: 1 }
     ],
@@ -376,6 +379,7 @@ const stub = `
   function payload(url) {
     var fx = window._fx;
     if (fx.annDetail && /\\/api\\/announcements\\/\\d+/.test(url)) return fx.annDetail;
+    if (fx.issues && url.indexOf('/api/issues/images') === 0) return {};
     if (fx.issues && url.indexOf('/api/issues') === 0) return fx.issues;
     if (fx.banner && url.indexOf('/api/banner') === 0) return fx.banner;
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;

@@ -18,9 +18,10 @@
     "regress:dev": "node scripts/regress.mjs --dev",
     "smoke": "node scripts/smoke-winui.mjs",
     "smoke:dev": "node scripts/smoke-winui.mjs --dev",
-    "check:icons": "node scripts/icon-refs.mjs",
+    "check:icons": "node scripts/check-icon-render.mjs",
     "subset:icons": "node scripts/subset-icons.mjs",
-    "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs"
+    "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs",
+    "check:icons:fast": "node scripts/check-icon-render.mjs --fast"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
