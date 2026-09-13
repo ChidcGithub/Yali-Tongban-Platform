@@ -59,6 +59,12 @@ const fixtures = {
       { id: 6, title: '团委学生干事招新面试时间', description: '请选择方便的时间段', status: 'closed', min_role: 'member', created_by: '组织部', total_votes: 18, require_name: 1 }
     ]
   },
+  activities: {
+    activities: [
+      { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
+      { id: 52, name: '团委换届大会', location: '千人报告厅', time: '2026-10-08 15:30', departments: '全体', need_volunteers: 0, created_by: '书记处', volunteer_count: 0 }
+    ]
+  },
   messages: {
     msgPayload: {
       messages: [
@@ -98,6 +104,7 @@ const stub = `
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
+    if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
     if (fx.feedPayload && url.indexOf('/api/chat/messages') === 0) return fx.feedPayload;
     if (fx.feedPayload && url.indexOf('/api/feed/') === 0) return [{ id: 41, created_by: '王五', content: '收到', created_at: new Date(now * 1000).toISOString() }];
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
