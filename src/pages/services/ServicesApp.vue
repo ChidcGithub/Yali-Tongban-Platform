@@ -721,9 +721,9 @@ onMounted(() => {
   min-width: 0;
 }
 
-/* 浮动按钮 */
+/* 浮动按钮（原站点用 fixed，保持一致：内容区内部滚动时按钮不跟着走） */
 .yali-fab {
-  position: absolute;
+  position: fixed;
   right: 28px;
   bottom: 28px;
   width: 48px;
