@@ -185,6 +185,12 @@ const FIXTURES = {
     ]
   },
   admin: {
+    // 管理面板的「公告审核」标签也调 /api/announcements，需要同一份列表
+    list: [
+      { id: 21, title: '关于开展秋季志愿服务的通知', content: '定于本月下旬组织志愿服务活动。', status: '待审核', created_by: '团委办公室', created_at: ts(), comment_count: 3, has_image: 0 },
+      { id: 22, title: '团委学生干事招新结果公示', content: '现将本届招新结果予以公示。', status: '已通过', created_by: '组织部', created_at: ts(), comment_count: 0, has_image: 0 },
+      { id: 23, title: '关于调整值日安排的通知', content: '值日安排相应调整。', status: '已拒绝', reject_reason: '表述不清', created_by: '纪检部', created_at: ts(), comment_count: 0, has_image: 0 }
+    ],
     registrations: [
       { id: 81, name: '新同学甲', class_name: '2601', department: '组织部' },
       { id: 82, name: '新同学乙', class_name: '2602', department: '' }
@@ -199,6 +205,12 @@ const FIXTURES = {
     },
     feedback: [
       { id: 91, content: '希望增加夜间模式', contact: 'chidcout@outlook.com', page: '/services', section: '其它', version: '3.0.0', created_at: ts(3600) }
+    ],
+    // 照抄 reviews.js：SELECT *（含 base64 image_url）
+    reviewsPayload: [
+      { id: 301, has_image: 1, status: '待审核', created_by: '张三', created_at: TODAY + ' 09:00:00' },
+      { id: 302, has_image: 0, status: '通过', created_by: '李四', created_at: TODAY + ' 08:00:00', reviewed_by: '站长', reviewed_at: TODAY + ' 08:30:00' },
+      { id: 303, has_image: 0, status: '拒绝', reject_reason: '图片不清晰', created_by: '王五', created_at: TODAY + ' 07:00:00', reviewed_by: '站长', reviewed_at: TODAY + ' 07:30:00' }
     ],
     adminSettings: { site_closed: false, site_closed_message: '', site_closed_by: '' },
     // 照抄 _utils.getStorageStats 的真实键名
@@ -297,6 +309,8 @@ const stub = `
     if (fx.hallPending && url.indexOf('/api/hall/bookings/pending') === 0) return fx.hallPending;
     if (fx.hallBookings && url.indexOf('/api/hall/bookings') === 0) return fx.hallBookings;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
+    if (fx.reviewsPayload && url.indexOf('/api/reviews/images') === 0) return {};
+    if (fx.reviewsPayload && url.indexOf('/api/reviews') === 0) return fx.reviewsPayload;
     if (fx.registrations && url.indexOf('/api/admin/registrations') === 0) return fx.registrations;
     if (fx.usersPayload && url.indexOf('/api/admin/users') === 0) return fx.usersPayload;
     if (fx.feedback && url.indexOf('/api/admin/feedback') === 0) return fx.feedback;
@@ -313,6 +327,7 @@ const stub = `
     if (fx.dutyToday && url.indexOf('/api/duty/attendance/today') === 0) return fx.dutyToday;
     if (fx.finance && url.indexOf('/api/finance/images') === 0) return {};
     if (fx.finance && url.indexOf('/api/finance') === 0) return fx.finance;
+    // 公告列表：fixture 键名是 list（fx 即当前页的 fixture）
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
     if (fx.list && url.indexOf('/api/announcements') === 0) return fx.list;
     if (url.indexOf('/api/features/enabled') === 0) return { enabled: [{ key: 'messages' }] };

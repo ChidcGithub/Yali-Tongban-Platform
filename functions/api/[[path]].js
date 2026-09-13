@@ -4,7 +4,7 @@ import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDele
 import { handleCreateFeedback, handleGetFeedback, handleDeleteFeedback } from './feedback.js';
 import { handleGetAnnouncements, handleGetAnnouncementImages, handleCreateAnnouncement, handleDeleteAnnouncement, handleUpdateAnnouncement, handleReviewAnnouncement, handleAddAnnouncementImage } from './announcements.js';
 import { handleGetFinance, handleGetFinanceImages, handleCreateFinance, handleCompleteFinance, handleReimburseFinance, handleUnreimburseFinance, handleDeleteFinance } from './finance.js';
-import { handleGetReviews, handleCreateReview, handleReviewItem, handleDeleteReview } from './reviews.js';
+import { handleGetReviews, handleGetReviewImages, handleCreateReview, handleReviewItem, handleDeleteReview } from './reviews.js';
 import { handleGetActivities, handleCreateActivity, handleDeleteActivity, handleSignupVolunteer, handleUnsignupVolunteer, handleGetActivityVolunteers } from './activities.js';
 import { handleGetHallBookings, handleCreateHallBooking, handleWithdrawHallBooking, handleDeleteHallBooking, handleReviewHallBooking, handleGetHallPendingWithConflicts } from './halls.js';
 import { handleUnlockAchievement, handleCheckCounts } from './achievements.js';
@@ -68,6 +68,7 @@ const routes = [
   { p: /^\/api\/finance\/(\d+)\/unreimburse$/, m: 'PUT', h: c => handleUnreimburseFinance(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/finance\/(\d+)$/, m: 'DELETE', h: c => handleDeleteFinance(c.request, c.env, c.m[1], c.user) },
   // Reviews
+  { p: '/api/reviews/images', m: 'GET', h: c => handleGetReviewImages(c.env, c.url.searchParams.get('ids'), c.user) },
   { p: '/api/reviews', m: 'GET', h: c => handleGetReviews(c.env, c.user) },
   { p: '/api/reviews', m: 'POST', h: c => handleCreateReview(c.request, c.env, c.user) },
   { p: /^\/api\/reviews\/(\d+)\/review$/, m: 'PUT', h: c => handleReviewItem(c.request, c.env, c.m[1], c.user) },

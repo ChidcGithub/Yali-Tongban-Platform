@@ -62,8 +62,84 @@
         </section>
       </template>
 
-      <!-- ── 反馈 ── -->
+      <!-- ── 公告审核 ── -->
       <template v-else-if="tabIndex === 2">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="`公告（${announcements.length} 条）`" :FontSize="15" :FontWeight="500" />
+            <span v-if="pendingAnnounceCount" class="yali-chip yali-chip-warn">
+              待审核 {{ pendingAnnounceCount }}
+            </span>
+          </div>
+
+          <div class="ad-filter-row">
+            <button v-for="f in ANNOUNCE_FILTERS" :key="f" class="btn btn-sm"
+                    :class="announceFilter === f ? 'btn-primary' : 'btn-outline'"
+                    type="button" @click="announceFilter = f">
+              {{ f === 'all' ? '全部' : f }}
+            </button>
+          </div>
+
+          <p v-if="!filteredAnnouncements.length" class="yali-muted ad-gap">暂无公告</p>
+          <div v-for="a in filteredAnnouncements" :key="a.id" class="yali-item">
+            <div class="yali-item-head">
+              <TextBlock :Text="a.title" class="yali-item-title" TextWrapping="Wrap" />
+              <span class="yali-chip" :class="announceChip(a.status)">{{ a.status || '已通过' }}</span>
+            </div>
+            <TextBlock :Text="a.content" TextWrapping="Wrap" class="yali-item-body" />
+            <div v-if="a.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ a.reject_reason }}</div>
+            <div class="yali-item-meta">
+              <span>{{ a.created_by }}</span>
+              <span>{{ formatTime(a.created_at) }}</span>
+              <span v-if="a.comment_count">评论 {{ a.comment_count }}</span>
+            </div>
+            <div class="yali-item-actions">
+              <button v-if="a.status === '待审核'" class="btn btn-sm btn-primary" type="button"
+                      @click="reviewAnnouncement(a, '已通过')">通过</button>
+              <button v-if="a.status === '待审核'" class="btn btn-sm btn-danger-outline" type="button"
+                      @click="askRejectAnnouncement(a)">拒绝</button>
+              <button class="btn btn-sm btn-danger-outline" type="button"
+                      @click="removeAnnouncement(a)">删除</button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- ── 审核记录 ── -->
+      <template v-else-if="tabIndex === 3">
+        <section class="yali-section">
+          <TextBlock :Text="`审核记录（${reviews.length}）`" :FontSize="15" :FontWeight="500" />
+          <p v-if="!reviews.length" class="yali-muted ad-gap">暂无待审核记录</p>
+          <div v-for="r in reviews" :key="r.id" class="yali-item">
+            <div class="yali-item-head">
+              <span class="yali-chip" :class="reviewChip(r.status)">{{ r.status }}</span>
+              <span class="yali-muted">{{ r.created_by }} · {{ formatTime(r.created_at) }}</span>
+            </div>
+            <div v-if="reviewImages[r.id]" class="ad-review-media">
+              <img :src="toBlobUrl(reviewImages[r.id])" alt="审核材料"
+                   class="ad-review-img" @click="openLightbox(toBlobUrl(reviewImages[r.id]))" />
+            </div>
+            <div v-else-if="r.has_image" class="yali-img-skeleton ad-review-skeleton" aria-hidden="true">
+              <div class="yali-shimmer" />
+            </div>
+            <div v-if="r.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ r.reject_reason }}</div>
+            <div v-if="r.reviewed_by" class="yali-muted ad-gap">
+              审核者：{{ r.reviewed_by }}（{{ (r.reviewed_at || '').slice(0, 16) }}）
+            </div>
+            <div class="yali-item-actions">
+              <button v-if="r.status === '待审核'" class="btn btn-sm btn-primary" type="button"
+                      @click="reviewItem(r, '通过')">通过</button>
+              <button v-if="r.status === '待审核'" class="btn btn-sm btn-danger-outline" type="button"
+                      @click="askRejectReview(r)">拒绝</button>
+              <button class="btn btn-sm btn-danger-outline" type="button"
+                      @click="removeReview(r)">删除</button>
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <!-- ── 反馈 ── -->
+      <template v-else-if="tabIndex === 4">
         <section class="yali-section">
           <TextBlock :Text="'用户反馈（' + feedback.length + '）'" :FontSize="15" :FontWeight="500" />
           <p v-if="!feedback.length" class="yali-muted ad-gap">暂无反馈</p>
@@ -170,9 +246,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, formatTime, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, apiPut, formatTime, openLightbox, toast, toBlobUrl } from '../../shared/api'
 
-const TABS = ['注册审批', '成员管理', '反馈', '站点设置']
+const TABS = ['注册审批', '成员管理', '公告审核', '审核记录', '反馈', '站点设置']
 const tabItems = TABS.map((Text) => ({ Text }))
 
 /** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
@@ -349,6 +425,156 @@ async function removeUser(u: User) {
 /* ── 反馈 ── */
 const feedback = ref<Feedback[]>([])
 
+/* ── 公告审核 ── */
+interface AdminAnnouncement {
+  id: number
+  title: string
+  content: string
+  status?: string
+  created_by: string
+  created_at: string
+  reject_reason?: string
+  comment_count?: number
+}
+
+const ANNOUNCE_FILTERS = ['all', '待审核', '已通过', '已拒绝']
+
+const announcements = ref<AdminAnnouncement[]>([])
+const announceFilter = ref('all')
+
+const pendingAnnounceCount = computed(
+  () => announcements.value.filter((a) => a.status === '待审核').length
+)
+const filteredAnnouncements = computed(() =>
+  announceFilter.value === 'all'
+    ? announcements.value
+    : announcements.value.filter((a) => (a.status || '已通过') === announceFilter.value)
+)
+
+function announceChip(status?: string) {
+  if (status === '待审核') return 'yali-chip-warn'
+  if (status === '已拒绝') return 'yali-chip-danger'
+  return 'yali-chip-done'
+}
+
+async function loadAnnouncements() {
+  try {
+    announcements.value = (await apiGet<AdminAnnouncement[]>('/api/announcements')) ?? []
+  } catch (err) {
+    toast((err as Error).message, 'error')
+    announcements.value = []
+  }
+}
+
+async function reviewAnnouncement(a: AdminAnnouncement, status: '已通过' | '已拒绝', reason = '') {
+  try {
+    // 后端要求：status 只能是 已通过 / 已拒绝；拒绝时必须给理由
+    await apiPut(`/api/announcements/${a.id}/status`, { status, reject_reason: reason })
+    a.status = status
+    a.reject_reason = reason
+    toast(status === '已通过' ? '公告已通过' : '公告已拒绝', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+function askRejectAnnouncement(a: AdminAnnouncement) {
+  const reason = window.prompt('请填写拒绝理由（必填，不超过 500 字）')
+  if (reason === null) return
+  if (!reason.trim()) return toast('拒绝时必须填写理由', 'error')
+  void reviewAnnouncement(a, '已拒绝', reason.trim())
+}
+
+async function removeAnnouncement(a: AdminAnnouncement) {
+  if (!window.confirm(`确定删除公告「${a.title}」吗？`)) return
+  try {
+    await apiDel(`/api/announcements/${a.id}`)
+    announcements.value = announcements.value.filter((x) => x.id !== a.id)
+    toast('公告已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* ── 审核记录 ── */
+interface ReviewItem {
+  id: number
+  status: string
+  reject_reason?: string
+  created_by: string
+  created_at: string
+  reviewed_by?: string
+  reviewed_at?: string
+  /** 列表只给标记，图片走 /api/reviews/images?ids= 按批取（每条都是一整张 base64） */
+  has_image?: number
+}
+
+const reviews = ref<ReviewItem[]>([])
+const reviewImages = reactive<Record<number, string>>({})
+
+function reviewChip(status: string) {
+  if (status === '待审核') return 'yali-chip-warn'
+  if (status === '拒绝') return 'yali-chip-danger'
+  return 'yali-chip-done'
+}
+
+async function loadReviews() {
+  try {
+    reviews.value = (await apiGet<ReviewItem[]>('/api/reviews')) ?? []
+    void loadReviewImagesLazy()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+    reviews.value = []
+  }
+}
+
+/** 每批 4 条取图（与站点其它列表同一策略） */
+async function loadReviewImagesLazy() {
+  const pending = reviews.value
+    .filter((r) => r.has_image && !(r.id in reviewImages))
+    .map((r) => r.id)
+  for (let i = 0; i < pending.length; i += 4) {
+    const batch = pending.slice(i, i + 4)
+    let map: Record<string, string> = {}
+    try {
+      map = await apiGet<Record<string, string>>(`/api/reviews/images?ids=${batch.join(',')}`)
+    } catch {
+      map = {}
+    }
+    for (const id of batch) reviewImages[id] = map?.[id] ?? ''
+  }
+}
+
+async function reviewItem(r: ReviewItem, status: '通过' | '拒绝', reason = '') {
+  try {
+    // 后端这里的取值是 通过 / 拒绝（与公告审核的 已通过/已拒绝 不同）
+    await apiPut(`/api/reviews/${r.id}/review`, { status, reject_reason: reason })
+    r.status = status
+    r.reject_reason = reason
+    toast(status === '通过' ? '已通过' : '已拒绝', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+function askRejectReview(r: ReviewItem) {
+  const reason = window.prompt('请填写拒绝理由（必填，不超过 500 字）')
+  if (reason === null) return
+  if (!reason.trim()) return toast('拒绝时必须填写理由', 'error')
+  void reviewItem(r, '拒绝', reason.trim())
+}
+
+async function removeReview(r: ReviewItem) {
+  if (!window.confirm('确定删除这条审核记录吗？')) return
+  try {
+    await apiDel(`/api/reviews/${r.id}`)
+    reviews.value = reviews.value.filter((x) => x.id !== r.id)
+    toast('审核记录已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 async function loadFeedback() {
   try {
     feedback.value = (await apiGet<Feedback[]>('/api/admin/feedback')) ?? []
@@ -480,7 +706,9 @@ async function clearAll() {
 function loadForTab(i: number) {
   if (i === 0) loadRegistrations()
   else if (i === 1) loadUsers(true)
-  else if (i === 2) loadFeedback()
+  else if (i === 2) loadAnnouncements()
+  else if (i === 3) loadReviews()
+  else if (i === 4) loadFeedback()
   else {
     loadSettings()
     loadStorage()
@@ -600,6 +828,28 @@ onMounted(() => loadForTab(tabIndex.value))
   font-size: 11px;
   text-align: right;
   color: var(--text-tertiary);
+}
+.ad-filter-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.ad-review-media {
+  margin-top: 8px;
+}
+.ad-review-skeleton {
+  margin-top: 8px;
+  width: 200px;
+  height: 120px;
+}
+.ad-review-img {
+  margin-top: 8px;
+  max-width: 100%;
+  max-height: 220px;
+  width: auto;
+  border-radius: 6px;
+  cursor: pointer;
 }
 .ad-counts {
   display: grid;
