@@ -341,7 +341,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog} from '../../shared/api'
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog
+} from '../../shared/api'
+import { requireAdmin } from '../../shared/guard'
 
 const TABS = ['排班', '干事', '评分', '时段']
 const tabItems = TABS.map((Text) => ({ Text }))
@@ -913,12 +915,10 @@ function loadForTab(i: number) {
 
 watch(tabIndex, loadForTab)
 
-onMounted(() => {
-  /* 非管理员进来只会看到满屏 403 —— 请回值日页（旧版 duty-admin.js 开头就是 requireAdmin()） */
-  if (!isAdmin()) {
-    window.location.replace('duty.html')
-    return
-  }
+onMounted(async () => {
+  /* 旧版 duty-admin.js 开头就是 requireAdmin()：无权访问 → 404（伪装），
+     不是「跳回值日页」 */
+  if (!(await requireAdmin())) return
   loadSchedule()
   loadStaff()
   // 若通过 ?tab= 直接落在别的标签，补上该标签的数据

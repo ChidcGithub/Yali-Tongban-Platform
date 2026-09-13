@@ -207,6 +207,7 @@ import {
   toast,
   confirmDialog
 } from '../../shared/api'
+import { requireMember } from '../../shared/guard'
 
 interface FinanceRecord {
   id: number
@@ -502,7 +503,11 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
-onMounted(reload)
+onMounted(async () => {
+  /* 旧版 finance.js 开头是 requireMember()：非成员（如待审批 / 公共账号）→ 404 */
+  if (!(await requireMember())) return
+  reload()
+})
 </script>
 
 <style>

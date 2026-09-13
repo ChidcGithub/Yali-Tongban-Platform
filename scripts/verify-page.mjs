@@ -313,6 +313,12 @@ const stub = `
     if (!el) { el = document.createElement('div'); el.id = '__errors'; document.documentElement.appendChild(el); }
     el.textContent = window.__errors.join(' || ');
   }
+  /* 伪造真实路径：打桩页的 URL 是 /__verify.html，而页面代码（权限守卫等）
+     会读 location.pathname 推导「我是哪个页面」（旧版 auth.js 的 _pageName 同理）。
+     不改的话，404 跳转永远带不上 ?from=<页面名>，这类断言就成了假绿。
+     replaceState 只改 URL 不触发导航，静态服务不需要真的有这个文件。 */
+  try { history.replaceState(null, '', '/${entry}.html' + location.search); } catch (e) {}
+
   window.addEventListener('error', function (e) { record((e.message || '') + ' @' + (e.filename || '')); });
   window.addEventListener('unhandledrejection', function (e) { record('unhandledrejection: ' + ((e.reason && e.reason.message) || e.reason)); });
 
@@ -335,17 +341,31 @@ const stub = `
   /* 未登录态：query 里带 anon=1 时把测试用户置空。
      有些流程（如活动报名）登录后走的是**另一条分支**（直接报名、不出验证码），
      想验「匿名报名表单」就必须能切到未登录。 */
-  var __anon = ${JSON.stringify(query)}.indexOf('anon=1') >= 0;
+  var __q = ${JSON.stringify(query)};
+  var __anon = __q.indexOf('anon=1') >= 0;
+  /* role=xxx 用来验权限守卫（requireAdmin / requireMember）。
+     桩的默认角色是 admin，所以「非管理员跳 404」这条路径
+     在没有这个开关时根本走不到 —— 是典型的「桩把 bug 盖住」。 */
+  var __role = (__q.match(/role=([a-z]+)/) || [])[1] || 'admin';
   /* 必须带 id：真实登录返回的是 { id, name, role, class_name, department }
      （见 auth.js respondWithToken），页面里按 id 判「是不是我的」。
      少了 id，这类判断在回归里永远走不到。 */
-  var __stubUser = { id: 101, name: '测试用户', role: 'admin', class_name: '2517', department: '办公室' };
+  var __stubUser = { id: 101, name: '测试用户', role: __role, class_name: '2517', department: '办公室' };
   window.getUser = function () {
     return __anon ? null : __stubUser;
   };
-  window.isAdmin = function () { return !__anon; };
+  /* 对齐 api.js 的真实语义：admin / owner / teacher 才算管理员 */
+  window.isAdmin = function (u) {
+    var t = u || window.getUser();
+    return !!t && (t.role === 'admin' || t.role === 'owner' || t.role === 'teacher');
+  };
+  window.__stubRole = __role;
+  window.__stubAnon = __anon;
   localStorage.setItem('token', 'stub');
   localStorage.setItem('user', JSON.stringify(__anon ? null : __stubUser));
+  /* 站点里已经没有 window.confirm 了（35 处全部换成站点对话框，见 shared/confirm.ts）；
+     这里保留一个自动拒绝的桩，只为防止遗留脚本万一调用时阻塞无头浏览器
+     —— 原生弹窗在 Playwright 里会挂住整个用例。 */
   window.confirm = function () { return false; };
 
   window._fx = ${JSON.stringify(fx)};
@@ -394,7 +414,12 @@ const stub = `
     if (url.indexOf('/api/features/') === 0) return { enabled: [] };
     if (url.indexOf('/api/settings') === 0) return {};
     if (url.indexOf('/api/sync') === 0) return {};
-    if (url.indexOf('/api/auth/me') === 0) return { name: '测试用户', role: 'admin' };
+    /* 会话接口要如实反映 anon / role —— 权限守卫就是靠它的成败判断的，
+       恒返回 admin 会让「未登录也被当成管理员」这种 bug 永远测不出来 */
+    if (url.indexOf('/api/auth/me') === 0) {
+      if (window.__stubAnon) return { __fail: '未登录' };
+      return window.getUser();
+    }
     // 故意给非零值：让未读角标路径每次回归都被走到
     if (url.indexOf('/api/messages/unread-count') === 0) return { count: 3 };
     if (url.indexOf('/api/captcha') === 0) return { token: 't', svg: '<svg/>' };
@@ -414,12 +439,16 @@ const stub = `
     var p = payload(url);
     noteCall(url, p !== null);
     if (p === null) return realFetch.call(window, input, init);
+    /* payload 里返回 { __fail: '原因' } 表示这次请求应当失败 ——
+       api.js 的 api() 只在 data.success 为假时抛错，所以这里必须如实伪造 */
+    var failMsg = p && p.__fail;
+    var body = failMsg ? { success: false, error: failMsg } : { success: true, data: p };
     return Promise.resolve({
-      ok: true,
-      status: 200,
+      ok: !failMsg,
+      status: failMsg ? 401 : 200,
       headers: { get: function (k) { return k.toLowerCase() === 'content-type' ? 'application/json' : ''; } },
-      json: function () { return Promise.resolve({ success: true, data: p }); },
-      text: function () { return Promise.resolve(JSON.stringify({ success: true, data: p })); }
+      json: function () { return Promise.resolve(body); },
+      text: function () { return Promise.resolve(JSON.stringify(body)); }
     });
   };
 })();

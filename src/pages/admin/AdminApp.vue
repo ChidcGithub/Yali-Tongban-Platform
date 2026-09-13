@@ -480,6 +480,7 @@ import {
   confirmDialog,
   promptDialog
 } from '../../shared/api'
+import { requireAdmin } from '../../shared/guard'
 
 /* 标签顺序与旧后台一致：注册审批 / 成员 / 公告审核 / 审核记录 / 反馈 / 报修管理 /
    财务记录 / 功能开关 / 站点设置。
@@ -1439,13 +1440,12 @@ function loadForTab(i: number) {
 
 watch(tabIndex, loadForTab)
 
-onMounted(() => {
-  /* 非管理员进来只会看到满屏 403 报错 —— 直接请回服务页
-     （旧版 admin.js 开头就是 requireAdmin()） */
-  if (!isAdmin()) {
-    window.location.replace('services.html')
-    return
-  }
+onMounted(async () => {
+  /* 旧版 admin.js 开头就是 requireAdmin()：未登录或非管理角色一律送去 **404**
+     （404 页会播「伪装入侵」彩蛋，不暴露这里有什么）。
+     之前这里写的是「跳回服务页」—— 那是迁移时的自创行为，
+     结果是未登录用户能直接看到管理面板的骨架。 */
+  if (!(await requireAdmin())) return
   loadForTab(tabIndex.value)
 })
 </script>

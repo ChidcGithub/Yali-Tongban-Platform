@@ -11,11 +11,23 @@ import { createApp, type Component } from 'vue'
 import WinUIonWeb from '../winui'
 import { initWinUITheme } from './theme'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import CookieBanner from '../components/CookieBanner.vue'
 
 import '../winui/styles/theme.css'
 import '../winui/styles/animations.css'
 import '../theme/winui-yali.css'
 import '../theme/winui-page.css'
+
+/** 往 body 上挂一个独立的单例组件（不与页面共用 app 实例） */
+function mountSingleton(component: Component, id: string) {
+  const el = document.createElement('div')
+  el.id = id
+  document.body.appendChild(el)
+
+  const app = createApp(component)
+  app.use(WinUIonWeb, { locale: 'zh-CN' })
+  app.mount(el)
+}
 
 /**
  * 全局确认框宿主（与「提交问题」等对话框同一套 ContentDialog 样式）。
@@ -28,18 +40,26 @@ let confirmHostMounted = false
 function mountConfirmHost() {
   if (confirmHostMounted) return
   confirmHostMounted = true
+  mountSingleton(ConfirmDialog, 'winui-confirm-host')
+}
 
-  const el = document.createElement('div')
-  el.id = 'winui-confirm-host'
-  document.body.appendChild(el)
+/**
+ * Cookie 告知横幅（WinUI 版）。
+ * 旧实现在 api.js 里注入 `.cookie-banner`（旧设计系统），
+ * 组件挂载时会置 `window.__winuiCookieBanner`，遗留实现见到它就跳过。
+ */
+let cookieMounted = false
 
-  const app = createApp(ConfirmDialog)
-  app.use(WinUIonWeb, { locale: 'zh-CN' })
-  app.mount(el)
+function mountCookieBanner() {
+  if (cookieMounted) return
+  cookieMounted = true
+  mountSingleton(CookieBanner, 'winui-cookie-host')
 }
 
 export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   initWinUITheme()
+  /* Cookie 横幅先挂：它的标记要在 DOMContentLoaded（api.js 检查的时点）之前设好 */
+  mountCookieBanner()
   mountConfirmHost()
 
   const app = createApp(rootComponent)

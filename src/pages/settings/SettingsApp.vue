@@ -120,10 +120,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiPost, getUser, toast } from '../../shared/api'
+import { requireAuth } from '../../shared/guard'
 
 interface AchDef {
   id: string
@@ -304,6 +305,15 @@ async function savePassword() {
     busy.value = false
   }
 }
+
+onMounted(async () => {
+  /* 旧版 settings.js 开头就是 requireAuth()：未登录 → 404（伪装），
+     而不是把「个人设置」的骨架渲染出来 */
+  const me = await requireAuth()
+  if (!me) return
+  // checkAuth 已把最新用户写回 localStorage，这里同步给响应式引用
+  user.value = getUser()
+})
 </script>
 
 <style>

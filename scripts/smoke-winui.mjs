@@ -832,6 +832,123 @@ async function smokeTabsOverflow() {
   }
 }
 
+/**
+ * 权限守卫：无权访问管理页必须跳 **404**（伪装），而不是把骨架渲染出来
+ *
+ * 旧版 auth.js 的 requireAuth / requireMember / requireAdmin 都是
+ * 「不通过 → /404.html?from=<页面名>」—— 404 页会播「伪装入侵」彩蛋，
+ * 这是有意设计，不是随手写的错误处理。
+ * 迁移后这一层丢了（改成「非管理员跳回服务页」），
+ * 于是未登录用户能直接看到管理面板的标题、标签和部分空数据。
+ */
+async function smokeGuards() {
+  /* 跳转类用例不能复用 openPage：它要等页面外壳渲染出来，
+     而这里页面会在渲染完成前就跳走，等待必然超时。 */
+  async function openAndWatch(entry, query) {
+    await buildVerifyPage(entry, query)
+    const page = await context.newPage()
+    const pageErrors = []
+    page.on('pageerror', (e) => pageErrors.push(String(e.message || e)))
+    await page.goto(`${base}/__verify.html`, { waitUntil: 'load' })
+    return { page, pageErrors }
+  }
+
+  const jumped = (page, ms = 6000) =>
+    page.waitForURL(/\/404\.html/, { timeout: ms }).then(() => true).catch(() => false)
+
+  /* ① 未登录访问管理面板 */
+  {
+    const { page } = await openAndWatch('admin', '?anon=1')
+    const ok = await jumped(page)
+    check('守卫：未登录访问管理页 → 跳 404', ok, page.url().replace(base, ''))
+    check(
+      '守卫：404 带 ?from=管理面板（伪装彩蛋要用的页面名）',
+      decodeURIComponent(page.url()).includes('from=管理面板'),
+      page.url().replace(base, '')
+    )
+    await page.close()
+  }
+
+  /* ② 普通成员访问管理面板 */
+  {
+    const { page } = await openAndWatch('admin', '?role=member')
+    const ok = await jumped(page)
+    check('守卫：普通成员访问管理页 → 跳 404', ok, page.url().replace(base, ''))
+    await page.close()
+  }
+
+  /* ③ 未登录访问个人设置 */
+  {
+    const { page } = await openAndWatch('settings', '?anon=1')
+    check('守卫：未登录访问个人设置 → 跳 404', await jumped(page), page.url().replace(base, ''))
+    await page.close()
+  }
+
+  /* ④ 未登录访问财务页（旧版是 requireMember） */
+  {
+    const { page } = await openAndWatch('finance', '?anon=1')
+    check('守卫：未登录访问财务页 → 跳 404', await jumped(page), page.url().replace(base, ''))
+    await page.close()
+  }
+
+  /* ⑤ 反向：管理员访问管理页**不能**跳 404（别把守卫做成一律拦） */
+  {
+    const { page } = await openPage('admin')
+    await page.waitForTimeout(800)
+    check('守卫：管理员访问管理页正常渲染（未误跳）', !/404\.html/.test(page.url()), page.url().replace(base, ''))
+    await page.close()
+  }
+
+  /* ⑥ 反向：成员访问财务页应当放行 */
+  {
+    const { page } = await openPage('finance', '?role=member')
+    await page.waitForTimeout(600)
+    check('守卫：成员访问财务页放行（未误跳）', !/404\.html/.test(page.url()), page.url().replace(base, ''))
+    await page.close()
+  }
+}
+
+/**
+ * Cookie 告知横幅：WinUI 版
+ *
+ * 旧实现是 api.js 往 body 注入 `.cookie-banner` + `.btn`（旧设计系统的类名），
+ * 在换过皮的界面里一眼就看得出来。现在由 `components/CookieBanner.vue` 渲染，
+ * 同时给遗留实现留了 `window.__winuiCookieBanner` 标记让它让位。
+ */
+async function smokeCookieBanner() {
+  const { page, pageErrors } = await openPage('services')
+  try {
+    const banner = page.locator('.yali-cookie')
+    await banner.waitFor({ timeout: 5000 }).catch(() => {})
+    check('Cookie 横幅：出现的是 WinUI 版（.yali-cookie）', (await banner.count()) === 1)
+    check(
+      'Cookie 横幅：旧实现已让位（没有 .cookie-banner）',
+      (await page.locator('.cookie-banner').count()) === 0
+    )
+    check(
+      'Cookie 横幅：文案与旧版一致',
+      (await banner.innerText().catch(() => '')).includes('本站使用 Cookie 维持登录')
+    )
+    /* 用的是 WinUI 的 Button（AccentButtonStyle），不是遗留 .btn */
+    check(
+      'Cookie 横幅：按钮是 WinUI 控件（.win-btn）',
+      (await page.locator('.yali-cookie .win-btn').count()) === 1
+    )
+
+    await banner.locator('button', { hasText: '知道了' }).click()
+    await page.waitForTimeout(700)
+    check('Cookie 横幅：点「知道了」后消失', (await page.locator('.yali-cookie').count()) === 0)
+    check(
+      'Cookie 横幅：已写入 localStorage.cookieConsent',
+      await page.evaluate(() => localStorage.getItem('cookieConsent') === 'true')
+    )
+
+    check('Cookie 横幅：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -851,7 +968,9 @@ const CASES = [
   ['个性化：字号滑块', smokePersonalizeSlider],
   ['410：?from= 文案改写 + 反馈入口', smokeGone],
   ['站点对话框：确认框 / 输入框 / 实时校验', smokeSiteDialogs],
-  ['管理页标签栏：窄屏可横向滚动', smokeTabsOverflow]
+  ['管理页标签栏：窄屏可横向滚动', smokeTabsOverflow],
+  ['权限守卫：无权访问管理页跳 404', smokeGuards],
+  ['Cookie 横幅：WinUI 版', smokeCookieBanner]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

@@ -69,6 +69,21 @@ function localImports(src) {
   return names
 }
 
+/**
+ * Vue 内置组件：不需要（也不该）在 WinUI 注册表里登记。
+ * 不排除的话，模板里写 `<Transition>` 会被报成「控件未注册」——
+ * 假警报会让人去注册一个根本不该注册的标签。
+ */
+const VUE_BUILTINS = new Set([
+  'Transition',
+  'TransitionGroup',
+  'KeepAlive',
+  'Teleport',
+  'Suspense',
+  'Component',
+  'Slot'
+])
+
 const registry = readRegistry()
 const files = [
   ...walk(resolve(root, 'src/pages')),
@@ -80,7 +95,7 @@ for (const file of files) {
   const src = readFileSync(file, 'utf8')
   const local = localImports(src)
   for (const tag of templateTags(src)) {
-    if (registry.has(tag) || local.has(tag)) continue
+    if (registry.has(tag) || local.has(tag) || VUE_BUILTINS.has(tag)) continue
     problems.push({ file: relative(root, file), tag })
   }
 }
