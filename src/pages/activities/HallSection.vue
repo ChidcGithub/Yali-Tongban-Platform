@@ -351,7 +351,14 @@ function assignColumns(list: HallBooking[]) {
 
 /* ── 当天卡片 ── */
 const dayCards = computed(() => {
-  const list = bookings.value.filter((b) => b.date === selectedDate.value && b.status !== 'rejected')
+  // 时间格式非法的先剔掉：toMin 对坏值返回 0，会让 top/height 算成 NaN、分列也错乱
+  const list = bookings.value.filter(
+    (b) =>
+      b.date === selectedDate.value &&
+      b.status !== 'rejected' &&
+      /^\d{1,2}:\d{2}$/.test(b.start_time) &&
+      /^\d{1,2}:\d{2}$/.test(b.end_time)
+  )
   const meta = assignColumns(list)
   return list.map((b) => {
     const sh = toMin(b.start_time)

@@ -34,8 +34,20 @@
           </div>
         </section>
 
-        <!-- 已投过：直接看结果 -->
+        <!-- 已投过 -->
         <section v-if="voted" class="yali-section">
+          <!-- 结果只有发起人 / 管理员可见（后端 handleGetPollResults 会 403）。
+               普通参与者在投票前不给看，投完只看「已参与」，避免出现一个永远空的结果区 -->
+          <template v-if="!canViewResults">
+            <TextBlock Text="你已参与本次投票" :FontSize="16" :FontWeight="600" />
+            <TextBlock Text="感谢参与，结果由发起人公布" class="yali-muted pv-gap" />
+            <Button class="pv-back" @Click="go('polls.html')">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.back" :FontSize="14" /><span>返回投票列表</span>
+              </span>
+            </Button>
+          </template>
+          <template v-else>
           <TextBlock Text="投票结果" :FontSize="16" :FontWeight="600" />
           <div v-if="resultsLoading" class="yali-muted pv-gap">加载中…</div>
           <template v-else>
@@ -69,6 +81,7 @@
                 <FontIcon :Glyph="GLYPH.back" :FontSize="14" /><span>返回投票列表</span>
               </span>
             </Button>
+          </template>
           </template>
         </section>
 
@@ -113,6 +126,32 @@
             <TextBox v-else v-model:Text="textAns[qi]" PlaceholderText="填写你的回答"
                      :MaxLength="q.max_length || 1000"
                      AcceptsReturn TextWrapping="Wrap" class="pv-gap pv-textarea" />
+          </section>
+
+          <!-- 发起人 / 管理员未投票也能看结果（旧版 poll.js 的 canViewResults 行为） -->
+          <section v-if="canViewResults" class="yali-section">
+            <TextBlock Text="投票结果" :FontSize="16" :FontWeight="600" />
+            <div v-if="resultsLoading" class="yali-muted pv-gap">加载中…</div>
+            <div v-else-if="!results.length" class="yali-muted pv-gap">还没有人投票</div>
+            <div v-for="(qr, qi) in results" :key="qi" class="pv-result">
+              <TextBlock :Text="(qi + 1) + '. ' + qr.title" :FontSize="14" :FontWeight="500" TextWrapping="Wrap" />
+              <div v-if="qr.result?.options" class="pv-result-options">
+                <div v-for="(opt, oi) in qr.result.options" :key="oi" class="pv-result-opt">
+                  <div class="pv-result-head">
+                    <span>{{ opt }}</span>
+                    <span class="yali-muted">
+                      {{ qr.result.counts?.[oi] ?? 0 }} 票
+                      ({{ pct(qr.result.counts?.[oi] ?? 0, qr.result.total) }}%)
+                    </span>
+                  </div>
+                  <ProgressBar :Value="(qr.result.counts?.[oi] ?? 0)"
+                               :Maximum="Math.max(...(qr.result.counts ?? [1]), 1)" :MinHeight="6" />
+                </div>
+              </div>
+              <div v-else-if="qr.result?.answers" class="pv-result-texts">
+                <p v-for="(t, ti) in qr.result.answers" :key="ti" class="pv-text">{{ t }}</p>
+              </div>
+            </div>
           </section>
 
           <section class="yali-section">
@@ -223,6 +262,15 @@ const blockReason = computed(() => {
 
 const canVote = computed(() => !voted.value && !blockReason.value && poll.value?.status === 'open')
 
+/** 谁能看结果：发起人 / 管理员 / 站长 —— 与后端 handleGetPollResults 的判定一致。
+    普通参与者看不到（硬拉会 403），所以不要去渲染一个永远空的结果区。 */
+const canViewResults = computed(() => {
+  const u = user.value
+  const p = poll.value
+  if (!u || !p) return false
+  return u.name === p.created_by || u.role === 'admin' || u.role === 'owner'
+})
+
 type Captcha = { getData: () => Record<string, string>; refresh: () => void }
 let captcha: Captcha | null = null
 
@@ -252,7 +300,8 @@ async function load() {
       voted.value = false
     }
 
-    if (voted.value) await loadResults()
+    // 已投票的看结果；未投票但有权（发起人/管理员）也要拉 —— 旧版同样允许
+    if (voted.value || canViewResults.value) await loadResults()
   } catch (err) {
     toast((err as Error).message, 'error')
     poll.value = null
@@ -336,6 +385,11 @@ const resultsLoading = ref(false)
 
 async function loadResults() {
   if (!poll.value) return
+  if (!canViewResults.value) {
+    // 无权就别发请求（后端会 403，catch 掉之后页面只剩一个空标题）
+    results.value = []
+    return
+  }
   resultsLoading.value = true
   try {
     const data = await apiGet<{ questionResults?: QuestionResult[] }>(

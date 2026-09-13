@@ -481,7 +481,7 @@ async function create() {
     draft.preview = ''
     draft.deptIndex = -1
     draft.internal = false
-    captcha?.refresh()
+    // 关框时验证码容器会被销毁，这里不再 refresh（watch 里已置空，下次打开会重挂）
   } catch (err) {
     toast((err as Error).message, 'error')
     captcha?.refresh()

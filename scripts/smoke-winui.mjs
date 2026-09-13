@@ -202,6 +202,11 @@ async function smokeActivitiesTabs() {
     const customRow = await page.locator('.hall-custom-row').count()
     check('activities：切到「千报预约」后自定义时间行出现', customRow > 0, `${customRow} 处`)
 
+    /* 「是不是我的预约」按 user.id 判断（localStorage 里的字段名是 id，不是 userId）。
+       桩用户 id=101，而 201 号预约正是 user_id=101 → 应带 self 样式。 */
+    const selfCards = await page.locator('.hall-timeline-card-self').count()
+    check('activities：能认出「自己的预约」（按 user.id）', selfCards > 0, `${selfCards} 张自己的卡`)
+
     const combos = await page.locator('.hall-custom-h, .hall-custom-m').count()
     check('activities：自定义时间的 4 个下拉框都在', combos === 4, `${combos} 个`)
 

@@ -80,7 +80,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
-import { apiGet, apiPost, legacy, mountCaptcha, toast } from '../../shared/api'
+import { apiGet, apiPost, mountCaptcha, toast } from '../../shared/api'
 
 const TABS = [
   { Text: '登录', Tag: 'login' },

@@ -105,7 +105,8 @@
               <img v-for="(u, i) in announceImages[a.id]" :key="i" :src="toBlobUrl(u)" alt="公告图片"
                    @click="openLightbox(toBlobUrl(u))" />
             </div>
-            <div v-else-if="a.has_image" class="yali-img-skeleton" aria-hidden="true">
+            <div v-else-if="a.has_image && !(a.id in announceImages)"
+                 class="yali-img-skeleton" aria-hidden="true">
               <div class="yali-shimmer" />
             </div>
             <div v-if="a.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ a.reject_reason }}</div>

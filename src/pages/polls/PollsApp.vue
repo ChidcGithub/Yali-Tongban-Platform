@@ -296,7 +296,8 @@ const TYPE_VALUES = ['single', 'multiple', 'text']
 interface DraftQuestion {
   title: string
   options: string[]
-  type: string
+  /** 题型**只由这个下标决定**（ComboBox 绑的就是它）。不要再引入第二个 type 字段 ——
+      之前那个 `type` 建题后永不更新，模板/校验读它就会和下拉不一致。 */
   _typeIndex: number
   /** 已压缩的 base64 data URL；既作预览也作提交载荷（空串表示无配图） */
   image_url: string
@@ -306,7 +307,7 @@ interface DraftQuestion {
 
 /** 新题目的默认值（必须含 image_url / max_length，否则响应式上会是 undefined） */
 function blankQuestion(): DraftQuestion {
-  return { title: '', options: ['', ''], type: 'single', _typeIndex: 0, image_url: '', max_length: 1000 }
+  return { title: '', options: ['', ''], _typeIndex: 0, image_url: '', max_length: 1000 }
 }
 
 /* 题型**只有一个真实来源**：下拉绑的 `_typeIndex`。
@@ -314,7 +315,7 @@ function blankQuestion(): DraftQuestion {
    结果「字数限制」控件永远不渲染、「主观题」提交时还按选择题校验被拒。
    统一用 qType() 取。 */
 function qType(q: DraftQuestion): string {
-  return TYPE_VALUES[q._typeIndex] ?? q.type ?? 'single'
+  return TYPE_VALUES[q._typeIndex] ?? TYPE_VALUES[0]
 }
 
 const dialogOpen = ref(false)
@@ -390,9 +391,7 @@ async function create() {
     })
 
   if (!questions.length) return toast('至少需要一个题目', 'error')
-  const invalid = questions.find(
-    (q) => q.type !== 'text' && (q.options as string[]).length < 2
-  )
+  const invalid = questions.find((q) => q.type !== 'text' && (q.options as string[]).length < 2)
   if (invalid) return toast('选择题至少需要两个选项', 'error')
 
   saving.value = true

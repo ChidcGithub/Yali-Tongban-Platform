@@ -336,12 +336,16 @@ const stub = `
      有些流程（如活动报名）登录后走的是**另一条分支**（直接报名、不出验证码），
      想验「匿名报名表单」就必须能切到未登录。 */
   var __anon = ${JSON.stringify(query)}.indexOf('anon=1') >= 0;
+  /* 必须带 id：真实登录返回的是 { id, name, role, class_name, department }
+     （见 auth.js respondWithToken），页面里按 id 判「是不是我的」。
+     少了 id，这类判断在回归里永远走不到。 */
+  var __stubUser = { id: 101, name: '测试用户', role: 'admin', class_name: '2517', department: '办公室' };
   window.getUser = function () {
-    return __anon ? null : { name: '测试用户', role: 'admin' };
+    return __anon ? null : __stubUser;
   };
   window.isAdmin = function () { return !__anon; };
   localStorage.setItem('token', 'stub');
-  localStorage.setItem('user', JSON.stringify(__anon ? null : { name: '测试用户', role: 'admin' }));
+  localStorage.setItem('user', JSON.stringify(__anon ? null : __stubUser));
   window.confirm = function () { return false; };
 
   window._fx = ${JSON.stringify(fx)};

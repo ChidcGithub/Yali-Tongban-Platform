@@ -64,7 +64,8 @@
                 <img v-for="(url, i) in imageMap[item.id]" :key="i" :src="toBlobUrl(url)"
                      alt="公告图片" @click.stop="openLightbox(toBlobUrl(url))" />
               </div>
-              <div v-else-if="item.has_image" class="yali-img-skeleton" aria-hidden="true">
+              <div v-else-if="item.has_image && !(item.id in imageMap)"
+                   class="yali-img-skeleton" aria-hidden="true">
                 <div class="yali-shimmer"></div>
               </div>
 
@@ -424,7 +425,15 @@ function openEditor(item?: Announcement) {
   // 必须**等**它回来：save() 用 imageMap 计算「要保留哪些旧图」，
   // 如果用户在图还没到就保存，image_urls 会是 []，
   // 而后端 replaceAnnounceImages 是**整表替换**语义 → 旧图全被删掉。
-  if (item?.has_image && !(item.id in imageMap)) void loadItemImages(item.id)
+  if (item?.has_image) void ensureImagesLoaded(item)
+}
+
+/** 确保这条公告的图已经取回来（编辑保存要用它算「保留哪些旧图」）。
+    列表接口是 v2 瘦身结构，只给 has_image；图片得单独取。 */
+async function ensureImagesLoaded(item: Announcement) {
+  if (!item.has_image) return
+  if ((imageMap[item.id] ?? []).length) return
+  await loadItemImages(item.id)
 }
 
 /** 单条取图（详情页的「编辑」按钮跳过来时，列表里可能还没有这条的图） */
@@ -487,7 +496,15 @@ async function save() {
     for (const f of draft.files) uploaded.push(await compress(f))
 
     if (editing.value) {
-      const keep = imageMap[editing.value.id] ?? []
+      let keep = imageMap[editing.value.id] ?? []
+      /* 后端 handleUpdateAnnouncement 用的是 replaceAnnounceImages（**整表替换**）：
+         提交空数组 = 把旧图全删掉。所以「本该有图但一张都没取到」时必须先重取，
+         还取不到就中止保存，绝不能默默提交空数组。 */
+      if (editing.value.has_image && !keep.length && !uploaded.length) {
+        await ensureImagesLoaded(editing.value)
+        keep = imageMap[editing.value.id] ?? []
+        if (!keep.length) return toast('图片还没加载出来，请稍后重试', 'error')
+      }
       // 重新选图 = 替换，未选图才沿用旧图。后端 replaceAnnounceImages 是整表替换语义，
       // 写成 [...keep, ...uploaded] 会让旧图永远删不掉、重选时越堆越多（旧版是二选一）。
       const image_urls = uploaded.length ? uploaded : keep
