@@ -466,7 +466,20 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, formatTime, getUser, isAdmin, openLightbox, toast, toBlobUrl } from '../../shared/api'
+import {
+  apiDel,
+  apiGet,
+  apiPost,
+  apiPut,
+  formatTime,
+  getUser,
+  isAdmin,
+  openLightbox,
+  toast,
+  toBlobUrl,
+  confirmDialog,
+  promptDialog
+} from '../../shared/api'
 
 /* 标签顺序与旧后台一致：注册审批 / 成员 / 公告审核 / 审核记录 / 反馈 / 报修管理 /
    财务记录 / 功能开关 / 站点设置。
@@ -601,7 +614,7 @@ async function approve(u: User) {
 }
 
 async function reject(u: User) {
-  if (!window.confirm(`确定拒绝 ${u.name} 的注册申请吗？`)) return
+  if (!(await confirmDialog({ title: '确认拒绝', message: `确定拒绝 ${u.name} 的注册申请吗？`, danger: true }))) return
   try {
     await apiPost(`/api/admin/registrations/${u.id}/reject`)
     registrations.value = registrations.value.filter((x) => x.id !== u.id)
@@ -612,7 +625,7 @@ async function reject(u: User) {
 }
 
 async function batchApprove() {
-  if (!window.confirm(`确定批准全部 ${registrations.value.length} 条注册申请吗？`)) return
+  if (!(await confirmDialog({ title: '确认批准', message: `确定批准全部 ${registrations.value.length} 条注册申请吗？` }))) return
   try {
     await apiPost('/api/admin/users/batch-approve', {
       ids: registrations.value.map((u) => u.id)
@@ -693,7 +706,7 @@ async function changeRole(u: User, i: number) {
     syncRoleIndex(u)
     return toast('只有站长可以授予站长权限', 'error')
   }
-  if (role === 'public' && !window.confirm(`将 ${u.name} 改为公共账号？公共账号全站仅允许一个。`)) {
+  if (role === 'public' && !(await confirmDialog({ title: '请确认', message: `将 ${u.name} 改为公共账号？公共账号全站仅允许一个。` }))) {
     syncRoleIndex(u)
     return
   }
@@ -713,7 +726,7 @@ const RESET_PASSWORD = 'Yali@1234'
 
 async function resetPassword(u: User) {
   if (u.role === 'owner') return toast('不能重置站长密码', 'error')
-  if (!window.confirm(`确定把 ${u.name} 的密码重置为初始密码吗？`)) return
+  if (!(await confirmDialog({ title: '确认重置', message: `确定把 ${u.name} 的密码重置为初始密码吗？`, danger: true, countdown: 5 }))) return
   try {
     // 后端要求 body.password，不传 body 会直接返回「请提供新密码」
     await apiPut(`/api/admin/users/${u.id}/reset-password`, { password: RESET_PASSWORD })
@@ -724,7 +737,7 @@ async function resetPassword(u: User) {
 }
 
 async function removeUser(u: User) {
-  if (!window.confirm(`确定删除用户 ${u.name} 吗？此操作不可撤销。`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除用户 ${u.name} 吗？此操作不可撤销。`, danger: true }))) return
   try {
     await apiDel(`/api/admin/users/${u.id}`)
     users.value = users.value.filter((x) => x.id !== u.id)
@@ -747,10 +760,16 @@ function canDeleteUser(u: User) {
 /** 改名：PUT /api/admin/users/:id/name { name }（2-20 字、不能与站长重名、不能改站长） */
 async function renameUser(u: User) {
   if (u.role === 'owner') return toast('不能修改站长姓名', 'error')
-  const input = window.prompt(`修改 ${u.name} 的姓名（2-20 字）`, u.name)
-  if (input === null) return
-  const name = input.trim()
-  if (name.length < 2 || name.length > 20) return toast('姓名长度需在2-20字之间', 'error')
+  const name = await promptDialog({
+    title: '修改姓名',
+    message: `修改 ${u.name} 的姓名`,
+    defaultValue: u.name,
+    maxLength: 20,
+    confirmText: '保存',
+    // 后端 NAME_MIN = 2 / NAME_MAX = 20，这里实时拦，省一次注定失败的往返
+    validate: (v) => (v.trim().length < 2 || v.trim().length > 20 ? '姓名长度需在 2-20 字之间' : null)
+  })
+  if (name === null) return
   if (name === u.name) return
   try {
     await apiPut(`/api/admin/users/${u.id}/name`, { name })
@@ -763,17 +782,21 @@ async function renameUser(u: User) {
 
 /** 改部门：PUT /api/admin/users/:id/department { department }（空串 = 未分配） */
 async function changeDept(u: User) {
-  const options = ['未分配', ...DEPARTMENTS]
-  const input = window.prompt(
-    `修改 ${u.name} 的部门\n可选：${options.join(' / ')}`,
-    u.department || '未分配'
-  )
-  if (input === null) return
-  const raw = input.trim()
-  if (raw && !DEPARTMENTS.includes(raw) && raw !== '未分配') {
-    return toast('部门不在可选范围内', 'error')
-  }
-  const department = raw === '未分配' ? '' : raw
+  const raw = await promptDialog({
+    title: '修改部门',
+    message: `修改 ${u.name} 的部门\n可选：未分配 / ${DEPARTMENTS.join(' / ')}`,
+    defaultValue: u.department || '未分配',
+    maxLength: 20,
+    confirmText: '保存',
+    validate: (v) => {
+      const value = v.trim()
+      if (!value) return null // 留空 = 未分配，后端接受空串
+      return value === '未分配' || DEPARTMENTS.includes(value) ? null : '部门不在可选范围内'
+    }
+  })
+  if (raw === null) return
+  const value = raw.trim()
+  const department = value === '未分配' ? '' : value
   try {
     await apiPut(`/api/admin/users/${u.id}/department`, { department })
     u.department = department
@@ -781,6 +804,24 @@ async function changeDept(u: User) {
   } catch (err) {
     toast((err as Error).message, 'error')
   }
+}
+
+/**
+ * 拒绝理由：公告审核与审核记录共用。
+ * 原先两处都是 window.prompt —— 原生弹窗（样式不受站点控制），
+ * 且「必填」要等用户点了确定才 toast 报错。现在改成站点输入框，
+ * 空内容时「确认拒绝」是禁用的（validate 实时生效）。
+ */
+function askRejectReason(title: string, message: string): Promise<string | null> {
+  return promptDialog({
+    title,
+    message,
+    placeholder: '不超过 500 字',
+    maxLength: 500,
+    confirmText: '确认拒绝',
+    danger: true,
+    validate: (v) => (v.trim() ? null : '拒绝时必须填写理由')
+  }).then((v) => (v === null ? null : v.trim()))
 }
 
 /* ── 反馈 ── */
@@ -866,15 +907,14 @@ async function reviewAnnouncement(a: AdminAnnouncement, status: '已通过' | '�
   }
 }
 
-function askRejectAnnouncement(a: AdminAnnouncement) {
-  const reason = window.prompt('请填写拒绝理由（必填，不超过 500 字）')
+async function askRejectAnnouncement(a: AdminAnnouncement) {
+  const reason = await askRejectReason('拒绝公告', `请填写拒绝「${a.title}」的理由`)
   if (reason === null) return
-  if (!reason.trim()) return toast('拒绝时必须填写理由', 'error')
-  void reviewAnnouncement(a, '已拒绝', reason.trim())
+  void reviewAnnouncement(a, '已拒绝', reason)
 }
 
 async function removeAnnouncement(a: AdminAnnouncement) {
-  if (!window.confirm(`确定删除公告「${a.title}」吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除公告「${a.title}」吗？`, danger: true }))) return
   try {
     await apiDel(`/api/announcements/${a.id}`)
     announcements.value = announcements.value.filter((x) => x.id !== a.id)
@@ -947,15 +987,14 @@ async function reviewItem(r: ReviewItem, status: '通过' | '拒绝', reason = '
   }
 }
 
-function askRejectReview(r: ReviewItem) {
-  const reason = window.prompt('请填写拒绝理由（必填，不超过 500 字）')
+async function askRejectReview(r: ReviewItem) {
+  const reason = await askRejectReason('拒绝审核', '请填写拒绝理由')
   if (reason === null) return
-  if (!reason.trim()) return toast('拒绝时必须填写理由', 'error')
-  void reviewItem(r, '拒绝', reason.trim())
+  void reviewItem(r, '拒绝', reason)
 }
 
 async function removeReview(r: ReviewItem) {
-  if (!window.confirm('确定删除这条审核记录吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条审核记录吗？', danger: true }))) return
   try {
     await apiDel(`/api/reviews/${r.id}`)
     reviews.value = reviews.value.filter((x) => x.id !== r.id)
@@ -1082,7 +1121,7 @@ async function loadFeedback() {
 }
 
 async function removeFeedback(f: Feedback) {
-  if (!window.confirm('确定删除这条反馈吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条反馈吗？', danger: true }))) return
   try {
     await apiDel(`/api/admin/feedback/${f.id}`)
     feedback.value = feedback.value.filter((x) => x.id !== f.id)
@@ -1128,7 +1167,7 @@ async function loadIssueImagesLazy() {
 }
 
 async function removeIssue(it: Issue) {
-  if (!window.confirm(`确定删除报修「${it.location}」吗？此操作不可撤销。`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除报修「${it.location}」吗？此操作不可撤销。`, danger: true }))) return
   try {
     await apiDel(`/api/issues/${it.id}`)
     issues.value = issues.value.filter((x) => x.id !== it.id)
@@ -1172,7 +1211,7 @@ async function loadFinanceImagesLazy() {
 }
 
 async function removeFinance(f: FinanceRow) {
-  if (!window.confirm('确定删除这条财务记录吗？此操作不可撤销。')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条财务记录吗？此操作不可撤销。', danger: true }))) return
   try {
     // 管理端删除走 /api/admin/finance/:id（路由标了 owner+ 权限），不是 /api/finance/:id
     await apiDel(`/api/admin/finance/${f.id}`)
@@ -1211,7 +1250,7 @@ async function toggleFeature(f: AdminFeature, enabled: boolean) {
 }
 
 async function inviteAll(f: AdminFeature) {
-  if (!window.confirm(`确定向全部已通过用户发送「${f.name}」邀请吗？`)) return
+  if (!(await confirmDialog({ title: '确认邀请', message: `确定向全部已通过用户发送「${f.name}」邀请吗？` }))) return
   try {
     // 后端要求 all:true（或 user_ids 数组）
     const res = await apiPost<{ invited?: number; skipped?: number }>(
@@ -1250,7 +1289,7 @@ async function showInvitations(f: AdminFeature) {
 }
 
 async function resetInvitation(iv: AdminInvitation) {
-  if (!window.confirm(`重置 ${iv.name} 的响应？重置后可以重新邀请。`)) return
+  if (!(await confirmDialog({ title: '确认重置', message: `重置 ${iv.name} 的响应？重置后可以重新邀请。`, danger: true, countdown: 5 }))) return
   try {
     await apiPost(`/api/admin/features/${inviteFeatureKey.value}/reset`, { user_id: iv.user_id })
     invitations.value = invitations.value.filter((x) => x.user_id !== iv.user_id)
@@ -1371,10 +1410,10 @@ async function saveSettings() {
 }
 
 async function clearAll() {
-  if (!window.confirm('确定清空全部业务数据吗？此操作不可撤销。')) return
-  if (!window.confirm('再次确认：清空后无法恢复，是否继续？')) return
+  if (!(await confirmDialog({ title: '确认清空', message: '确定清空全部业务数据吗？此操作不可撤销。', danger: true, countdown: 5 }))) return
+  if (!(await confirmDialog({ title: '确认清空', message: '再次确认：清空后无法恢复，是否继续？', danger: true, countdown: 5 }))) return
   // 旧版是三级确认（admin.js），这里保留第三级，避免误触
-  if (!window.confirm('最后确认：真的要清空所有业务数据吗？')) return
+  if (!(await confirmDialog({ title: '确认清空', message: '最后确认：真的要清空所有业务数据吗？', danger: true, countdown: 5 }))) return
   try {
     await apiPost('/api/admin/clear-all')
     toast('已清空全部数据', 'success')

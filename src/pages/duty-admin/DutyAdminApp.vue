@@ -341,7 +341,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog} from '../../shared/api'
 
 const TABS = ['排班', '干事', '评分', '时段']
 const tabItems = TABS.map((Text) => ({ Text }))
@@ -491,7 +491,7 @@ async function saveManual() {
 }
 
 async function deleteManual() {
-  if (!window.confirm(`确定删除 ${manualDate.value} 的排班吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除 ${manualDate.value} 的排班吗？`, danger: true }))) return
   busy.value = true
   try {
     await apiDel(`/api/duty/schedule/manual?date=${encodeURIComponent(manualDate.value)}`)
@@ -523,7 +523,7 @@ async function loadSchedule() {
 }
 
 async function generate() {
-  if (!window.confirm('将自动生成未来 60 个工作日的排班（跳过周末），继续？')) return
+  if (!(await confirmDialog({ title: '确认生成', message: '将自动生成未来 60 个工作日的排班（跳过周末），继续？' }))) return
   try {
     await apiPost('/api/duty/schedule/generate')
     toast('排班已生成', 'success')
@@ -561,8 +561,8 @@ async function exportSchedule() {
 }
 
 async function clearAll() {
-  if (!window.confirm('确定清空所有排班、考勤与评分记录吗？此操作不可撤销。')) return
-  if (!window.confirm('再次确认：清空后无法恢复，是否继续？')) return
+  if (!(await confirmDialog({ title: '确认清空', message: '确定清空所有排班、考勤与评分记录吗？此操作不可撤销。', danger: true, countdown: 5 }))) return
+  if (!(await confirmDialog({ title: '确认清空', message: '再次确认：清空后无法恢复，是否继续？', danger: true, countdown: 5 }))) return
   try {
     await apiPost('/api/duty/schedule/clear-all')
     toast('已清空', 'success')
@@ -619,7 +619,7 @@ async function addStaff() {
 }
 
 async function removeStaff(s: Staff) {
-  if (!window.confirm(`确定删除干事「${s.name}」吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除干事「${s.name}」吗？`, danger: true }))) return
   try {
     await apiDel(`/api/duty/staff/${s.id}`)
     staff.value = staff.value.filter((x) => x.id !== s.id)
@@ -860,8 +860,8 @@ function addPeriod() {
   })
 }
 
-function removePeriod(i: number) {
-  if (!window.confirm(`确定删除时段「${periods.value[i]?.label || '（未命名）'}」吗？`)) return
+async function removePeriod(i: number) {
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除时段「${periods.value[i]?.label || '（未命名）'}」吗？`, danger: true }))) return
   periods.value.splice(i, 1)
 }
 

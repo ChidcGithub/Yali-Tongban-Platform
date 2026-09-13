@@ -204,7 +204,8 @@ import {
   mountCaptcha,
   openLightbox,
   toBlobUrl,
-  toast
+  toast,
+  confirmDialog
 } from '../../shared/api'
 
 interface FinanceRecord {
@@ -388,7 +389,7 @@ async function reimburse(f: FinanceRecord, on: boolean) {
 }
 
 async function remove(f: FinanceRecord) {
-  if (!window.confirm(`确定删除这笔 ${money(f.amount)} 的记录吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除这笔 ${money(f.amount)} 的记录吗？`, danger: true }))) return
   try {
     await apiDel(`/api/finance/${f.id}`)
     all.value = all.value.filter((x) => x.id !== f.id)

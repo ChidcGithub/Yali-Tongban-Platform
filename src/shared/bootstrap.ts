@@ -10,14 +10,37 @@
 import { createApp, type Component } from 'vue'
 import WinUIonWeb from '../winui'
 import { initWinUITheme } from './theme'
+import ConfirmDialog from '../components/ConfirmDialog.vue'
 
 import '../winui/styles/theme.css'
 import '../winui/styles/animations.css'
 import '../theme/winui-yali.css'
 import '../theme/winui-page.css'
 
+/**
+ * 全局确认框宿主（与「提交问题」等对话框同一套 ContentDialog 样式）。
+ *
+ * 挂到 body 而不是页面里：它就一个单例，页面切换/重建都不该影响它，
+ * 而且 404/410 这种没有 YaliShell 的页面也要能用。
+ */
+let confirmHostMounted = false
+
+function mountConfirmHost() {
+  if (confirmHostMounted) return
+  confirmHostMounted = true
+
+  const el = document.createElement('div')
+  el.id = 'winui-confirm-host'
+  document.body.appendChild(el)
+
+  const app = createApp(ConfirmDialog)
+  app.use(WinUIonWeb, { locale: 'zh-CN' })
+  app.mount(el)
+}
+
 export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   initWinUITheme()
+  mountConfirmHost()
 
   const app = createApp(rootComponent)
   app.use(WinUIonWeb, { locale: 'zh-CN' })

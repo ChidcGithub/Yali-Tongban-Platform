@@ -121,7 +121,8 @@ import {
   legacy,
   openLightbox,
   toBlobUrl,
-  toast
+  toast,
+  confirmDialog
 } from '../../shared/api'
 
 interface Announcement {
@@ -277,7 +278,7 @@ async function saveEdit(c: Comment) {
 }
 
 async function remove(c: Comment) {
-  if (!window.confirm('确定删除此评论吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此评论吗？', danger: true }))) return
   try {
     await apiDel(`/api/comments/${c.id}`)
     comments.value = comments.value.filter((x) => x.id !== c.id)
@@ -315,7 +316,7 @@ function editItem() {
 
 async function removeItem() {
   if (!item.value) return
-  if (!window.confirm('确定删除此公告吗？此操作不可撤销。')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此公告吗？此操作不可撤销。', danger: true }))) return
   try {
     await apiDel(`/api/announcements/${item.value.id}`)
     toast('公告已删除', 'success')

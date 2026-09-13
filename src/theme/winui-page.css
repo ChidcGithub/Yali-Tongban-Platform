@@ -586,3 +586,36 @@ html.theme-dark .yali-chip-warn {
 @media (max-width: 600px) {
   .form-row { grid-template-columns: 1fr; gap: 12px; }
 }
+
+/* ══════════════════════════════════════════════════════
+   标签栏（SelectorBar）在窄屏必须能横向滚动
+   ──────────────────────────────────────────────────────
+   上游 SelectorBar 的根元素是 `display: inline-grid`，宽度由内容
+   （inline-grid 的 shrink-to-fit 取「最小内容宽度」= 所有标签之和）撑开，
+   内部的 `.win-selector-bar-items-view` 虽然有 overflow-x:auto，
+   但容器本身已经溢出父级 —— 于是窄屏下后面的标签**既看不到也滚不到**，
+   管理页 9 个标签里最后 4 个就这样「消失」了。
+
+   这里把根元素改为块级 grid 并允许收缩，滚动才真正落在 items-view 上。
+   选择器用 `.yali-scroll div.win-selector-bar`（0,2,1）压过组件内
+   scoped 的 `.win-selector-bar[data-v-*]`（0,2,0），避免引入 !important。
+   ══════════════════════════════════════════════════════ */
+.yali-scroll div.win-selector-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 100%;
+  min-width: 0;
+}
+.yali-scroll .win-selector-bar > .win-selector-bar-items-view {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  /* 右侧渐隐：提示「这里还能往右滑」 */
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+/* 滚到最右就不该再有渐隐（用 JS 打的可滚动状态类） */
+.yali-scroll .win-selector-bar.is-scroll-end > .win-selector-bar-items-view,
+.yali-scroll .win-selector-bar.is-not-scrollable > .win-selector-bar-items-view {
+  mask-image: none;
+  -webkit-mask-image: none;
+}

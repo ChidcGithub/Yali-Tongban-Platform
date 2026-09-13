@@ -82,7 +82,7 @@
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, toast, confirmDialog} from '../../shared/api'
 
 interface FeedItem {
   id: number
@@ -326,7 +326,7 @@ async function submitComment(m: FeedItem) {
 }
 
 async function removeItem(m: FeedItem) {
-  if (!window.confirm('确定删除这条动态吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条动态吗？', danger: true }))) return
   try {
     await apiDel(`/api/chat/messages/${m.id}`)
     items.value = items.value.filter((x) => x.id !== m.id)

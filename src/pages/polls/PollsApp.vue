@@ -169,7 +169,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, getUser, isAdmin, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, getUser, isAdmin, toast, confirmDialog} from '../../shared/api'
 
 interface Poll {
   id: number
@@ -277,7 +277,7 @@ async function exportCsv(p: Poll) {
 }
 
 async function remove(p: Poll) {
-  if (!window.confirm(`确定删除投票「${p.title}」吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除投票「${p.title}」吗？`, danger: true }))) return
   try {
     await apiDel(`/api/polls/${p.id}`)
     polls.value = polls.value.filter((x) => x.id !== p.id)

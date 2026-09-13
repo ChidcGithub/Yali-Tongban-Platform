@@ -192,7 +192,7 @@
      GET    /api/hall/bookings/pending   审核人；返回 [{ booking, conflicts[] }]
    样式直接复用站点既有的 /css/material/pages/hall.css（只依赖 --md-* token）。 */
 import { computed, onMounted, reactive, ref } from 'vue'
-import { apiDel, apiGet, apiPost, getUser, isAdmin, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, getUser, isAdmin, toast, confirmDialog} from '../../shared/api'
 
 const HALL_START = 6
 const HALL_END = 24
@@ -582,7 +582,7 @@ async function submitBooking() {
       msg += `  · ${c.applicant} ${c.start_time}─${c.end_time}（重叠 ${c.overlap} 分钟）\n`
     }
     msg += '\n建议重新选择。仍要提交吗？'
-    if (!window.confirm(msg)) return
+    if (!(await confirmDialog({ title: '请确认', message: msg }))) return
   }
 
   busy.value = true
@@ -615,7 +615,7 @@ function timeToMin(t: string) {
 
 /* ── 撤回 / 删除 / 审核 ── */
 async function withdraw(b: HallBooking) {
-  if (!window.confirm('确定撤回这条预约吗？')) return
+  if (!(await confirmDialog({ title: '确认撤回', message: '确定撤回这条预约吗？' }))) return
   try {
     await apiPost(`/api/hall/bookings/${b.id}/withdraw`)
     toast('已撤回', 'success')
@@ -626,7 +626,7 @@ async function withdraw(b: HallBooking) {
 }
 
 async function removeBooking(b: HallBooking) {
-  if (!window.confirm('确定删除这条预约吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条预约吗？', danger: true }))) return
   try {
     await apiDel(`/api/hall/bookings/${b.id}`)
     toast('已删除', 'success')

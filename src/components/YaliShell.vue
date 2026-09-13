@@ -77,6 +77,7 @@ import {
   visibleNavItems,
   type NavEntry
 } from '../shared/nav'
+import { attachTabScrollHints } from '../shared/tabscroll'
 
 const props = defineProps<{
   /** 当前页面的 id，与 nav.js 的 currentPage 一致 */
@@ -194,11 +195,17 @@ function onLegacyLoading(e: Event) {
   progressTotal.value = d?.total ?? 0
 }
 
+/** 标签栏横向滚动的渐隐提示（管理页 9 个标签在窄屏放不下） */
+let detachTabHints: (() => void) | null = null
+
 onMounted(() => {
   // 兼容既有依赖 <html data-page> 的样式与逻辑（原 nav.js 会设置它）
   document.documentElement.setAttribute('data-page', props.current)
 
   window.addEventListener('yali:nav-loading', onLegacyLoading)
+
+  const scroller = document.querySelector<HTMLElement>('.yali-scroll')
+  if (scroller) detachTabHints = attachTabScrollHints(scroller)
 
   // 消息入口受功能开关控制，与原 nav.js 的 initMessagesIcon 一致
   const check = (window as unknown as {
@@ -224,6 +231,7 @@ async function loadUnread() {
 
 onBeforeUnmount(() => {
   window.removeEventListener('yali:nav-loading', onLegacyLoading)
+  detachTabHints?.()
 })
 </script>
 

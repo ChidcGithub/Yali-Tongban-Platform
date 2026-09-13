@@ -243,7 +243,8 @@ import {
   mountCaptcha,
   openLightbox,
   toBlobUrl,
-  toast
+  toast,
+  confirmDialog
 } from '../../shared/api'
 
 interface Issue {
@@ -358,22 +359,20 @@ async function changeStatus(issue: Issue, status: string) {
     }
   }
   if (issue.status !== '待处理') {
-    // modal.js 的配置键是 footer（不是 actions），按钮形状 { text, variant, onClick }
-    legacy.openModal?.({
+    // 原先是遗留 modal.js 拼的对话框（旧设计系统的 .modal + .btn，样式与站点其他弹窗不一致）。
+    // 现在统一走站点对话框 —— 与「提交问题」是同一个 ContentDialog。
+    const ok = await confirmDialog({
       title: '确认修改状态',
-      body: `<p>当前状态为「${issue.status}」，确定要改为「${status}」吗？</p>`,
-      footer: [
-        { text: '取消', variant: 'outline', onClick: () => legacy.closeActiveModal?.() },
-        { text: '确定', variant: 'primary', onClick: apply }
-      ]
+      message: `当前状态为「${issue.status}」，确定要改为「${status}」吗？`,
+      confirmText: '确定修改'
     })
-    return
+    if (!ok) return
   }
   await apply()
 }
 
 async function removeIssue(issue: Issue) {
-  if (!window.confirm('确定删除此问题反馈吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此问题反馈吗？', danger: true }))) return
   try {
     await apiDel(`/api/issues/${issue.id}`)
     issues.value = issues.value.filter((i) => i.id !== issue.id)
@@ -464,7 +463,7 @@ async function postComment(issue: Issue) {
 }
 
 async function removeComment(issue: Issue, c: Comment) {
-  if (!window.confirm('确定删除此评论吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此评论吗？', danger: true }))) return
   try {
     await apiDel(`/api/comments/${c.id}`)
     comments[issue.id] = (comments[issue.id] || []).filter((x) => x.id !== c.id)

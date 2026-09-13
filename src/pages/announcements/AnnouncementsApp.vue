@@ -190,7 +190,8 @@ import {
   legacy,
   openLightbox,
   toBlobUrl,
-  toast
+  toast,
+  confirmDialog
 } from '../../shared/api'
 
 interface Announcement {
@@ -392,7 +393,7 @@ async function postComment(a: Announcement) {
 }
 
 async function removeComment(a: Announcement, c: Comment) {
-  if (!window.confirm('确定删除此评论吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此评论吗？', danger: true }))) return
   try {
     await apiDel(`/api/comments/${c.id}`)
     comments[a.id] = (comments[a.id] || []).filter((x) => x.id !== c.id)
@@ -555,7 +556,7 @@ function readAsDataUrl(file: File): Promise<string> {
 }
 
 async function remove(a: Announcement) {
-  if (!window.confirm('确定删除此公告吗？')) return
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除此公告吗？', danger: true }))) return
   try {
     await apiDel(`/api/announcements/${a.id}`)
     list.value = list.value.filter((x) => x.id !== a.id)

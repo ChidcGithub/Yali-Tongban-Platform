@@ -80,7 +80,9 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
-import { apiGet, apiPost, mountCaptcha, toast } from '../../shared/api'
+import { apiGet, apiPost, mountCaptcha, toast,
+  alertDialog
+} from '../../shared/api'
 
 const TABS = [
   { Text: '登录', Tag: 'login' },
@@ -192,7 +194,11 @@ async function handleLogin() {
     localStorage.setItem('_regDate', (data.user.created_at as string) || String(Date.now()))
 
     if (data.password_reset) {
-      window.alert('你的账号密码已重置，初始密码为 Yali@1234，请及时修改密码')
+      // 原为 window.alert —— 浏览器原生弹窗，样式不受站点控制
+      void alertDialog({
+        title: '密码已重置',
+        message: '你的账号密码已被管理员重置，初始密码为 Yali@1234，请登录后及时修改。'
+      })
     }
 
     /* 把离线累积的成就合并到服务端 */

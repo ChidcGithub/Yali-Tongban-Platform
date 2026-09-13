@@ -76,9 +76,13 @@ const base = server.origin
 const browser = await chromium.launch({ headless: true })
 const context = await browser.newContext({ viewport: { width: 1400, height: 950 } })
 
-async function openPage(entry, query = '') {
+async function openPage(entry, query = '', viewport = null) {
   await buildVerifyPage(entry, query)
   const page = await context.newPage()
+  /* 注意：context.newPage() 不吃 viewport 选项（那是 browser.newPage / newContext 的），
+     必须在 page 上显式设置 —— 否则窄屏用例会一直跑在默认 1280 下，
+     断言「容器宽度 ≤ 390」永远失败，而人会以为是 CSS 没生效。 */
+  if (viewport) await page.setViewportSize(viewport)
   const pageErrors = []
   page.on('pageerror', (e) => pageErrors.push(String(e.message || e)))
   await page.goto(`${base}/__verify.html`, { waitUntil: 'load' })
@@ -694,6 +698,140 @@ async function smokeDutyAdminBatchCancel() {
   }
 }
 
+/**
+ * 站点对话框：确认框 / 输入框
+ *
+ * 这一组存在的原因：全站原先有 35 处 `window.confirm` + 4 处 `window.prompt`
+ * + 1 处 `window.alert`（浏览器原生弹窗，样式完全不受站点控制），
+ * 以及 services 页一处遗留 `openModal` 拼的旧设计系统弹窗。
+ * 全部换成了站点的 ContentDialog —— 也就是「提交问题」那种样式。
+ * 断言必须落在「弹的是 ContentDialog」这个事实上，否则改回原生弹窗也不会被发现
+ * （原生弹窗在无头浏览器里是自动 dismissed 的，什么都测不到）。
+ */
+async function smokeSiteDialogs() {
+  const { page, pageErrors } = await openPage('admin')
+  try {
+    /* ── ① 危险确认框 ── */
+    await page.locator('button', { hasText: '拒绝' }).first().click()
+    const dlg = page.locator('.content-dialog')
+    await dlg.waitFor({ timeout: 5000 }).catch(() => {})
+    const count = await dlg.count()
+    check('对话框：删除/拒绝类操作弹的是站点 ContentDialog', count === 1, `${count} 个`)
+
+    const title = await page.locator('.content-dialog-title').first().innerText().catch(() => '')
+    check('对话框：有语义化标题', title.includes('拒绝'), JSON.stringify(title))
+
+    const btns = await page.locator('.content-dialog-command-space button').allInnerTexts().catch(() => [])
+    check('对话框：按钮是「确定 / 取消」', btns.length === 2 && btns.includes('取消'), JSON.stringify(btns))
+
+    const primaryBg = await page
+      .locator('.content-dialog-primary')
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor)
+      .catch(() => '')
+    /* 判「偏红」而不是写死色值：--md-error 换一次就会误报，
+       而这条断言真正要防的是「危险按钮退化成了主题蓝强调色」 */
+    const rgb = (primaryBg.match(/\d+/g) || []).map(Number)
+    const isDanger = rgb.length >= 3 && rgb[0] > 120 && rgb[1] < 80 && rgb[2] < 80
+    check('对话框：危险操作主按钮为警示色（非主题蓝）', isDanger, primaryBg)
+
+    /* 取消 → 关闭且不发请求 */
+    const before = await page.locator('.yali-item').count()
+    await page.locator('.content-dialog-close').first().click()
+    await page.waitForTimeout(500)
+    check('对话框：点「取消」会关闭', (await page.locator('.content-dialog').count()) === 0)
+    check('对话框：点「取消」不发写请求', (await page.locator('.yali-item').count()) === before)
+
+    /* ── ② 输入框（promptDialog）＋ 实时校验 ── */
+    await page.locator(SEL.selectorItem).nth(1).click()
+    await page.waitForTimeout(700)
+    const renameBtn = page.locator('button', { hasText: '改名' }).first()
+    if (await renameBtn.count()) {
+      await renameBtn.click()
+      await page.waitForTimeout(600)
+      check('对话框：改名弹的是站点输入框', (await page.locator('.content-dialog .win-textbox').count()) === 1)
+      const val = await page.locator('.content-dialog input').first().inputValue().catch(() => '')
+      check('对话框：输入框预填当前值', val.length > 0, JSON.stringify(val))
+
+      const primary = page.locator('.content-dialog-primary').first()
+      await page.locator('.content-dialog input').first().fill('一')
+      await page.waitForTimeout(300)
+      check('对话框：非法输入时主按钮被禁用（长度不足）', await primary.isDisabled().catch(() => false))
+      const err = await page.locator('.yali-confirm-error').first().innerText().catch(() => '')
+      check('对话框：非法输入给出原因', err.includes('2-20'), JSON.stringify(err))
+
+      await page.locator('.content-dialog input').first().fill('张三丰')
+      await page.waitForTimeout(300)
+      check('对话框：合法输入后主按钮恢复可点', !(await primary.isDisabled().catch(() => true)))
+
+      await page.locator('.content-dialog-close').first().click()
+      await page.waitForTimeout(300)
+      check('对话框：输入框点「取消」会关闭', (await page.locator('.content-dialog').count()) === 0)
+    } else {
+      check('对话框：成员管理里有「改名」入口', false, '未找到按钮')
+    }
+
+    check('对话框：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
+/**
+ * 管理页标签栏：窄屏必须能横向滚动
+ *
+ * 此前 SelectorBar 的根是 `display: inline-grid`，宽度被 9 个标签撑到 710px，
+ * 而手机视口只有 ~390px —— 后面的「财务记录 / 功能开关 / 站点设置」既看不到
+ * 也滚不到（用户报的「管理页面选项缺失」）。
+ */
+async function smokeTabsOverflow() {
+  const { page, pageErrors } = await openPage('admin', '', { width: 390, height: 844 })
+  try {
+    const info = await page.locator('.win-selector-bar').first().evaluate((el) => {
+      const view = el.querySelector('.win-selector-bar-items-view')
+      return {
+        barW: Math.round(el.getBoundingClientRect().width),
+        scrollW: view.scrollWidth,
+        clientW: view.clientWidth
+      }
+    })
+    check(
+      '窄屏标签栏：容器不溢出（宽度收敛到视口内）',
+      info.barW <= 390,
+      `${info.barW}px / 视口 390px`
+    )
+    check(
+      '窄屏标签栏：可横向滚动（内容宽 > 可视宽）',
+      info.scrollW > info.clientW + 2,
+      `${info.scrollW} > ${info.clientW}`
+    )
+    check(
+      '窄屏标签栏：页面不产生横向滚动',
+      !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1))
+    )
+
+    /* 滚到最右，最后一个标签要能真的被点到 */
+    const last = await page
+      .locator(SEL.selectorItem)
+      .last()
+      .evaluate((el) => el.innerText.trim())
+      .catch(() => '')
+    await page.locator('.win-selector-bar-items-view').first().evaluate((el) => {
+      el.scrollLeft = el.scrollWidth
+    })
+    await page.waitForTimeout(300)
+    await page.locator(SEL.selectorItem).last().click()
+    await page.waitForTimeout(700)
+    // 注意别用 `.win-textblock` 这种猜出来的类名 —— 这里取区块文本就够了
+    const body = await page.locator('.yali-section').first().innerText().catch(() => '')
+    check('窄屏标签栏：能点到最后一个标签（' + last + '）', body.trim().length > 0, body.slice(0, 24))
+
+    check('窄屏标签栏：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -711,7 +849,9 @@ const CASES = [
   ['投票详情：可答题 + 配图 + 验证码', smokePollImage],
   ['发起投票：题型切换联动', smokePollsQuestionType],
   ['个性化：字号滑块', smokePersonalizeSlider],
-  ['410：?from= 文案改写 + 反馈入口', smokeGone]
+  ['410：?from= 文案改写 + 反馈入口', smokeGone],
+  ['站点对话框：确认框 / 输入框 / 实时校验', smokeSiteDialogs],
+  ['管理页标签栏：窄屏可横向滚动', smokeTabsOverflow]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

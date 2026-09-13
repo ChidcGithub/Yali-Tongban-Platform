@@ -70,7 +70,7 @@
 import { computed, onMounted, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, toast, confirmDialog} from '../../shared/api'
 
 interface Message {
   id: number
@@ -189,7 +189,7 @@ async function markAllRead() {
 }
 
 async function clearRead() {
-  if (!window.confirm('确定清空已读消息吗？此操作不可撤销。')) return
+  if (!(await confirmDialog({ title: '确认清空', message: '确定清空已读消息吗？此操作不可撤销。', danger: true, countdown: 5 }))) return
   try {
     await apiDel('/api/messages')
     offset.value = 0

@@ -165,7 +165,7 @@ import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, mountCaptcha, toast } from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, mountCaptcha, toast, confirmDialog} from '../../shared/api'
 
 interface Activity {
   id: number
@@ -326,7 +326,7 @@ function exportVolunteers() {
 }
 
 async function remove(a: Activity) {
-  if (!window.confirm(`确定删除活动「${a.name}」吗？`)) return
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除活动「${a.name}」吗？`, danger: true }))) return
   try {
     await apiDel(`/api/activities/${a.id}`)
     items.value = items.value.filter((x) => x.id !== a.id)

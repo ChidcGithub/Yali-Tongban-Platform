@@ -145,3 +145,14 @@ export const legacy = {
     return w.cacheGet
   }
 }
+
+/**
+ * 站点统一对话框（站点风格），替换全站的 window.confirm / prompt / alert
+ * 与遗留 openModal 弹窗：
+ *   confirmDialog({ message, danger?, countdown? }) → Promise<boolean>
+ *   promptDialog({ message, defaultValue?, validate? }) → Promise<string | null>
+ *   alertDialog({ message }) → Promise<boolean>
+ * 实现见 `shared/confirm.ts`，宿主是挂在 body 的 `ConfirmDialog.vue`。
+ * 从 api 里再导一次，是为了让各页面只改调用本身、不用额外加一行 import。
+ */
+export { confirmDialog, promptDialog, alertDialog } from './confirm'
