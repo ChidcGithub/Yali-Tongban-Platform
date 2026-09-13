@@ -120,6 +120,8 @@ function feedGlyph(m: FeedItem) {
 
 /** ref_type → 跳转目标 */
 function feedLink(m: FeedItem): string | null {
+  // 与原页面一致：通知类条目不作为跳转入口
+  if (m.type === 'notification') return null
   switch (m.ref_type) {
     case 'finance':
       return 'finance.html'
@@ -165,12 +167,49 @@ async function loadFeed(initial = false) {
     items.value = initial ? list : [...items.value, ...list]
     nextCursor.value = data.nextCursor ?? null
     hasMore.value = data.hasMore ?? false
+    if (items.value.length && items.value[0].id) newestId.value = items.value[0].id
   } catch (err) {
     toast((err as Error).message, 'error')
     hasMore.value = false
   } finally {
     loading.value = false
   }
+}
+
+/* ── 每 30 秒拉取新动态（沿用原页面做法；切到后台时暂停） ── */
+const newestId = ref<number | null>(null)
+let pollTimer: number | undefined
+
+function schedulePoll() {
+  window.clearTimeout(pollTimer)
+  pollTimer = window.setTimeout(async () => {
+    try {
+      if (newestId.value) {
+        const data = await apiGet<{ messages?: FeedItem[] }>(
+          `/api/chat/messages?after=${newestId.value}&limit=20`
+        )
+        const fresh = data.messages ?? []
+        if (fresh.length) {
+          items.value = [...fresh, ...items.value]
+          // 后端的 after 分支是「先升序取再 reverse」，因此 messages[0] 才是最新一条
+          newestId.value = fresh[0].id ?? newestId.value
+        }
+      }
+    } catch {
+      /* 静默：轮询失败不打扰用户 */
+    }
+    schedulePoll()
+  }, 30000)
+}
+
+function stopPoll() {
+  window.clearTimeout(pollTimer)
+  pollTimer = undefined
+}
+
+function onVisibilityChange() {
+  if (document.hidden) stopPoll()
+  else if (!pollTimer) schedulePoll()
 }
 
 /* ── 无限滚动 ── */
@@ -188,10 +227,15 @@ onMounted(() => {
     { rootMargin: '200px' }
   )
   if (sentinel.value) observer.observe(sentinel.value)
+
+  schedulePoll()
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   observer?.disconnect()
+  stopPoll()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 /* ── 评论 ── */

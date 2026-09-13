@@ -178,8 +178,10 @@ async function openMessage(m: Message) {
 async function markAllRead() {
   try {
     await apiPost('/api/messages/read-all', type.value !== 'all' ? { type: type.value } : {})
+    // 后端只把当前筛选类型（或全部）标为已读，未读总数要相应扣减而不是直接清零
+    const affected = items.value.filter((m) => !m.is_read).length
     items.value = items.value.map((m) => ({ ...m, is_read: true }))
-    unread.value = 0
+    unread.value = Math.max(0, unread.value - affected)
     toast('已全部标为已读', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')

@@ -35,6 +35,7 @@
         </div>
         <div v-if="open === 'name'" class="set-form">
           <TextBox v-model:Text="form.name" PlaceholderText="新的显示名" />
+          <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveName">
             <span class="yali-btn-inner"><span>保存</span></span>
           </Button>
@@ -51,6 +52,7 @@
         </div>
         <div v-if="open === 'class'" class="set-form">
           <TextBox v-model:Text="form.class_name" PlaceholderText="4 位班级编号，如 2501" />
+          <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveClass">
             <span class="yali-btn-inner"><span>保存</span></span>
           </Button>
@@ -67,6 +69,7 @@
         </div>
         <div v-if="open === 'dept'" class="set-form">
           <ComboBox :ItemsSource="DEPARTMENTS" v-model:SelectedIndex="deptIndex" PlaceholderText="选择部门" />
+          <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveDept">
             <span class="yali-btn-inner"><span>保存</span></span>
           </Button>
@@ -131,6 +134,7 @@ const open = ref<'' | 'name' | 'class' | 'dept'>('')
 const form = reactive({
   name: '',
   class_name: '',
+  confirm_password: '',
   old_password: '',
   new_password: ''
 })
@@ -179,14 +183,39 @@ function refreshUser() {
   if (u) localStorage.setItem('user', JSON.stringify(u))
 }
 
+/** 三个资料修改接口都用 { ..., password } 做二次确认，并把最新 user 回传 */
+function adoptUser(data: { user?: unknown }) {
+  if (data?.user && typeof data.user === 'object') {
+    localStorage.setItem('user', JSON.stringify(data.user))
+  }
+  refreshUser()
+}
+
+function requirePassword() {
+  if (!form.confirm_password) {
+    toast('请输入密码以确认', 'error')
+    return false
+  }
+  return true
+}
+
+function clearConfirm() {
+  form.confirm_password = ''
+}
+
 async function saveName() {
   if (!form.name.trim()) return toast('请填写新的显示名', 'error')
+  if (!requirePassword()) return
   busy.value = true
   try {
-    await apiPost('/api/auth/change-name', { name: form.name.trim() })
-    if (user.value) user.value.name = form.name.trim()
-    refreshUser()
+    // 后端字段名是 new_name（不是 name），且必须带 password
+    const data = await apiPost<{ user?: unknown }>('/api/auth/change-name', {
+      new_name: form.name.trim(),
+      password: form.confirm_password
+    })
+    adoptUser(data)
     form.name = ''
+    clearConfirm()
     open.value = ''
     toast('显示名已更新', 'success')
   } catch (err) {
@@ -200,12 +229,16 @@ async function saveClass() {
   const v = form.class_name.trim()
   const valid = (window as unknown as { isValidClass?: (s: string) => boolean }).isValidClass
   if (!v || (valid && !valid(v))) return toast('班级编号无效，请输入 4 位数字', 'error')
+  if (!requirePassword()) return
   busy.value = true
   try {
-    await apiPost('/api/auth/change-class', { class_name: v })
-    if (user.value) user.value.class_name = v
-    refreshUser()
+    const data = await apiPost<{ user?: unknown }>('/api/auth/change-class', {
+      class_name: v,
+      password: form.confirm_password
+    })
+    adoptUser(data)
     form.class_name = ''
+    clearConfirm()
     open.value = ''
     toast('班级已更新', 'success')
   } catch (err) {
@@ -217,12 +250,16 @@ async function saveClass() {
 
 async function saveDept() {
   if (deptIndex.value < 0) return toast('请选择部门', 'error')
+  if (!requirePassword()) return
   busy.value = true
   try {
     const dept = DEPARTMENTS[deptIndex.value]
-    await apiPost('/api/auth/change-department', { department: dept })
-    if (user.value) user.value.department = dept
-    refreshUser()
+    const data = await apiPost<{ user?: unknown }>('/api/auth/change-department', {
+      department: dept,
+      password: form.confirm_password
+    })
+    adoptUser(data)
+    clearConfirm()
     open.value = ''
     toast('部门已更新', 'success')
   } catch (err) {
@@ -284,10 +321,16 @@ async function savePassword() {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
   padding: 4px 0 12px;
 }
 .set-form > :first-child {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
+}
+/* 第二个输入框（密码确认）给一个稳定的宽度，避免被压成窄条 */
+.set-form > :nth-child(2) {
+  flex: 1 1 160px;
   min-width: 0;
 }
 .set-form-block {

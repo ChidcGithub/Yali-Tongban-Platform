@@ -246,6 +246,7 @@ const stub = `
     if (fx.banner && url.indexOf('/api/banner') === 0) return fx.banner;
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
+    if (fx.feedPayload && url.indexOf('after=') > 0) return { messages: [], nextCursor: null, hasMore: false };
     if (fx.feedPayload && url.indexOf('/api/chat/messages') === 0) return fx.feedPayload;
     if (fx.feedPayload && url.indexOf('/api/feed/') === 0) return fx.comments || [];
     if (fx.pollDetail && url.indexOf('/my-vote') > 0) return fx.myVote;
