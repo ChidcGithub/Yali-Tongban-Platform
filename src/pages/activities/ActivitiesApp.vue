@@ -1,17 +1,22 @@
 <template>
   <YaliShell current="activities" title="活动">
     <div class="yali-page">
-      <div v-if="loading" class="yali-loading">
-        <ProgressRing :IsActive="true" :Width="32" :Height="32" />
-        <TextBlock Text="加载中…" class="yali-muted" />
-      </div>
+      <!-- 「全部活动 / 千报预约」两种视图，与原页面一致 -->
+      <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="act-tabs"
+                   @SelectionChanged="(a) => (tabIndex = a?.SelectedIndex ?? 0)" />
 
-      <div v-else-if="!items.length" class="yali-loading">
-        <FontIcon :Glyph="GLYPH.activities" :FontSize="28" class="yali-muted-icon" />
-        <TextBlock Text="暂无活动" class="yali-muted" />
-      </div>
+      <template v-if="tabIndex === 0">
+        <div v-if="loading" class="yali-loading">
+          <ProgressRing :IsActive="true" :Width="32" :Height="32" />
+          <TextBlock Text="加载中…" class="yali-muted" />
+        </div>
 
-      <ListView v-else :ItemsSource="items" SelectionMode="None" class="yali-list">
+        <div v-else-if="!items.length" class="yali-loading">
+          <FontIcon :Glyph="GLYPH.activities" :FontSize="28" class="yali-muted-icon" />
+          <TextBlock Text="暂无活动" class="yali-muted" />
+        </div>
+
+        <ListView v-else :ItemsSource="items" SelectionMode="None" class="yali-list">
         <template #item="{ item }">
           <div class="yali-item">
             <div class="yali-item-head">
@@ -53,9 +58,13 @@
           </div>
         </template>
       </ListView>
+      </template>
+
+      <!-- 千报预约 -->
+      <HallSection v-else ref="hallRef" />
     </div>
 
-    <button v-if="admin" class="yali-fab" type="button" aria-label="发布活动" @click="dialogOpen = true">
+    <button v-if="admin && tabIndex === 0" class="yali-fab" type="button" aria-label="发布活动" @click="dialogOpen = true">
       <FontIcon :Glyph="GLYPH.add" :FontSize="18" />
     </button>
 
@@ -136,6 +145,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
+import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, toast } from '../../shared/api'
 
@@ -158,6 +168,27 @@ const admin = isAdmin()
 const items = ref<Activity[]>([])
 const loading = ref(true)
 const saving = ref(false)
+
+/* 视图切换：全部活动 / 千报预约（与原页面的两个标签一致）
+   支持 ?tab=<序号|名称>，便于分享链接与刷新后保持 */
+const TABS = ['全部活动', '千报预约']
+const tabItems = TABS.map((Text) => ({ Text }))
+const initialTab = (() => {
+  const raw = new URLSearchParams(window.location.search).get('tab')
+  if (!raw) return 0
+  const byName = TABS.indexOf(raw)
+  if (byName >= 0) return byName
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n < TABS.length ? n : 0
+})()
+const tabIndex = ref(initialTab)
+
+watch(tabIndex, (i) => {
+  const url = new URL(window.location.href)
+  if (i === 0) url.searchParams.delete('tab')
+  else url.searchParams.set('tab', String(i))
+  window.history.replaceState(null, '', url)
+})
 
 async function load() {
   loading.value = true

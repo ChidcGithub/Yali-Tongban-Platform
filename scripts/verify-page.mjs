@@ -34,6 +34,13 @@ if (!existsSync(srcPath)) throw new Error(`找不到 ${srcPath}（先跑 npm run
 const html = readFileSync(srcPath, 'utf8')
 
 const now = Math.floor(Date.now() / 1000)
+/** 报告厅用的 "YYYY-MM-DD"（照后端 date 字段格式） */
+const dayStr = (offset = 0) => {
+  const d = new Date(Date.now() + offset * 86400000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const TODAY = dayStr(0)
+const TOMORROW = dayStr(1)
 
 /**
  * 时间戳格式必须与后端一致：D1 里 created_at 是 TEXT，
@@ -204,6 +211,17 @@ const FIXTURES = {
     }
   },
   activities: {
+    // 照抄后端 halls.js：字段 = id/date/start_time/end_time/purpose/applicant/user_id/status/...
+    hallBookings: [
+      { id: 201, date: TODAY, start_time: '09:00', end_time: '11:00', purpose: '年级大会', applicant: '团委办公室', user_id: 101, status: 'approved', reviewed_by: '社长', reviewed_at: TODAY + ' 08:00:00', created_at: TODAY + ' 07:30:00' },
+      { id: 202, date: TODAY, start_time: '10:30', end_time: '12:00', purpose: '社团招新宣讲', applicant: '社团部', user_id: 102, status: 'pending', created_at: TODAY + ' 07:40:00' },
+      { id: 203, date: TOMORROW, start_time: '14:00', end_time: '16:00', purpose: '讲座彩排', applicant: '宣传部', user_id: 103, status: 'pending', created_at: TODAY + ' 07:50:00' },
+      { id: 204, date: TOMORROW, start_time: '15:00', end_time: '17:00', purpose: '时间冲突演示', applicant: '组织部', user_id: 104, status: 'approved', created_at: TODAY + ' 07:55:00' }
+    ],
+    hallPending: [
+      { booking: { id: 202, date: TODAY, start_time: '10:30', end_time: '12:00', purpose: '社团招新宣讲', applicant: '社团部', user_id: 102, status: 'pending' }, conflicts: [{ id: 201, start_time: '09:00', end_time: '11:00', applicant: '团委办公室', status: 'approved' }] },
+      { booking: { id: 203, date: TOMORROW, start_time: '14:00', end_time: '16:00', purpose: '讲座彩排', applicant: '宣传部', user_id: 103, status: 'pending' }, conflicts: [] }
+    ],
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
       { id: 52, name: '团委换届大会', location: '千人报告厅', time: '2026-10-08 15:30', departments: '全体', need_volunteers: 0, created_by: '书记处', volunteer_count: 0 }
@@ -276,6 +294,8 @@ const stub = `
     if (fx.pollDetail && url.indexOf('/my-vote') > 0) return fx.myVote;
     if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
+    if (fx.hallPending && url.indexOf('/api/hall/bookings/pending') === 0) return fx.hallPending;
+    if (fx.hallBookings && url.indexOf('/api/hall/bookings') === 0) return fx.hallBookings;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
     if (fx.registrations && url.indexOf('/api/admin/registrations') === 0) return fx.registrations;
     if (fx.usersPayload && url.indexOf('/api/admin/users') === 0) return fx.usersPayload;
@@ -332,6 +352,22 @@ const stub = `
 
 const out = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${stub}</script>`)
 
+/* 验证期的确定性：
+   上游 theme.css 给 --app-bg / --text-primary 等自定义属性挂了 transition
+   （用 @property 注册后可插值）。headless Chrome 的 prefers-color-scheme 默认是
+   dark，而站点主题是 light，于是加载后会有一次主题过渡 —— 截图和计算样式
+   很容易读到过渡中间值（实测拿到过 --app-bg=rgb(118,118,118) 这种灰）。
+   验证页里直接关掉过渡与动画，保证每次读数一致；这不会掩盖逻辑错误，
+   动画本身的正确性另用专门的截图人工核对。 */
+const noTransition = `<style id="__no-motion">
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+    caret-color: transparent !important;
+  }
+</style>`
+const out2 = out.replace(/<\/head>/i, `${noTransition}</head>`)
+
 /* 自检：注入的脚本一旦有语法错误，会**整体不执行** ——
    而错误监听器就在这个脚本里，于是表现为「零错误但页面没数据」的静默假绿。
    这里先生成一次校验语法，有问题立刻报错。（曾因正则转义丢失踩过一次） */
@@ -349,7 +385,7 @@ try {
   process.exit(1)
 }
 
-writeFileSync(join(dist, '__verify.html'), out)
+writeFileSync(join(dist, '__verify.html'), out2)
 
 console.log(`已生成 dist/__verify.html (entry=${entry}${query ? `, query=${query}` : ''})`)
 console.log(`  真实 HTML + 真实遗留脚本，仅替换 window.fetch；桩数据键：${Object.keys(fx).join(', ') || '（无）'}`)

@@ -103,11 +103,24 @@ const COMPONENT_OVERRIDE = {
   410: 'GoneApp'
 }
 
+/* 页面专属的站点样式表（同样来自 public/，单一来源）。
+   这些文件只依赖站点自己的 --md-* token，而外壳已经引入了 token 文件，
+   所以可以直接复用，不必把样式抄一份。 */
+const PAGE_STYLES = {
+  activities: ['/css/material/pages/hall.css']
+}
+
 function buildHtml(name) {
   const title = resolveTitle(name)
   const keys = PAGE_SCRIPTS[name] ?? ['base']
   const scripts = [...new Set(keys.flatMap((k) => SCRIPTS[k] ?? []))]
   const scriptTags = scripts.map((s) => `  <script src="${s}"></script>`).join('\n')
+  const pageStyles = (PAGE_STYLES[name] ?? [])
+    .map((h) => `  <link rel="stylesheet" href="${h}">`)
+    .join('\n')
+  const pageStyleBlock = pageStyles
+    ? `\n  <!-- 本页专属的站点样式（报告厅时段表等） -->\n${pageStyles}`
+    : ''
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -122,7 +135,7 @@ function buildHtml(name) {
   <link rel="stylesheet" href="/css/material/theme-light.css">
   <link rel="stylesheet" href="/css/material/theme-dark.css">
   <!-- 上述浮层组件的布局样式（纯 overlay 层，不复用旧设计系统的其它部分） -->
-  <link rel="stylesheet" href="/css/material/components/overlay.css">
+  <link rel="stylesheet" href="/css/material/components/overlay.css">${pageStyleBlock}
 </head>
 <body>
   <!-- 站点维护模式的遮罩容器。api.js 的 applyOverlay()/showSiteClosedOverlay()
