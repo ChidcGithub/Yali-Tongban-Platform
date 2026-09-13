@@ -1,5 +1,6 @@
 name = "yali-tongban"
-pages_build_output_dir = "public"
+# Vite 构建产物目录（原为 public，迁移到 Vite 多页后指向 dist）
+pages_build_output_dir = "dist"
 compatibility_date = "2025-04-01"
 
 [[d1_databases]]
