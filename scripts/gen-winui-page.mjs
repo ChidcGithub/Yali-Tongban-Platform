@@ -35,7 +35,7 @@ const PAGE_SCRIPTS = {
   debug: ['base', 'auth'],
   '404': ['base'],
   '410': ['base'],
-  feedback: ['base', 'captcha'],
+  feedback: ['version', 'base', 'captcha'],
   messages: ['base'],
   moment: ['base', 'auth'],
   polls: ['base', 'auth'],
