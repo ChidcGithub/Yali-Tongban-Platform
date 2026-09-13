@@ -1,0 +1,387 @@
+<template>
+  <YaliShell current="polls" title="投票">
+    <div class="yali-page">
+      <header class="yali-page-head">
+        <TextBlock class="yali-page-desc" Text="发起和参与团委投票" />
+      </header>
+
+      <div v-if="loading" class="yali-loading">
+        <ProgressRing :IsActive="true" :Width="32" :Height="32" />
+        <TextBlock Text="加载中…" class="yali-muted" />
+      </div>
+
+      <div v-else-if="!visible.length" class="yali-loading">
+        <FontIcon :Glyph="GLYPH.polls" :FontSize="28" class="yali-muted-icon" />
+        <TextBlock Text="暂无投票" class="yali-muted" />
+      </div>
+
+      <ListView v-else :ItemsSource="visible" SelectionMode="None" class="yali-list">
+        <template #item="{ item }">
+          <div class="yali-item poll-card" @click="open(item)">
+            <div class="yali-item-head">
+              <div class="poll-title-row">
+                <TextBlock :Text="item.title" class="yali-item-title" TextWrapping="Wrap" />
+                <span class="yali-chip" :class="item.status === 'open' ? 'yali-chip-accent' : 'yali-chip-done'">
+                  {{ item.status === 'open' ? '进行中' : '已结束' }}
+                </span>
+              </div>
+            </div>
+
+            <TextBlock v-if="item.description" :Text="item.description" TextWrapping="Wrap"
+                       class="yali-item-body" />
+
+            <div class="yali-item-meta">
+              <span>{{ item.created_by }}</span>
+              <span>{{ roleText(item.min_role) }}</span>
+              <span>{{ item.total_votes }} 人参与</span>
+              <span v-if="item.require_name">需留名</span>
+            </div>
+
+            <div v-if="canManage(item)" class="yali-item-actions">
+              <Button @Click.stop="open(item)">
+                <span class="yali-btn-inner"><span>查看结果</span></span>
+              </Button>
+              <Button @Click.stop="exportCsv(item)">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.download" :FontSize="14" /><span>导出 CSV</span>
+                </span>
+              </Button>
+              <Button @Click.stop="remove(item)">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.delete" :FontSize="14" /><span>删除</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+        </template>
+      </ListView>
+    </div>
+
+    <button v-if="admin" class="yali-fab" type="button" aria-label="发起投票" @click="dialogOpen = true">
+      <FontIcon :Glyph="GLYPH.add" :FontSize="18" />
+    </button>
+
+    <!-- 发起投票 -->
+    <ContentDialog :IsOpen="dialogOpen" Title="发起投票" CloseButtonText="取消"
+                   @update:IsOpen="dialogOpen = $event">
+      <div class="yali-form poll-form">
+        <label class="yali-field">
+          <span class="yali-field-label">标题 <em>*</em></span>
+          <TextBox v-model:Text="draft.title" PlaceholderText="投票标题" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">说明</span>
+          <TextBox v-model:Text="draft.description" PlaceholderText="选填" AcceptsReturn />
+        </label>
+
+        <div class="yali-form-row">
+          <label class="yali-field">
+            <span class="yali-field-label">参与范围</span>
+            <ComboBox :ItemsSource="ROLES" v-model:SelectedIndex="roleIndex" />
+          </label>
+          <label class="yali-field">
+            <span class="yali-field-label">显示选项</span>
+            <ToggleSwitch v-model:IsOn="draft.require_name" OnContent="需留名" OffContent="匿名" />
+          </label>
+        </div>
+
+        <div class="poll-questions">
+          <div class="poll-questions-head">
+            <TextBlock Text="题目" :FontSize="14" :FontWeight="500" />
+            <Button @Click="addQuestion">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>添加题目</span>
+              </span>
+            </Button>
+          </div>
+
+          <div v-for="(q, qi) in draft.questions" :key="qi" class="poll-question">
+            <div class="poll-question-top">
+              <TextBox v-model:Text="q.title" :PlaceholderText="'第 ' + (qi + 1) + ' 题标题'" />
+              <ComboBox :ItemsSource="TYPES" v-model:SelectedIndex="q._typeIndex" class="poll-type" />
+              <button class="poll-del" type="button" title="删除此题" @click="removeQuestion(qi)">
+                <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
+              </button>
+            </div>
+
+            <div v-if="q.type !== 'text'" class="poll-options">
+              <div v-for="(_, oi) in q.options" :key="oi" class="poll-option">
+                <TextBox v-model:Text="q.options[oi]" :PlaceholderText="'选项 ' + (oi + 1)" />
+                <button class="poll-del" type="button" title="删除选项" @click="q.options.splice(oi, 1)">
+                  <FontIcon :Glyph="GLYPH.close" :FontSize="12" />
+                </button>
+              </div>
+              <Button @Click="q.options.push('')">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.add" :FontSize="12" /><span>添加选项</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!saving" @Click="dialogOpen = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!saving" @Click="create">
+            <span class="yali-btn-inner"><span>{{ saving ? '提交中…' : '发起投票' }}</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+  </YaliShell>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import YaliShell from '../../components/YaliShell.vue'
+import { GLYPH } from '../../shared/icons'
+import { apiDel, apiGet, apiPost, getUser, isAdmin, toast } from '../../shared/api'
+
+interface Poll {
+  id: number
+  title: string
+  description?: string
+  status?: string
+  min_role?: string
+  created_by: string
+  total_votes?: number
+  require_name?: 0 | 1
+}
+
+const user = ref(getUser())
+const admin = isAdmin()
+const polls = ref<Poll[]>([])
+const loading = ref(true)
+
+const visible = computed(() => polls.value)
+
+function roleText(role?: string) {
+  if (!role) return '所有人'
+  if (role === 'member') return '仅登录用户'
+  if (role === 'admin') return '仅管理员'
+  return role
+}
+
+function canManage(p: Poll) {
+  const u = user.value
+  return !!u && (u.name === p.created_by || u.role === 'owner' || u.role === 'admin')
+}
+
+async function load() {
+  loading.value = true
+  try {
+    polls.value = await apiGet<Poll[]>('/api/polls')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+function open(p: Poll) {
+  window.location.href = `poll.html?id=${p.id}`
+}
+
+async function exportCsv(p: Poll) {
+  try {
+    const res = await fetch(`/api/polls/${p.id}/export`, {
+      headers: { Authorization: '' }
+    })
+    if (!res.ok) throw new Error('导出失败')
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `poll-${p.id}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+async function remove(p: Poll) {
+  if (!window.confirm(`确定删除投票「${p.title}」吗？`)) return
+  try {
+    await apiDel(`/api/polls/${p.id}`)
+    polls.value = polls.value.filter((x) => x.id !== p.id)
+    toast('投票已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* ── 发起投票 ── */
+const ROLES = ['所有人', '仅登录用户', '仅管理员']
+const ROLE_VALUES = ['', 'member', 'admin']
+const TYPES = ['单选', '多选', '主观题']
+const TYPE_VALUES = ['single', 'multiple', 'text']
+
+interface DraftQuestion {
+  title: string
+  options: string[]
+  type: string
+  _typeIndex: number
+}
+
+const dialogOpen = ref(false)
+const saving = ref(false)
+const roleIndex = ref(0)
+const draft = reactive({
+  title: '',
+  description: '',
+  require_name: false,
+  questions: [
+    { title: '', options: ['', ''], type: 'single', _typeIndex: 0 }
+  ] as DraftQuestion[]
+})
+
+function addQuestion() {
+  draft.questions.push({ title: '', options: ['', ''], type: 'single', _typeIndex: 0 })
+}
+
+function removeQuestion(i: number) {
+  draft.questions.splice(i, 1)
+}
+
+async function create() {
+  if (!draft.title.trim()) return toast('请填写投票标题', 'error')
+  const questions = draft.questions
+    .filter((q) => q.title.trim())
+    .map((q) => ({
+      type: TYPE_VALUES[q._typeIndex] ?? 'single',
+      title: q.title.trim(),
+      options:
+        TYPE_VALUES[q._typeIndex] === 'text'
+          ? []
+          : q.options.map((o) => o.trim()).filter(Boolean)
+    }))
+
+  if (!questions.length) return toast('至少需要一个题目', 'error')
+  const invalid = questions.find(
+    (q) => q.type !== 'text' && (q.options as string[]).length < 2
+  )
+  if (invalid) return toast('选择题至少需要两个选项', 'error')
+
+  saving.value = true
+  try {
+    const data = await apiPost<{ id: number }>('/api/polls', {
+      title: draft.title,
+      description: draft.description,
+      require_name: draft.require_name,
+      min_role: ROLE_VALUES[roleIndex.value],
+      allowed_classes: [],
+      questions
+    })
+    polls.value.unshift({
+      id: data.id,
+      title: draft.title,
+      description: draft.description,
+      status: 'open',
+      min_role: ROLE_VALUES[roleIndex.value],
+      created_by: getUser()?.name ?? '',
+      total_votes: 0,
+      require_name: draft.require_name ? 1 : 0
+    })
+    toast('投票已创建', 'success')
+    dialogOpen.value = false
+    draft.title = ''
+    draft.description = ''
+    draft.questions = [{ title: '', options: ['', ''], type: 'single', _typeIndex: 0 }]
+    roleIndex.value = 0
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(load)
+</script>
+
+<style>
+.poll-card {
+  cursor: pointer;
+}
+.poll-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.poll-form {
+  min-width: 520px;
+}
+.poll-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.poll-questions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.poll-question {
+  padding: 10px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 6px;
+  background: var(--card-bg-secondary);
+}
+.poll-question-top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.poll-question-top > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.poll-type {
+  width: 120px;
+  flex: none;
+}
+.poll-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 12px;
+}
+.poll-option {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.poll-option > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.poll-del {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+}
+.poll-del:hover {
+  background: var(--subtle-tertiary);
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .poll-form {
+    min-width: 0;
+  }
+  .poll-question-top {
+    flex-wrap: wrap;
+  }
+  .poll-type {
+    width: 100%;
+  }
+}
+</style>

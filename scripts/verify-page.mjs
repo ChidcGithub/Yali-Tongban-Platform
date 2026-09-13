@@ -53,6 +53,12 @@ const fixtures = {
       hasMore: false
     }
   },
+  polls: {
+    polls: [
+      { id: 5, title: '秋季运动会项目征集', description: '请选择你希望增设的比赛项目', status: 'open', min_role: '', created_by: '团委办公室', total_votes: 42, require_name: 0 },
+      { id: 6, title: '团委学生干事招新面试时间', description: '请选择方便的时间段', status: 'closed', min_role: 'member', created_by: '组织部', total_votes: 18, require_name: 1 }
+    ]
+  },
   messages: {
     msgPayload: {
       messages: [
@@ -91,6 +97,7 @@ const stub = `
     if (fx.banner && url.indexOf('/api/banner') === 0) return fx.banner;
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
+    if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.feedPayload && url.indexOf('/api/chat/messages') === 0) return fx.feedPayload;
     if (fx.feedPayload && url.indexOf('/api/feed/') === 0) return [{ id: 41, created_by: '王五', content: '收到', created_at: new Date(now * 1000).toISOString() }];
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
