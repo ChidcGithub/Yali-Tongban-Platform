@@ -300,7 +300,7 @@ async function smokeFinanceMonth() {
   }
 }
 
-/** 公告列表：点条目要能进详情（旧版点击行为，迁移时丢了） */
+/** 公告列表：点条目要能进详情；?edit=<id> 深链要能直接打开编辑器 */
 async function smokeAnnouncementsNavigation() {
   const { page, pageErrors } = await openPage('announcements')
   try {
@@ -322,6 +322,22 @@ async function smokeAnnouncementsNavigation() {
     check('announcements：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
   } finally {
     await page.close()
+  }
+
+  // 详情页「编辑」按钮的目标就是 announcements.html?edit=<id>，必须能真的打开编辑器
+  const second = await openPage('announcements', '?edit=21')
+  try {
+    const dialog = second.page.locator('.content-dialog').last()
+    await dialog.waitFor({ timeout: 8000 }).catch(() => null)
+    const dialogCount = await second.page.locator('.content-dialog').count()
+    check('announcements：?edit=<id> 深链会打开编辑器', dialogCount > 0, `${dialogCount} 个对话框`)
+    if (dialogCount > 0) {
+      const title = await dialog.locator('.win-textbox-field').first().inputValue()
+      check('announcements：编辑器已预填标题', title.length > 0, `"${title}"`)
+    }
+    check('announcements：无 JS 错误', noErrors(second.pageErrors), second.pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await second.page.close()
   }
 }
 
