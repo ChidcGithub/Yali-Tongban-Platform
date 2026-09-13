@@ -4,15 +4,21 @@
   "private": true,
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
-    "dev": "wrangler pages dev public/",
-    "deploy": "wrangler pages deploy public/ --project-name=yali-tongban",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "dev:pages": "wrangler pages dev dist/",
+    "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
     "db:init": "wrangler d1 execute yali-tongban-db --file=schema.sql"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "jose": "^5.9.6"
+    "jose": "^5.9.6",
+    "vue": "^3.5.42"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^7.3.6",
     "wrangler": "^4.101.0"
   }
 }

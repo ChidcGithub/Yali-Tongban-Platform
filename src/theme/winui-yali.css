@@ -1,0 +1,82 @@
+/* ═══════════════════════════════════════════════════════════
+   WinUI × 雅礼 品牌桥接层
+
+   做三件事，不改上游任何文件：
+   1) 内嵌图标字体（上游默认引用 Windows 系统字体，Android/iOS 上会变豆腐块）
+   2) 把「雅礼深蓝」灌进 WinUI 的 accent 变量族
+   3) 接管飞出来源站点的个性化强调色
+
+   强调色来源说明：
+   站点 js/api.js 的 applyPersonalize() 会把用户选的强调色内联写到
+   <html> 的 --md-primary 上（个性化面板 6 色），因此这里只需引用
+   var(--md-primary) —— 站点选什么色，WinUI 控件就跟着变什么色。
+   若无该变量（试点页不加载旧设计系统时），回退到雅礼深蓝的明暗两态值。
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 1. 图标字体 ──
+   上游 FontIcon/SymbolIcon/ListView/MenuFlyout 等 11 处组件硬编码了
+   'Segoe Fluent Icons' 家族名。用同名 @font-face 指向随包分发的字体文件，
+   即可让所有平台（含 Android / iOS）都渲染出正确图标，且与 Windows 表现一致。
+   字体文件随上游仓库分发，许可见 ./winui/LICENSE-GPL-3.0.txt */
+@font-face {
+  font-family: 'Segoe Fluent Icons';
+  src: url('../winui/assets/Fonts/SEGOEICONS.TTF') format('truetype');
+  font-display: block;
+}
+
+/* 另一部分组件（BreadcrumbBar / Pivot / TeachingTip / CommandBarFlyout）
+   走这个变量取字体，一并指向内嵌字体 */
+:root {
+  --SymbolThemeFontFamily: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+}
+
+/* 上游只在 Windows 上靠系统字体回退渲染图标（.icon 只声明了字号与盒子，
+   没声明字体），换到 macOS / iOS / Android 上就是一堆豆腐块。
+   这里显式把图标字体钉到所有承载字形的类上，保证跨平台一致。
+   （分割线：字形类 vs 业务文案类，后者不受影响） */
+.icon,
+.win-font-icon,
+.win-symbol-icon,
+.animated-icon,
+.win-nav-group-chevron {
+  font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
+}
+
+/* ── 2. accent 映射 ── */
+html.theme-light {
+  --yali-accent: var(--md-primary, #0D2137);
+  --yali-accent-text: var(--md-on-primary, #FFFFFF);
+}
+
+html.theme-dark {
+  --yali-accent: var(--md-primary, #AAC7FF);
+  --yali-accent-text: var(--md-on-primary, #00315E);
+}
+
+/* 把品牌色展开成 WinUI 期望的整个 accent 变量族。
+   上游原始值为：亮 #0067C0 / 暗 #4CC2FF，hover 取 90%、pressed 取 80% 透明度 */
+html.theme-light,
+html.theme-dark {
+  --accent-base: var(--yali-accent);
+  --accent-text: var(--yali-accent-text);
+  --accent-hover: color-mix(in srgb, var(--yali-accent) 90%, transparent);
+  --accent-pressed: color-mix(in srgb, var(--yali-accent) 80%, transparent);
+  --accent-text-secondary: color-mix(in srgb, var(--yali-accent-text) 70%, transparent);
+  --accent-text-fill-color-primary: var(--yali-accent);
+  --accent-aa-fill: var(--yali-accent);
+  --accent-aa-text: var(--yali-accent-text);
+
+  --AccentFillColorDefaultBrush: var(--yali-accent);
+  --AccentFillColorSecondaryBrush: var(--accent-hover);
+  --AccentFillColorTertiaryBrush: var(--accent-pressed);
+}
+
+/* ── 3. 挂载点基础布局 ──
+   theme.css 只给 html/body/#app 铺了全屏基础样式，本站的挂载点叫 #winui-root，
+   这里补上；滚动交给 NavigationView 内部的 ScrollViewer（与 WinUI 一致） */
+#winui-root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
