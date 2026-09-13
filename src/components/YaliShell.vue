@@ -42,13 +42,23 @@
       </div>
     </template>
 
+    <!-- 全局加载条：接管 nav.js 原先的「顶部加载指示」职责
+         状态来自 public/js/winui-legacy-bridge.js 抛出的事件（api.js 每次请求会触发） -->
+    <ProgressBar
+      v-if="loading"
+      class="yali-progress"
+      :IsIndeterminate="progressTotal === 0"
+      :Value="progressDone"
+      :Maximum="progressTotal || 100"
+      :MinHeight="3" />
+
     <!-- 页面主体 -->
     <slot />
   </NavigationView>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { GLYPH } from '../shared/icons'
 import {
   currentUser,
@@ -154,9 +164,27 @@ function onBrandClick() {
   })
 }
 
+/* 遗留脚本（api.js / utils.js）的加载指示 → 顶部 ProgressBar */
+const loading = ref(false)
+const progressDone = ref(0)
+const progressTotal = ref(0)
+
+function onLegacyLoading(e: Event) {
+  const d = (e as CustomEvent).detail as {
+    active: boolean
+    done: number
+    total: number
+  }
+  loading.value = !!d?.active
+  progressDone.value = d?.done ?? 0
+  progressTotal.value = d?.total ?? 0
+}
+
 onMounted(() => {
   // 兼容既有依赖 <html data-page> 的样式与逻辑（原 nav.js 会设置它）
   document.documentElement.setAttribute('data-page', props.current)
+
+  window.addEventListener('yali:nav-loading', onLegacyLoading)
 
   // 消息入口受功能开关控制，与原 nav.js 的 initMessagesIcon 一致
   const check = (window as unknown as {
@@ -168,9 +196,19 @@ onMounted(() => {
     })
   }
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('yali:nav-loading', onLegacyLoading)
+})
 </script>
 
 <style>
+/* 顶部加载条：紧贴内容区上沿（仅 3px，出现/消失不会造成明显跳动） */
+.yali-progress {
+  flex: none;
+  width: 100%;
+}
+
 /* 侧栏品牌区
    侧栏顶部那一行同时放着「折叠按钮」和本区，需让开按钮的宽度（48px 紧凑列） */
 .yali-brand {
