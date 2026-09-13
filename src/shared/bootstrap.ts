@@ -14,6 +14,7 @@ import { initWinUITheme } from './theme'
 import '../winui/styles/theme.css'
 import '../winui/styles/animations.css'
 import '../theme/winui-yali.css'
+import '../theme/winui-page.css'
 
 export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   initWinUITheme()

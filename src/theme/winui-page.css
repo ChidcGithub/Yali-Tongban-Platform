@@ -1,0 +1,402 @@
+/* ═══════════════════════════════════════════════════════════
+   WinUI 页面通用样式（共享层）
+
+   所有 yali-* 页面都从这里取样式，避免每个页面 SFC 各写一份
+   （原先 services / announcements 两份几乎完全重复，白白翻倍进包）。
+
+   命名约定：
+     yali-page*      页面骨架
+     yali-section*   内容分区（卡片式容器）
+     yali-item*      列表项
+     yali-comment*   评论区
+     yali-form*      表单
+     yali-*          其他零件
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 页面骨架 ── */
+.yali-page {
+  padding: 24px 36px 96px;
+  max-width: 1000px;
+}
+.yali-page-head {
+  margin-bottom: 8px;
+}
+.yali-page-desc {
+  display: block;
+  color: var(--text-secondary);
+}
+
+/* ── 分区容器 ── */
+.yali-section {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--card-stroke);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+.yali-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.yali-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── 加载 / 空状态 ── */
+.yali-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+}
+.yali-muted {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.yali-muted-icon {
+  color: var(--text-tertiary);
+}
+
+/* ── 列表项 ── */
+.yali-list {
+  width: 100%;
+}
+.yali-item {
+  width: 100%;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.yali-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.yali-item-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+.yali-item-body {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.yali-item-note {
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--subtle-secondary);
+}
+.yali-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.yali-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── 小徽章（状态 / NEW 等） ── */
+.yali-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+  background: var(--subtle-secondary);
+  color: var(--text-secondary);
+}
+.yali-chip-accent {
+  background: var(--accent-base);
+  color: var(--accent-text);
+}
+
+/* ── 图片区 ── */
+.yali-img-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.yali-img-row img {
+  max-height: 180px;
+  max-width: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.yali-img-skeleton {
+  margin-top: 4px;
+  height: 180px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--subtle-tertiary);
+}
+/* 扫光占位：与站点既有 .g-skeleton 视觉一致，自带一份，
+   使 WinUI 页面不依赖旧设计系统的样式表 */
+.yali-shimmer {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--subtle-secondary) 50%,
+    transparent 100%
+  );
+  animation: yali-shimmer-slide 1.4s linear infinite;
+}
+@keyframes yali-shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── 评论区 ── */
+.yali-comments {
+  margin-top: 6px;
+}
+.yali-comment-body {
+  padding: 8px 0 4px;
+}
+.yali-comment {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--stroke-divider);
+}
+.yali-comment-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.yali-comment-author {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.yali-comment-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}
+.yali-comment-actions {
+  margin-top: 6px;
+}
+.yali-comment-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.yali-comment-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── 浮动操作按钮（原站点用 fixed，保持一致） ── */
+.yali-fab {
+  position: fixed;
+  right: 28px;
+  bottom: 28px;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+  background: var(--accent-base);
+  color: var(--accent-text);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.yali-fab:hover {
+  background: var(--accent-hover);
+}
+
+/* ── 按钮内联排版 ── */
+.yali-btn-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.yali-inline-btn {
+  vertical-align: middle;
+}
+
+/* ── 表单 ── */
+.yali-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 420px;
+  max-width: 560px;
+}
+.yali-form-row {
+  display: flex;
+  gap: 12px;
+}
+.yali-form-row > .yali-field {
+  flex: 1;
+}
+.yali-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.yali-field-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.yali-field-label em {
+  color: var(--accent-base);
+  font-style: normal;
+}
+.yali-textarea {
+  min-height: 100px;
+}
+.yali-form-previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.yali-form-previews img {
+  max-height: 110px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.yali-form-preview {
+  margin-top: 6px;
+  max-height: 140px;
+  width: auto;
+  border-radius: 4px;
+}
+.yali-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── 设置项（类似 WinUI SettingsCard 的排布） ── */
+.yali-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--stroke-divider);
+}
+.yali-setting-row:last-child {
+  border-bottom: none;
+}
+.yali-setting-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.yali-setting-title {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.yali-setting-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* ── 页脚信息（关于 / 致谢 / 更新日志等） ── */
+.yali-prose {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-primary);
+}
+.yali-prose h2 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 20px 0 8px;
+}
+.yali-prose h3 {
+  font-size: 14px;
+  font-weight: 500;
+  margin: 16px 0 6px;
+}
+.yali-prose p {
+  margin: 8px 0;
+}
+.yali-prose ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.yali-prose li {
+  margin: 4px 0;
+}
+.yali-prose a {
+  color: var(--accent-base);
+  text-decoration: none;
+}
+.yali-prose a:hover {
+  text-decoration: underline;
+}
+.yali-prose code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--subtle-secondary);
+}
+
+/* ── 响应式 ── */
+@media (max-width: 640px) {
+  .yali-page {
+    padding: 16px 16px 96px;
+  }
+  .yali-form,
+  .yali-form-row {
+    min-width: 0;
+    flex-direction: column;
+  }
+  .yali-fab {
+    right: 16px;
+    bottom: 16px;
+  }
+  .yali-search {
+    width: 100%;
+  }
+  .yali-section {
+    padding: 12px;
+  }
+}
+
+/* ── 无障碍 ── */
+@media (prefers-reduced-motion: reduce) {
+  .yali-shimmer {
+    animation: none;
+  }
+}
+.no-animation .yali-shimmer,
+.reduce-animation .yali-shimmer {
+  animation: none;
+}
+
+/* ── 搜索框 ── */
+.yali-search {
+  width: 240px;
+}
