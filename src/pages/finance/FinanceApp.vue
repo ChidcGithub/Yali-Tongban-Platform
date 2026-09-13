@@ -150,11 +150,11 @@
         </div>
         <label class="yali-field">
           <span class="yali-field-label">标签</span>
-          <TextBox v-model:Text="draft.tags" PlaceholderText="逗号分隔，如：办公用品, 打印" />
+          <TextBox v-model:Text="draft.tags" PlaceholderText="逗号分隔，如：办公用品, 打印" :MaxLength="200" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">备注</span>
-          <TextBox v-model:Text="draft.notes" PlaceholderText="选填" AcceptsReturn />
+          <TextBox v-model:Text="draft.notes" PlaceholderText="选填" :MaxLength="500" AcceptsReturn />
         </label>
         <div class="yali-form-row">
           <label class="yali-field">

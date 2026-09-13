@@ -52,7 +52,7 @@
               </template>
 
               <div v-if="user" class="feed-comment-form">
-                <TextBox v-model:Text="draft[m.id]" PlaceholderText="写下你的评论…" />
+                <TextBox v-model:Text="draft[m.id]" PlaceholderText="写下你的评论…" :MaxLength="500" />
                 <Button :IsEnabled="!!(draft[m.id] || '').trim()" @Click.stop="submitComment(m)">
                   <span class="yali-btn-inner"><span>发送</span></span>
                 </Button>

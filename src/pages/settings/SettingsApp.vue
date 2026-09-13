@@ -34,7 +34,7 @@
           </Button>
         </div>
         <div v-if="open === 'name'" class="set-form">
-          <TextBox v-model:Text="form.name" PlaceholderText="新的显示名" />
+          <TextBox v-model:Text="form.name" PlaceholderText="新的显示名" :MaxLength="20" />
           <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveName">
             <span class="yali-btn-inner"><span>保存</span></span>
@@ -51,7 +51,7 @@
           </Button>
         </div>
         <div v-if="open === 'class'" class="set-form">
-          <TextBox v-model:Text="form.class_name" PlaceholderText="4 位班级编号，如 2501" />
+          <TextBox v-model:Text="form.class_name" PlaceholderText="4 位班级编号，如 2501" :MaxLength="4" />
           <PasswordBox v-model:Password="form.confirm_password" PlaceholderText="输入密码以确认" />
           <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveClass">
             <span class="yali-btn-inner"><span>保存</span></span>

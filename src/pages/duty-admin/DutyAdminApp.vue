@@ -118,7 +118,7 @@
             <ComboBox :ItemsSource="SLOT_TYPES" :SelectedIndex="slotIndex(p)"
                       @SelectionChanged="(a) => (p.slot_type = SLOT_VALUES[a?.SelectedIndex ?? 0])"
                       class="da-period-slot" />
-            <TextBox v-model:Text="p.start_time" PlaceholderText="09:00" class="da-period-time" />
+            <TextBox v-model:Text="p.start_time" PlaceholderText="09:00" :MaxLength="5" class="da-period-time" />
             <NumberBox v-model:Value="p.auto_absent_min" :Minimum="0" :Maximum="120"
                        class="da-period-min" />
             <span class="yali-muted da-period-hint">缺岗判定（分钟）</span>
@@ -146,12 +146,12 @@
       <div class="yali-form">
         <label class="yali-field">
           <span class="yali-field-label">姓名 <em>*</em></span>
-          <TextBox v-model:Text="staffDraft.name" PlaceholderText="干事姓名" />
+          <TextBox v-model:Text="staffDraft.name" PlaceholderText="干事姓名" :MaxLength="50" />
         </label>
         <div class="yali-form-row">
           <label class="yali-field">
             <span class="yali-field-label">班级</span>
-            <TextBox v-model:Text="staffDraft.class" PlaceholderText="如 2501" />
+            <TextBox v-model:Text="staffDraft.class" PlaceholderText="如 2501" :MaxLength="4" />
           </label>
           <label class="yali-field">
             <span class="yali-field-label">部门</span>
@@ -186,7 +186,7 @@
         </label>
         <label class="yali-field">
           <span class="yali-field-label">取消原因 <em>*</em></span>
-          <TextBox v-model:Text="cancelReason" PlaceholderText="如：录入有误" />
+          <TextBox v-model:Text="cancelReason" PlaceholderText="如：录入有误" :MaxLength="200" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">密码 <em>*</em></span>
@@ -231,7 +231,7 @@
         </div>
         <label class="yali-field">
           <span class="yali-field-label">原因</span>
-          <TextBox v-model:Text="scoreDraft.reason" PlaceholderText="选填" />
+          <TextBox v-model:Text="scoreDraft.reason" PlaceholderText="选填" :MaxLength="200" />
         </label>
         <div class="yali-form-actions">
           <Button :IsEnabled="!busy" @Click="scoreDialog = false">

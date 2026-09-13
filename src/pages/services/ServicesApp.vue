@@ -125,7 +125,7 @@
                   </template>
 
                   <div v-if="user" class="yali-comment-form">
-                    <TextBox v-model:Text="commentDraft[item.id]" PlaceholderText="写下评论…"
+                    <TextBox v-model:Text="commentDraft[item.id]" PlaceholderText="写下评论…" :MaxLength="500"
                              AcceptsReturn class="yali-comment-input" />
                     <Button class="yali-comment-submit" @Click="postComment(item)"
                             :IsEnabled="!!(commentDraft[item.id] || '').trim()">
@@ -159,28 +159,28 @@
         <div class="yali-form-row">
           <label class="yali-field">
             <span class="yali-field-label">地点 <em>*</em></span>
-            <TextBox v-model:Text="form.location" PlaceholderText="如：教学楼3楼301" />
+            <TextBox v-model:Text="form.location" PlaceholderText="如：教学楼3楼301" :MaxLength="200" />
           </label>
           <label class="yali-field">
             <span class="yali-field-label">联系方式</span>
-            <TextBox v-model:Text="form.contact" PlaceholderText="选填，方便反馈" />
+            <TextBox v-model:Text="form.contact" PlaceholderText="选填，方便反馈" :MaxLength="100" />
           </label>
         </div>
 
         <label class="yali-field">
           <span class="yali-field-label">报修问题 <em>*</em></span>
-          <TextBox v-model:Text="form.description" PlaceholderText="请详细描述问题"
+          <TextBox v-model:Text="form.description" PlaceholderText="请详细描述问题" :MaxLength="2000"
                    AcceptsReturn class="yali-textarea" />
         </label>
 
         <label class="yali-field">
           <span class="yali-field-label">备注（选填）</span>
-          <TextBox v-model:Text="form.notes" PlaceholderText="补充说明…" AcceptsReturn />
+          <TextBox v-model:Text="form.notes" PlaceholderText="补充说明…" :MaxLength="50" AcceptsReturn />
         </label>
 
         <label class="yali-field">
           <span class="yali-field-label">你的姓名</span>
-          <TextBox v-model:Text="form.submitted_by" PlaceholderText="选填，填写以便后续沟通" />
+          <TextBox v-model:Text="form.submitted_by" PlaceholderText="选填，填写以便后续沟通" :MaxLength="50" />
         </label>
 
         <label class="yali-field">

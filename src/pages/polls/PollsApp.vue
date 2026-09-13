@@ -69,11 +69,11 @@
       <div class="yali-form poll-form">
         <label class="yali-field">
           <span class="yali-field-label">标题 <em>*</em></span>
-          <TextBox v-model:Text="draft.title" PlaceholderText="投票标题" />
+          <TextBox v-model:Text="draft.title" PlaceholderText="投票标题" :MaxLength="200" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">说明</span>
-          <TextBox v-model:Text="draft.description" PlaceholderText="选填" AcceptsReturn />
+          <TextBox v-model:Text="draft.description" PlaceholderText="选填" :MaxLength="500" AcceptsReturn />
         </label>
 
         <div class="yali-form-row">
@@ -106,7 +106,7 @@
 
           <div v-for="(q, qi) in draft.questions" :key="qi" class="poll-question">
             <div class="poll-question-top">
-              <TextBox v-model:Text="q.title" :PlaceholderText="'第 ' + (qi + 1) + ' 题标题'" />
+              <TextBox v-model:Text="q.title" :PlaceholderText="'第 ' + (qi + 1) + ' 题标题'" :MaxLength="500" />
               <ComboBox :ItemsSource="TYPES" v-model:SelectedIndex="q._typeIndex" class="poll-type" />
               <button class="poll-del" type="button" title="删除此题" @click="removeQuestion(qi)">
                 <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
@@ -115,7 +115,7 @@
 
             <div v-if="q.type !== 'text'" class="poll-options">
               <div v-for="(_, oi) in q.options" :key="oi" class="poll-option">
-                <TextBox v-model:Text="q.options[oi]" :PlaceholderText="'选项 ' + (oi + 1)" />
+                <TextBox v-model:Text="q.options[oi]" :PlaceholderText="'选项 ' + (oi + 1)" :MaxLength="200" />
                 <button class="poll-del" type="button" title="删除选项" @click="q.options.splice(oi, 1)">
                   <FontIcon :Glyph="GLYPH.close" :FontSize="12" />
                 </button>

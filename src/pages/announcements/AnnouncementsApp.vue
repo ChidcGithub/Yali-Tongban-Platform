@@ -94,7 +94,7 @@
                   </template>
 
                   <div v-if="user" class="yali-comment-form">
-                    <TextBox v-model:Text="commentDraft[item.id]" PlaceholderText="写下评论…"
+                    <TextBox v-model:Text="commentDraft[item.id]" PlaceholderText="写下评论…" :MaxLength="500"
                              AcceptsReturn class="yali-comment-input" />
                     <Button :IsEnabled="!!(commentDraft[item.id] || '').trim()"
                             class="yali-comment-submit" @Click="postComment(item)">
@@ -125,11 +125,11 @@
       <div class="yali-form">
         <label class="yali-field">
           <span class="yali-field-label">标题 <em>*</em></span>
-          <TextBox v-model:Text="draft.title" PlaceholderText="公告标题" />
+          <TextBox v-model:Text="draft.title" PlaceholderText="公告标题" :MaxLength="200" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">正文 <em>*</em></span>
-          <TextBox v-model:Text="draft.content" PlaceholderText="公告内容" AcceptsReturn
+          <TextBox v-model:Text="draft.content" PlaceholderText="公告内容" :MaxLength="5000" AcceptsReturn
                    TextWrapping="Wrap" class="yali-textarea" />
         </label>
         <div class="yali-field">

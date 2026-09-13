@@ -53,7 +53,7 @@
             </div>
 
             <template v-if="editingId === c.id">
-              <TextBox v-model:Text="editDraft" AcceptsReturn class="ad-edit" />
+              <TextBox v-model:Text="editDraft" AcceptsReturn :MaxLength="500" class="ad-edit" />
               <div class="yali-comment-actions">
                 <Button @Click="saveEdit(c)">
                   <span class="yali-btn-inner"><span>保存</span></span>
@@ -77,7 +77,7 @@
           </div>
 
           <div v-if="user" class="ad-comment-form">
-            <TextBox v-model:Text="draft" PlaceholderText="写下评论…" AcceptsReturn />
+            <TextBox v-model:Text="draft" PlaceholderText="写下评论…" :MaxLength="500" AcceptsReturn />
             <Button :Style="'{StaticResource AccentButtonStyle}'"
                     :IsEnabled="!!draft.trim()" @Click="post">
               <span class="yali-btn-inner"><span>发表</span></span>

@@ -100,7 +100,7 @@
           </div>
           <label v-if="settings.site_closed" class="yali-field ad-gap">
             <span class="yali-field-label">维护提示文案</span>
-            <TextBox v-model:Text="settings.site_closed_message"
+            <TextBox v-model:Text="settings.site_closed_message" :MaxLength="500"
                      PlaceholderText="雅礼团委-通办暂时关闭" />
           </label>
           <div class="yali-form-actions">

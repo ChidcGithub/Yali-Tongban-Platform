@@ -98,14 +98,14 @@
                         :Content="opt" v-model:IsChecked="multiSel[qi][oi]" />
             </div>
 
-            <TextBox v-else v-model:Text="textAns[qi]" PlaceholderText="填写你的回答"
+            <TextBox v-else v-model:Text="textAns[qi]" PlaceholderText="填写你的回答" :MaxLength="1000"
                      AcceptsReturn TextWrapping="Wrap" class="pv-gap pv-textarea" />
           </section>
 
           <section class="yali-section">
             <label v-if="needName" class="yali-field">
               <span class="yali-field-label">你的姓名 <em>*</em></span>
-              <TextBox v-model:Text="voterName" PlaceholderText="请输入你的姓名" />
+              <TextBox v-model:Text="voterName" PlaceholderText="请输入你的姓名" :MaxLength="50" />
             </label>
             <div class="yali-field pv-gap">
               <span class="yali-field-label">人机验证</span>

@@ -12,7 +12,7 @@
         <form v-if="tab === 'login'" class="login-form" @submit.prevent="handleLogin">
           <label class="yali-field">
             <span class="yali-field-label">姓名</span>
-            <TextBox v-model:Text="loginForm.name" PlaceholderText="输入你的姓名" />
+            <TextBox v-model:Text="loginForm.name" PlaceholderText="输入你的姓名" :MaxLength="20" />
           </label>
           <label class="yali-field">
             <span class="yali-field-label">密码</span>
@@ -33,13 +33,13 @@
         <form v-else class="login-form" @submit.prevent="handleRegister">
           <label class="yali-field">
             <span class="yali-field-label">姓名</span>
-            <TextBox v-model:Text="regForm.name" PlaceholderText="输入你的姓名"
+            <TextBox v-model:Text="regForm.name" PlaceholderText="输入你的姓名" :MaxLength="20"
                      @TextChanged="onNameInput" />
             <span v-if="nameMsg" class="login-hint" :class="nameOk ? 'is-ok' : 'is-bad'">{{ nameMsg }}</span>
           </label>
           <label class="yali-field">
             <span class="yali-field-label">班级 <em>*</em></span>
-            <TextBox v-model:Text="regForm.class_name" PlaceholderText="如 2501" @TextChanged="onClassInput" />
+            <TextBox v-model:Text="regForm.class_name" PlaceholderText="如 2501" :MaxLength="4" @TextChanged="onClassInput" />
             <span v-if="classMsg" class="login-hint" :class="classOk ? 'is-ok' : 'is-bad'">{{ classMsg }}</span>
           </label>
           <label class="yali-field">

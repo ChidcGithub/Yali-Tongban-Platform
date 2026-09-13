@@ -65,7 +65,7 @@
       <div class="yali-form">
         <label class="yali-field">
           <span class="yali-field-label">活动名称 <em>*</em></span>
-          <TextBox v-model:Text="draft.name" PlaceholderText="如：秋季志愿服务" />
+          <TextBox v-model:Text="draft.name" PlaceholderText="如：秋季志愿服务" :MaxLength="100" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">时间 <em>*</em></span>
@@ -73,11 +73,11 @@
         </label>
         <label class="yali-field">
           <span class="yali-field-label">地点</span>
-          <TextBox v-model:Text="draft.location" PlaceholderText="选填" />
+          <TextBox v-model:Text="draft.location" PlaceholderText="选填" :MaxLength="200" />
         </label>
         <label class="yali-field">
           <span class="yali-field-label">参与部门</span>
-          <TextBox v-model:Text="draft.departments" PlaceholderText="选填，如：组织部、宣传部" />
+          <TextBox v-model:Text="draft.departments" PlaceholderText="选填，如：组织部、宣传部" :MaxLength="200" />
         </label>
         <div class="yali-field">
           <ToggleSwitch v-model:IsOn="draft.need_volunteers" OnContent="需要志愿者" OffContent="不需要志愿者" />
@@ -99,7 +99,7 @@
       <div class="yali-form">
         <label class="yali-field">
           <span class="yali-field-label">你的姓名 <em>*</em></span>
-          <TextBox v-model:Text="volunteerName" PlaceholderText="请输入你的姓名" />
+          <TextBox v-model:Text="volunteerName" PlaceholderText="请输入你的姓名" :MaxLength="50" />
         </label>
         <div class="yali-field">
           <span class="yali-field-label">人机验证</span>
