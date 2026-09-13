@@ -193,6 +193,7 @@ import {
   toast,
   confirmDialog
 } from '../../shared/api'
+import { checkAuth } from '../../shared/guard'
 
 interface Announcement {
   id: number
@@ -577,6 +578,8 @@ watch(editorOpen, (open) => {
 })
 
 onMounted(async () => {
+  // 与旧版 announcements.js 一致：先 checkAuth（会刷新用户并触发班级补填）
+  await checkAuth()
   await loadList()
   await handleEditDeepLink()
 })

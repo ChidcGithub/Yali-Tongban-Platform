@@ -350,7 +350,10 @@ const stub = `
   /* 必须带 id：真实登录返回的是 { id, name, role, class_name, department }
      （见 auth.js respondWithToken），页面里按 id 判「是不是我的」。
      少了 id，这类判断在回归里永远走不到。 */
-  var __stubUser = { id: 101, name: '测试用户', role: __role, class_name: '2517', department: '办公室' };
+  /* noclass=1 模拟「还没填班级」的登录用户 —— 旧版 auth.js 的 checkAuth
+     会对这种用户弹强制补填表单，桩必须能造出这个状态，否则那条路径永远测不到 */
+  var __noclass = __q.indexOf('noclass=1') >= 0;
+  var __stubUser = { id: 101, name: '测试用户', role: __role, class_name: __noclass ? '' : '2517', department: '办公室' };
   window.getUser = function () {
     return __anon ? null : __stubUser;
   };

@@ -18,6 +18,7 @@
  *   settings           → requireAuth
  */
 import { apiGet } from './api'
+import { ensureClassFilled } from './classprompt'
 
 export interface SessionUser {
   id?: number
@@ -60,6 +61,10 @@ export async function checkAuth(): Promise<SessionUser | null> {
   try {
     const user = await apiGet<SessionUser>('/api/auth/me')
     localStorage.setItem('user', JSON.stringify(user))
+    /* 旧版同一位置还有 `if (!user.class_name) requireClass(user)` ——
+       未填班级的登录用户会被强制补填（关不掉的表单）。班级是部门/值日/财务的
+       分组依据，缺了它这些列表会把用户算进「未分组」，而用户自己并不知道要补。 */
+    if (!user.class_name) await ensureClassFilled()
     return user
   } catch {
     localStorage.removeItem('user')

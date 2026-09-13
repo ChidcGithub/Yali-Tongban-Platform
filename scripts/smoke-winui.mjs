@@ -949,6 +949,79 @@ async function smokeCookieBanner() {
   }
 }
 
+/**
+ * 班级补填：未填班级的登录用户会被强制补填
+ *
+ * 旧版 `auth.js` 的 `checkAuth()` 末尾有 `if (!user.class_name) requireClass(user)`：
+ * activities / announcements / announcement / finance / settings / admin / duty-admin
+ * 这 7 个页面进入时都会弹出一个**关不掉**的表单要求补填（班级 + 密码确认）。
+ * 迁移时整块丢了 —— 缺班级的用户在部门/值日/财务列表里会落到「未分组」，
+ * 而他自己完全不知道要补。
+ */
+async function smokeClassPrompt() {
+  const { page, pageErrors } = await openPage('activities', '?noclass=1')
+  try {
+    const dlg = page.locator('.content-dialog')
+    await dlg.waitFor({ timeout: 6000 }).catch(() => {})
+    check('班级补填：未填班级时进入页面会自动弹出', (await dlg.count()) === 1, `${await dlg.count()} 个`)
+
+    const title = await page.locator('.content-dialog-title').first().innerText().catch(() => '')
+    check('班级补填：标题是「填写班级」', title.includes('填写'), JSON.stringify(title))
+
+    const texts = await page.locator('.content-dialog-body').first().innerText().catch(() => '')
+    check('班级补填：有说明文案', texts.includes('请填写你的班级'), JSON.stringify(texts.slice(0, 40)))
+
+    const btns = await page.locator('.content-dialog-command-space button').allInnerTexts().catch(() => [])
+    check('班级补填：没有「取消」按钮（关不掉，与旧版一致）', !btns.includes('取消'), JSON.stringify(btns))
+    check('班级补填：给了「退出登录」出口', btns.includes('退出登录'), JSON.stringify(btns))
+
+    /* 两个输入框：班级（TextBox）+ 密码（PasswordBox） */
+    const inputs = page.locator('.content-dialog input')
+    check('班级补填：有两个输入框（班级 + 密码）', (await inputs.count()) === 2, `${await inputs.count()} 个`)
+
+    const primary = page.locator('.content-dialog-primary').first()
+    check('班级补填：空表单时「保存」不可点', await primary.isDisabled().catch(() => false))
+
+    /* 班级格式不对 → 禁用 + 提示（规则与后端 isValidClass 一致：4 位、在学段区间内） */
+    await inputs.first().fill('1234')
+    await inputs.nth(1).fill('Yali@1234')
+    await page.waitForTimeout(300)
+    check('班级补填：非法班级时「保存」仍不可点', await primary.isDisabled().catch(() => false))
+    const err = await page.locator('.yali-cls-error').first().innerText().catch(() => '')
+    check('班级补填：非法班级给出原因', err.includes('4位班级编号'), JSON.stringify(err))
+
+    /* 合法班级 → 可提交，且请求体字段名正确 */
+    await captureWrites(page)
+    await inputs.first().fill('2517')
+    await page.waitForTimeout(300)
+    check('班级补填：合法班级后「保存」可点', !(await primary.isDisabled().catch(() => true)))
+
+    await primary.click()
+    await page.waitForTimeout(700)
+    const post = await page.evaluate(
+      () => window.__posted.filter((p) => p.url.indexOf('/api/auth/change-class') >= 0)[0] || null
+    )
+    check(
+      '班级补填：提交请求体是 {class_name, password}',
+      !!post && post.body?.class_name === '2517' && typeof post.body?.password === 'string',
+      JSON.stringify(post?.body ?? null)
+    )
+    check('班级补填：提交成功后对话框关闭', (await page.locator('.content-dialog').count()) === 0)
+
+    check('班级补填：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+
+  /* 反向：已经填过班级的用户不该被打扰 */
+  {
+    const { page } = await openPage('activities')
+    await page.waitForTimeout(900)
+    check('班级补填：已填班级的用户不弹（未误伤）', (await page.locator('.content-dialog').count()) === 0)
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -970,7 +1043,8 @@ const CASES = [
   ['站点对话框：确认框 / 输入框 / 实时校验', smokeSiteDialogs],
   ['管理页标签栏：窄屏可横向滚动', smokeTabsOverflow],
   ['权限守卫：无权访问管理页跳 404', smokeGuards],
-  ['Cookie 横幅：WinUI 版', smokeCookieBanner]
+  ['Cookie 横幅：WinUI 版', smokeCookieBanner],
+  ['班级补填：未填班级强制补填', smokeClassPrompt]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

@@ -124,6 +124,7 @@ import {
   toast,
   confirmDialog
 } from '../../shared/api'
+import { checkAuth } from '../../shared/guard'
 
 interface Announcement {
   id: number
@@ -330,7 +331,11 @@ function go(href: string) {
   window.location.href = href
 }
 
-onMounted(load)
+onMounted(async () => {
+  // 与旧版 announcement.js 一致：先 checkAuth（会刷新用户并触发班级补填）
+  await checkAuth()
+  await load()
+})
 </script>
 
 <style>

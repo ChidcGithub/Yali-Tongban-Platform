@@ -12,6 +12,7 @@ import WinUIonWeb from '../winui'
 import { initWinUITheme } from './theme'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import CookieBanner from '../components/CookieBanner.vue'
+import ClassPrompt from '../components/ClassPrompt.vue'
 
 import '../winui/styles/theme.css'
 import '../winui/styles/animations.css'
@@ -56,11 +57,24 @@ function mountCookieBanner() {
   mountSingleton(CookieBanner, 'winui-cookie-host')
 }
 
+/**
+ * 班级补填表单（未填班级的登录用户会被强制补填）。
+ * 与旧版 auth.js 的 requireClass 对应 —— 触发点在 guard.ts 的 checkAuth()。
+ */
+let classPromptMounted = false
+
+function mountClassPrompt() {
+  if (classPromptMounted) return
+  classPromptMounted = true
+  mountSingleton(ClassPrompt, 'winui-class-host')
+}
+
 export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   initWinUITheme()
   /* Cookie 横幅先挂：它的标记要在 DOMContentLoaded（api.js 检查的时点）之前设好 */
   mountCookieBanner()
   mountConfirmHost()
+  mountClassPrompt()
 
   const app = createApp(rootComponent)
   app.use(WinUIonWeb, { locale: 'zh-CN' })

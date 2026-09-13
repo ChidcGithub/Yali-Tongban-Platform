@@ -166,6 +166,7 @@ import YaliShell from '../../components/YaliShell.vue'
 import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, mountCaptcha, toast, confirmDialog} from '../../shared/api'
+import { checkAuth } from '../../shared/guard'
 
 interface Activity {
   id: number
@@ -399,7 +400,13 @@ watch(dialogOpen, (open) => {
   for (const d of DEPARTMENTS) deptChecked[d] = false
 })
 
-onMounted(load)
+onMounted(async () => {
+  /* 旧版 activities.js 开头是 checkAuth()：这不跳转（匿名也能看活动），
+     但未登录时清掉本地残留用户、登录用户未填班级时触发补填表单。
+     少了它，「未填班级」的用户在这类页面就永远不会被提醒。 */
+  await checkAuth()
+  await load()
+})
 </script>
 
 <style>
