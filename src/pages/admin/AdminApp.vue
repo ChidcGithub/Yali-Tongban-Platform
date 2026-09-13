@@ -37,6 +37,9 @@
             <TextBlock :Text="'成员（' + users.length + '）'" :FontSize="15" :FontWeight="500" />
             <div class="yali-head-tools">
               <TextBox v-model:Text="keyword" PlaceholderText="搜索姓名" class="ad-search" />
+              <Button @Click="openImport">
+                <span class="yali-btn-inner"><span>批量导入</span></span>
+              </Button>
               <Button @Click="loadMoreUsers" :IsEnabled="hasMoreUsers && !usersLoading">
                 <span class="yali-btn-inner"><span>{{ usersLoading ? '加载中…' : '加载更多' }}</span></span>
               </Button>
@@ -239,6 +242,62 @@
         </section>
       </template>
     </div>
+
+    <!-- ── 批量导入成员 ── -->
+    <ContentDialog :IsOpen="importOpen" Title="批量导入成员" CloseButtonText="关闭"
+                   @update:IsOpen="importOpen = $event">
+      <div class="yali-form">
+        <SelectorBar :Items="importModes" :SelectedItem="importModes[importMode]"
+                     @SelectionChanged="(a) => { importMode = a?.SelectedIndex ?? 0; importParsed = [] }" />
+
+        <label v-if="importMode === 0" class="yali-field ad-gap">
+          <span class="yali-field-label">上传 CSV 文件</span>
+          <input type="file" accept=".csv" class="form-input" @change="onImportFile" />
+          <span class="yali-setting-desc">格式：姓名,密码,班级,部门（每行一条，部门可选）</span>
+        </label>
+
+        <label v-else-if="importMode === 1" class="yali-field ad-gap">
+          <span class="yali-field-label">上传 JSON 文件</span>
+          <input type="file" accept=".json" class="form-input" @change="onImportFile" />
+          <span class="yali-setting-desc">
+            格式：[{&quot;name&quot;:&quot;…&quot;,&quot;password&quot;:&quot;…&quot;,&quot;class_name&quot;:&quot;…&quot;,&quot;department&quot;:&quot;…&quot;}]
+          </span>
+        </label>
+
+        <template v-else>
+          <label class="yali-field ad-gap">
+            <span class="yali-field-label">手动输入</span>
+            <TextBox v-model:Text="importText" AcceptsReturn TextWrapping="Wrap"
+                     PlaceholderText="每行一条：姓名 密码 班级 部门
+例如：张三 abc123 2501 宣传部" />
+          </label>
+          <div class="yali-form-actions">
+            <Button @Click="parseManual">
+              <span class="yali-btn-inner"><span>解析</span></span>
+            </Button>
+          </div>
+        </template>
+
+        <template v-if="importParsed.length">
+          <TextBlock :Text="`解析出 ${importParsed.length} 条，确认后提交`"
+                     :FontSize="13" :FontWeight="500" class="ad-gap" />
+          <div class="ad-import-preview">
+            <div v-for="(u, i) in importParsed" :key="i" class="ad-import-row">
+              <span class="ad-name">{{ u.name }}</span>
+              <span class="yali-muted">{{ u.class_name || '—' }}</span>
+              <span class="yali-chip">{{ u.department || '未分配' }}</span>
+            </div>
+          </div>
+          <div class="yali-form-actions">
+            <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!importing" @Click="confirmImport">
+              <span class="yali-btn-inner"><span>{{ importing ? '导入中…' : '确认导入' }}</span></span>
+            </Button>
+          </div>
+        </template>
+
+        <p v-if="importResult" class="yali-muted ad-gap">{{ importResult }}</p>
+      </div>
+    </ContentDialog>
   </YaliShell>
 </template>
 
@@ -575,6 +634,114 @@ async function removeReview(r: ReviewItem) {
   }
 }
 
+/* ── 批量导入成员 ──
+   后端 POST /api/admin/users/batch-import { users: [{name,password,class_name,department}] }
+   返回 { success, skipped, failed: [{index,name,reason}] }。
+   解析口径与旧页面一致：CSV 按逗号、手动输入按空白分隔。 */
+interface ImportUser {
+  name: string
+  password: string
+  class_name?: string
+  department?: string
+}
+
+const importModes = ['CSV 文件', 'JSON 文件', '手动输入'].map((Text) => ({ Text }))
+const importOpen = ref(false)
+const importMode = ref(0)
+const importText = ref('')
+const importParsed = ref<ImportUser[]>([])
+const importing = ref(false)
+const importResult = ref('')
+
+function openImport() {
+  importOpen.value = true
+  importMode.value = 0
+  importText.value = ''
+  importParsed.value = []
+  importResult.value = ''
+}
+
+function normalizeImport(list: unknown[]): ImportUser[] {
+  return list
+    .map((raw) => {
+      const u = raw as Record<string, unknown>
+      return {
+        name: String(u.name ?? '').trim(),
+        password: String(u.password ?? '').trim(),
+        class_name: String(u.class_name ?? '').trim(),
+        department: String(u.department ?? '').trim()
+      }
+    })
+    .filter((u) => u.name && u.password)
+}
+
+function onImportFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = String(reader.result ?? '')
+    try {
+      if (importMode.value === 1) {
+        const parsed = JSON.parse(text)
+        if (!Array.isArray(parsed)) throw new Error('JSON 顶层必须是数组')
+        importParsed.value = normalizeImport(parsed)
+      } else {
+        importParsed.value = normalizeImport(
+          text
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .map((line) => {
+              const p = line.split(',').map((s) => s.trim())
+              return { name: p[0], password: p[1], class_name: p[2], department: p[3] }
+            })
+        )
+      }
+      if (!importParsed.value.length) toast('没有解析出有效数据（姓名与密码都要有）', 'error')
+    } catch (err) {
+      importParsed.value = []
+      toast('解析失败：' + (err as Error).message, 'error')
+    }
+  }
+  reader.readAsText(file)
+}
+
+function parseManual() {
+  const lines = importText.value.split('\n').filter((l) => l.trim())
+  if (!lines.length) return toast('请输入数据', 'error')
+  importParsed.value = normalizeImport(
+    lines.map((line) => {
+      const p = line.trim().split(/\s+/)
+      return { name: p[0], password: p[1], class_name: p[2], department: p[3] }
+    })
+  )
+  if (!importParsed.value.length) toast('没有解析出有效数据（姓名与密码都要有）', 'error')
+}
+
+async function confirmImport() {
+  if (!importParsed.value.length) return
+  importing.value = true
+  importResult.value = ''
+  try {
+    const res = await apiPost<{
+      success?: number
+      skipped?: number
+      failed?: Array<{ name: string; reason: string }>
+    }>('/api/admin/users/batch-import', { users: importParsed.value })
+    const failed = res?.failed ?? []
+    importResult.value =
+      `成功 ${res?.success ?? 0} 条，跳过重复 ${res?.skipped ?? 0} 条，失败 ${failed.length} 条` +
+      (failed.length ? '：' + failed.slice(0, 5).map((f) => `${f.name}（${f.reason}）`).join('、') : '')
+    toast('导入完成', 'success')
+    importParsed.value = []
+    await loadUsers(true)
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    importing.value = false
+  }
+}
+
 async function loadFeedback() {
   try {
     feedback.value = (await apiGet<Feedback[]>('/api/admin/feedback')) ?? []
@@ -834,6 +1001,25 @@ onMounted(() => loadForTab(tabIndex.value))
   gap: 8px;
   flex-wrap: wrap;
   margin: 12px 0;
+}
+.ad-import-preview {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.ad-import-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--stroke-divider);
+}
+.ad-import-row:last-child {
+  border-bottom: none;
 }
 .ad-review-media {
   margin-top: 8px;
