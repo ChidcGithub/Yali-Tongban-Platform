@@ -23,7 +23,11 @@ export default defineConfig({
       output: {
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]'
+        assetFileNames: 'assets/[name]-[hash][extname]',
+        // 共享层命名规范化（默认会按首个公共模块命名，得到 emblem-*.js 这种名字）
+        manualChunks(id) {
+          if (id.includes('src/winui/') || id.includes('node_modules/vue')) return 'winui'
+        }
       }
     }
   },
