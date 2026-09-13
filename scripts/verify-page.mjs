@@ -42,6 +42,17 @@ const fixtures = {
       { id: 23, title: '关于调整值日安排的通知', content: '因考试周临近，值日安排相应调整，详见附表。', status: '待审核', created_by: '纪检部', created_at: now, comment_count: 1, has_image: 0 }
     ]
   },
+  moment: {
+    feedPayload: {
+      messages: [
+        { id: 31, type: 'system', content: '团委办公室 通过了你提交的报修「投影仪无法开机」', created_at: new Date(now * 1000).toISOString(), ref_type: 'issue', ref_id: 1, system_data: JSON.stringify({ status: '已完成' }) },
+        { id: 32, type: 'system', content: '发布了一条新公告：关于开展秋季志愿服务的通知', created_at: new Date((now - 7200) * 1000).toISOString(), ref_type: 'announcement', ref_id: 21 },
+        { id: 33, type: 'system', content: '发起了新投票：秋季运动会项目征集', created_at: new Date((now - 86400) * 1000).toISOString(), ref_type: 'poll', ref_id: 5 }
+      ],
+      nextCursor: null,
+      hasMore: false
+    }
+  },
   messages: {
     msgPayload: {
       messages: [
@@ -80,6 +91,8 @@ const stub = `
     if (fx.banner && url.indexOf('/api/banner') === 0) return fx.banner;
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
+    if (fx.feedPayload && url.indexOf('/api/chat/messages') === 0) return fx.feedPayload;
+    if (fx.feedPayload && url.indexOf('/api/feed/') === 0) return [{ id: 41, created_by: '王五', content: '收到', created_at: new Date(now * 1000).toISOString() }];
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
     if (fx.list && url.indexOf('/api/announcements') === 0) return fx.list;
     if (url.indexOf('/api/settings') === 0) return {};
