@@ -1,0 +1,78 @@
+/* ═══════════════════════════════════════
+    Base Reset & Typography
+   ═══════════════════════════════════════ */
+
+@font-face {
+  font-family: 'Google Sans Flex';
+  src: url('../../../fonts/GSF.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+html.dark { color-scheme: dark; }
+body {
+  font-family: var(--md-font-body);
+  transition: background .3s, color .3s;
+  background:
+    radial-gradient(ellipse 80% 40% at 20% 0%, rgba(13,33,55,.04) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 30% at 80% 100%, rgba(13,33,55,.03) 0%, transparent 60%),
+    var(--md-surface);
+  color: var(--md-on-surface);
+  line-height: 1.65;
+  padding-top: var(--nav-height);
+  padding-bottom: 80px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+/* geometric dot pattern overlay */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background-image: radial-gradient(circle, var(--md-outline-variant) .6px, transparent .6px);
+  background-size: 28px 28px;
+  opacity: .35;
+  pointer-events: none;
+}
+/* emblem watermark */
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: -1;
+  background: url('/images/emblem.png') center / 320px auto no-repeat;
+  opacity: .045;
+  pointer-events: none;
+}
+a { color: var(--md-primary-light); text-decoration: none; transition: opacity .2s; }
+a:hover { opacity: .8; text-decoration: none; }
+img { max-width: 100%; height: auto; display: block; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--md-outline); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--md-on-surface-variant); }
+
+/* ── INLINE SVG ICONS ── */
+svg { display: inline; vertical-align: middle; }
+.btn svg, .nav-link svg, .badge svg, .announce-banner-title svg { margin-right: 2px; }
+
+/* ── PRINT ── */
+@media print {
+  .ach-toast { display: none !important; }
+  body { background: white !important;   color: black !important; padding-top: 0; padding-bottom: 0; }
+  .nav, .tab-capsule, .fab, .toast-container, .modal-overlay, .lightbox,
+  #sco, .site-closed-overlay, body::before, body::after { display: none !important; }
+  .card, .feed-item, .feed-item-notification { box-shadow: none; border: 1px solid var(--md-outline-variant); break-inside: avoid; }
+  a { color: black !important; text-decoration: underline; }
+  .container { max-width: 100%; padding: 0; animation: none !important; }
+  .page-header::after, #pcTrophy { display: none; }
+  .img-grid { grid-template-columns: repeat(2, 1fr); }
+  .feed-list { padding: 0; max-height: none; overflow: visible; }
+  .feed-item { max-width: 100%; break-inside: avoid; }
+  .container { animation: none !important; }
+  .card, .img-card, .announce-card, .issue-item, .summary-card, .fab { animation: none !important; }
+  .feed-item, .announce-banner-text, .login-form-wrap { animation: none !important; }
+}

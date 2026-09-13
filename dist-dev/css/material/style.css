@@ -1,0 +1,29 @@
+/* ═══════════════════════════════════════
+    雅礼团委-通办 · Material 3 Expressive
+    雅礼深蓝 · M3 Design System
+    入口文件 · 按 base/components/pages 分层
+   ═══════════════════════════════════════ */
+
+/* ── 主题 Design Tokens（便于多主题扩展）── */
+@import url('theme-light.css');
+@import url('theme-dark.css');
+
+/* ── Base ── */
+@import url('base/reset.css');
+
+/* ── Components ── */
+@import url('components/navigation.css');
+@import url('components/controls.css');
+@import url('components/cards.css');
+@import url('components/overlay.css');
+@import url('components/content.css');
+@import url('components/google-motion.css');
+@import url('components/responsive.css');
+
+/* ── Pages ── */
+@import url('pages/login.css');
+@import url('pages/admin.css');
+@import url('pages/personal.css');
+@import url('pages/hall.css');
+@import url('pages/duty.css');
+@import url('pages/messages.css');

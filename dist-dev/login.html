@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 雅礼团委-通办</title>
+  <link rel="icon" href="/icon/emblem.ico" type="image/x-icon">
+  <!-- 站点自己的 M3 design token（现行 UI 路线就是以这套 --md-* 为基础）。
+       除了作为 WinUI accent 的来源，遗留脚本注入的浮层（toast / 模态框 / 灯箱 /
+       Cookie 提示 / 成就提示）也依赖这些 token，否则会渲染成无样式裸元素。 -->
+  <link rel="stylesheet" href="/css/material/theme-light.css">
+  <link rel="stylesheet" href="/css/material/theme-dark.css">
+  <!-- 上述浮层组件的布局样式（纯 overlay 层，不复用旧设计系统的其它部分） -->
+  <link rel="stylesheet" href="/css/material/components/overlay.css">
+  <script type="module" crossorigin src="/assets/login-76Q8Ptl5.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/winui-CI5g4Vuk.js">
+  <link rel="modulepreload" crossorigin href="/assets/emblem-DX-a_TVF.js">
+  <link rel="modulepreload" crossorigin href="/assets/YaliShell.vue_vue_type_style_index_0_lang-BLhuIcUh.js">
+  <link rel="modulepreload" crossorigin href="/assets/api-Cq8EpUfd.js">
+  <link rel="stylesheet" crossorigin href="/assets/winui-4uha7LNW.css">
+  <link rel="stylesheet" crossorigin href="/assets/emblem-CpJVpx6X.css">
+  <link rel="stylesheet" crossorigin href="/assets/YaliShell-Crb0vyOF.css">
+  <link rel="stylesheet" crossorigin href="/assets/login-DW5Y0STy.css">
+</head>
+<body>
+  <div id="winui-root"></div>
+
+  <!-- 遗留脚本：提供 getUser / isAdmin / toast / fetchWithCache / apiGet 等全局能力。
+       winui-legacy-bridge.js 必须最先加载（api.js 会调用 nav.js 的加载指示函数，
+       而 WinUI 页面不加载 nav.js）。nav.js 本身一律不要 —— 导航由 NavigationView 承担。 -->
+  <script src="/js/winui-legacy-bridge.js"></script>
+  <script src="/js/features.js"></script>
+  <script src="/js/modal.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/captcha.js"></script>
+
+</body>
+</html>

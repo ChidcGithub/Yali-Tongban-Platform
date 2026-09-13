@@ -1,0 +1,2 @@
+var APP_VERSION = '3.0.0';
+var APP_DEPLOYED = '2026-08-27 17:00';

@@ -1,0 +1,60 @@
+/* ═══════════════════════════════════════
+    M3 Design Tokens · 深色主题 (Dark)
+    雅礼深蓝 · 深色模式
+   ═══════════════════════════════════════ */
+
+.dark {
+  --md-primary: #AAC7FF;
+  --md-on-primary: #00315E;
+  --md-primary-container: #00488A;
+  --md-on-primary-container: #D6E3FF;
+  --md-primary-dim: #7CABFF;
+  --md-primary-light: #AAC7FF;
+  --md-secondary: #BBC7DB;
+  --md-secondary-container: #3B485A;
+  --md-on-secondary-container: #D7E3F7;
+  --md-tertiary: #DBBDDF;
+  --md-tertiary-container: #553E5D;
+  --md-on-tertiary-container: #F8D9FF;
+  --md-surface: #111318;
+  --md-surface-dim: #111318;
+  --md-surface-container-low: #171A1E;
+  --md-surface-container: #1D1F24;
+  --md-surface-container-high: #282A2F;
+  --md-surface-container-highest: #33353A;
+  --md-on-surface: #E2E2E6;
+  --md-on-surface-variant: #C4C6D0;
+  --md-outline: #8E9099;
+  --md-outline-variant: #43474E;
+  --md-error: #FFB4AB;
+  --md-on-error: #690005;
+  --md-error-container: #93000A;
+  --md-on-error-container: #FFDAD6;
+  --md-surface-variant: #43474E;
+  --bg: var(--md-surface);
+  --bg-card: var(--md-surface-container);
+  --text: var(--md-on-surface);
+  --text-secondary: var(--md-on-surface-variant);
+  --text-light: var(--md-outline);
+  --border: var(--md-outline-variant);
+  --shadow: 0 1px 3px rgba(0,0,0,.3), 0 1px 2px rgba(0,0,0,.2);
+  --shadow-lg: 0 4px 16px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3);
+}
+
+/* ── 深色模式组件覆盖 ── */
+.dark body {
+  background:
+    radial-gradient(ellipse 80% 40% at 20% 0%, rgba(170,199,255,.05) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 30% at 80% 100%, rgba(170,199,255,.04) 0%, transparent 60%),
+    var(--md-surface);
+}
+.dark body::before { opacity: .15; }
+.dark .card { background: var(--md-surface-container); }
+.dark .modal-content { background: var(--md-surface-container); }
+.dark input, .dark textarea, .dark select { background: var(--md-surface); color: var(--md-on-surface); border-color: var(--border); }
+.dark .nav { background: rgba(17,19,24,.85); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+.dark .nav-brand { color: var(--md-primary); }
+.dark .tab-capsule { background: rgba(29,31,36,.92); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-color: var(--border); }
+.dark .tab-cap-item { color: var(--md-on-surface-variant); }
+.dark .tab-cap-item.active { background: var(--md-primary-container); color: var(--md-on-primary-container); }
+.dark .tab-cap-expand { color: var(--md-on-surface-variant); }

@@ -1,0 +1,67 @@
+/* ═══════════════════════════════════════
+   Google 风格动效组件（Motion Components）
+   来源：Google 首页样式提取（2026-08-27）
+   · g-skeleton 骨架屏扫光（ghost-loading-slide 风格）
+   纯 CSS 实现，扫光节奏取自 Google 官方样式表。
+   注：四色加载器 g-spinner 曾在此实现，经 Chidc 审阅后未采纳，
+   于 2026-08-27 移除（历史版本见 _backups/google-ref/）。
+   ═══════════════════════════════════════ */
+
+/* ── 骨架屏（扫光）──────────────────────
+   用法：
+   <div class="g-skeleton g-skeleton-card">
+     <div class="g-skeleton-circle"></div>
+     <div class="g-skeleton-body">
+       <div class="g-skeleton-line" style="width:60%"></div>
+       <div class="g-skeleton-line"></div>
+       <div class="g-skeleton-line" style="width:85%"></div>
+     </div>
+   </div>
+   行 / 圆形 / 整卡三种变体自由组合；
+   背景与扫光自动适配明暗主题（继承 --md-* 令牌）。 */
+.g-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--md-surface-container-high, #E8EAED);
+  border-radius: var(--md-shape-xs, 8px);
+}
+.g-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.5) 50%, transparent 100%);
+  animation: g-skeleton-slide 1.6s ease-in-out infinite;
+}
+.dark .g-skeleton::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,.07) 50%, transparent 100%);
+}
+@keyframes g-skeleton-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+/* 变体：文本行 / 圆形头像 / 整卡占位 */
+.g-skeleton-line { height: 14px; margin: 10px 0; }
+.g-skeleton-line:first-child { width: 40%; }
+.g-skeleton-circle { width: 40px; height: 40px; border-radius: 50%; margin-right: 12px; }
+/* 行/圆形的灰块背景：比容器底色深一档，保证层次（浅色主题下卡片白底、行灰块） */
+.g-skeleton-line,
+.g-skeleton-circle {
+  background: var(--md-surface-container-highest, #DDE3EA);
+}
+.dark .g-skeleton-line,
+.dark .g-skeleton-circle {
+  background: var(--md-surface-container-high, #E8EAED);
+}
+.g-skeleton-card {
+  display: flex;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: var(--md-shape-md, 12px);
+  box-shadow: var(--md-elevation-0, none);
+}
+.g-skeleton-card .g-skeleton-body { flex: 1; min-width: 0; }
+
+/* ── 无障碍：尊重平台的动画偏好 ────────── */
+.no-animation .g-skeleton::after { animation: none; }
+.reduce-animation .g-skeleton::after { animation-duration: 2.4s; }

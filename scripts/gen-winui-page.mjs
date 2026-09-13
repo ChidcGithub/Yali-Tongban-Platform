@@ -125,6 +125,11 @@ function buildHtml(name) {
   <link rel="stylesheet" href="/css/material/components/overlay.css">
 </head>
 <body>
+  <!-- 站点维护模式的遮罩容器。api.js 的 applyOverlay()/showSiteClosedOverlay()
+       都从 document.getElementById('sco') 取元素，拿不到就直接 return ——
+       旧页面在 HTML 里提供这个空容器，这里必须保持一致，否则维护模式形同虚设。 -->
+  <div id="sco" style="position:fixed;inset:0;z-index:99999;background:var(--md-primary);opacity:0;pointer-events:none;transition:opacity .2s"></div>
+
   <div id="winui-root"></div>
 
   <!-- 遗留脚本：提供 getUser / isAdmin / toast / fetchWithCache / apiGet 等全局能力。

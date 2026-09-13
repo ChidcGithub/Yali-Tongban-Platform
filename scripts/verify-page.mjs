@@ -25,7 +25,9 @@ const entry = process.argv[2] || 'services'
 /** 可选：第 3 个参数是查询串（如 "?id=21"），注入给依赖 location.search 的页面 */
 const query = process.argv[3] || ''
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const dist = join(root, 'dist')
+/** 产物目录：默认 dist；用 VERIFY_DIST=dist-dev 可对着 dev 构建跑，
+    dev 构建保留 Vue 的 prop 校验与开发期警告，能暴露类型不符之类的问题 */
+const dist = join(root, process.env.VERIFY_DIST || 'dist')
 
 const srcPath = join(dist, `${entry}.html`)
 if (!existsSync(srcPath)) throw new Error(`找不到 ${srcPath}（先跑 npm run build）`)
@@ -222,6 +224,12 @@ const stub = `
   } catch (e) {}
 
   window.__errors = [];
+  /* 哨兵：脚本确实执行过的证据。检查时必须先看它，
+     否则「页面根本没加载出来」（如预览服务已退出）会被误判为「零错误」。 */
+  var __sentinel = document.createElement('div');
+  __sentinel.id = '__loaded';
+  __sentinel.textContent = 'ready';
+  document.documentElement.appendChild(__sentinel);
   function record(msg) {
     window.__errors.push(String(msg));
     var el = document.getElementById('__errors');
@@ -230,6 +238,22 @@ const stub = `
   }
   window.addEventListener('error', function (e) { record((e.message || '') + ' @' + (e.filename || '')); });
   window.addEventListener('unhandledrejection', function (e) { record('unhandledrejection: ' + ((e.reason && e.reason.message) || e.reason)); });
+
+  /* 捕获 console.warn / console.error —— Vue 的 prop 类型不符、未知属性、
+     重复键等运行期问题都走这里，只看 window.onerror 是抓不到的 */
+  window.__warns = [];
+  var _warn = console.warn, _error = console.error;
+  function recordWarn(level, args) {
+    var msg = Array.prototype.map.call(args, function (a) {
+      try { return typeof a === 'string' ? a : JSON.stringify(a); } catch (e) { return String(a); }
+    }).join(' ');
+    window.__warns.push('[' + level + '] ' + msg);
+    var el = document.getElementById('__warns');
+    if (!el) { el = document.createElement('div'); el.id = '__warns'; document.documentElement.appendChild(el); }
+    el.textContent = window.__warns.join(' || ');
+  }
+  console.warn = function () { recordWarn('warn', arguments); _warn.apply(console, arguments); };
+  console.error = function () { recordWarn('error', arguments); _error.apply(console, arguments); };
 
   window.getUser = function () { return { name: '测试用户', role: 'admin' }; };
   window.isAdmin = function () { return true; };
