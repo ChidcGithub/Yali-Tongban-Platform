@@ -111,6 +111,18 @@ const FIXTURES = {
     ]
   },
 
+  poll: {
+    pollDetail: {
+      id: 5, title: '秋季运动会项目征集', description: '请选择你希望增设的比赛项目',
+      status: 'open', created_by: '团委办公室', total_votes: 42, require_name: 0,
+      questions: [
+        { id: 1, type: 'single', title: '你最希望增设哪个项目？', options: ['4x100 米接力', '跳高', '趣味接力'] },
+        { id: 2, type: 'multiple', title: '你觉得哪些环节需要改进？（可多选）', options: ['检录流程', '场地布置', '计分公示'] },
+        { id: 3, type: 'text', title: '其他建议' }
+      ]
+    },
+    myVote: []
+  },
   activities: {
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
@@ -132,6 +144,11 @@ const stub = `
   } catch (e) {}
 
   window.__errors = [];
+  window.__search = location.search;
+  var dbg = document.createElement('div');
+  dbg.id = '__search';
+  dbg.textContent = 'search=' + location.search + '; pathname=' + location.pathname;
+  document.documentElement.appendChild(dbg);
   function record(msg) {
     window.__errors.push(String(msg));
     var el = document.getElementById('__errors');
@@ -158,6 +175,8 @@ const stub = `
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
     if (fx.feedPayload && url.indexOf('/api/chat/messages') === 0) return fx.feedPayload;
     if (fx.feedPayload && url.indexOf('/api/feed/') === 0) return fx.comments || [];
+    if (fx.pollDetail && url.indexOf('/my-vote') > 0) return fx.myVote;
+    if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
     if (fx.list && url.indexOf('/api/announcements/images') === 0) return {};
@@ -197,6 +216,24 @@ const stub = `
 `
 
 const out = html.replace(/<head([^>]*)>/i, `<head$1>\n<script>${stub}</script>`)
+
+/* 自检：注入的脚本一旦有语法错误，会**整体不执行** ——
+   而错误监听器就在这个脚本里，于是表现为「零错误但页面没数据」的静默假绿。
+   这里先生成一次校验语法，有问题立刻报错。（曾因正则转义丢失踩过一次） */
+try {
+  // eslint-disable-next-line no-new-func
+  new Function(stub)
+} catch (err) {
+  console.error('❌ 注入的验证脚本存在语法错误，会导致静默失效：')
+  console.error('   ' + err.message)
+  const bad = stub.split('\n').filter((l) => /^\s*if \(.*&&\s*\/\//.test(l))
+  if (bad.length) {
+    console.error('   可疑行（正则转义丢失，// 被当成注释）：')
+    for (const l of bad) console.error('     ' + l.trim())
+  }
+  process.exit(1)
+}
+
 writeFileSync(join(dist, '__verify.html'), out)
 
 console.log(`已生成 dist/__verify.html (entry=${entry}${query ? `, query=${query}` : ''})`)
