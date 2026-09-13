@@ -87,6 +87,13 @@
           </label>
         </div>
 
+        <label class="yali-field">
+          <span class="yali-field-label">限定班级（选填）</span>
+          <TextBox v-model:Text="draft.allowed_classes"
+                   PlaceholderText="4 位班级编号，多个用逗号或空格隔开，如 2517 2518" />
+          <span class="yali-setting-desc">留空表示不限班级</span>
+        </label>
+
         <div class="poll-questions">
           <div class="poll-questions-head">
             <TextBlock Text="题目" :FontSize="14" :FontWeight="500" />
@@ -277,6 +284,8 @@ const draft = reactive({
   title: '',
   description: '',
   require_name: false,
+  /** 限定班级：输入框里是逗号/空格分隔的 4 位班级编号，提交前解析成数组 */
+  allowed_classes: '',
   questions: [
     { title: '', options: ['', ''], type: 'single', _typeIndex: 0 }
   ] as DraftQuestion[]
@@ -292,6 +301,11 @@ function removeQuestion(i: number) {
 
 async function create() {
   if (!draft.title.trim()) return toast('请填写投票标题', 'error')
+  // 限定班级：逗号/空格分隔，只保留 4 位编号（与原页面同一口径）
+  const allowedClasses = draft.allowed_classes
+    .split(/[,，\s]+/)
+    .filter(Boolean)
+    .filter((c) => /^\d{4}$/.test(c))
   const questions = draft.questions
     .filter((q) => q.title.trim())
     .map((q) => ({
@@ -316,7 +330,7 @@ async function create() {
       description: draft.description,
       require_name: draft.require_name,
       min_role: ROLE_VALUES[roleIndex.value],
-      allowed_classes: [],
+      allowed_classes: allowedClasses,
       questions
     })
     polls.value.unshift({
@@ -327,12 +341,15 @@ async function create() {
       min_role: ROLE_VALUES[roleIndex.value],
       created_by: getUser()?.name ?? '',
       total_votes: 0,
-      require_name: draft.require_name ? 1 : 0
+      require_name: draft.require_name ? 1 : 0,
+      allowed_classes: allowedClasses
     })
     toast('投票已创建', 'success')
     dialogOpen.value = false
     draft.title = ''
     draft.description = ''
+    draft.require_name = false
+    draft.allowed_classes = ''
     draft.questions = [{ title: '', options: ['', ''], type: 'single', _typeIndex: 0 }]
     roleIndex.value = 0
   } catch (err) {

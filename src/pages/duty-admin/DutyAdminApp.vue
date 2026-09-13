@@ -169,6 +169,40 @@
       </div>
     </ContentDialog>
 
+    <!-- 销分（后端要 score_record_id + reason + admin_id + password 四项，
+         其中 reason 是必填、admin_id 必须是一个真实管理员账号用于验密） -->
+    <ContentDialog :IsOpen="cancelDialog" Title="取消评分记录" CloseButtonText="取消"
+                   @update:IsOpen="cancelDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">
+          将取消 {{ cancelTarget?.name }} 在 {{ cancelTarget?.date }} {{ cancelTarget?.period }} 的记录
+          （{{ Number(cancelTarget?.score ?? 0) > 0 ? '+' : '' }}{{ cancelTarget?.score }} 分）
+        </p>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人 <em>*</em></span>
+          <ComboBox :ItemsSource="adminNames" :SelectedIndex="cancelAdminIndex"
+                    @SelectionChanged="(a) => (cancelAdminIndex = a?.SelectedIndex ?? -1)"
+                    PlaceholderText="选择管理员" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">取消原因 <em>*</em></span>
+          <TextBox v-model:Text="cancelReason" PlaceholderText="如：录入有误" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">密码 <em>*</em></span>
+          <PasswordBox v-model:Password="cancelPassword" PlaceholderText="销分人账号密码" />
+        </label>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="cancelDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="confirmCancelScore">
+            <span class="yali-btn-inner"><span>{{ busy ? '处理中…' : '确认取消' }}</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
     <!-- 手动加减分 -->
     <ContentDialog :IsOpen="scoreDialog" Title="手动加减分" CloseButtonText="取消"
                    @update:IsOpen="scoreDialog = $event">
@@ -461,16 +495,57 @@ async function addScore() {
   }
 }
 
-async function cancelScore(r: ScoreRow) {
-  if (!window.confirm('确定取消这条评分记录吗？需管理员密码验证。')) return
-  const pwd = window.prompt('请输入管理员密码以确认')
-  if (!pwd) return
+/* ── 销分 ── */
+interface AdminUser { id: number; name: string; role: string }
+
+const cancelDialog = ref(false)
+const cancelTarget = ref<ScoreRow | null>(null)
+const cancelReason = ref('')
+const cancelPassword = ref('')
+const cancelAdminIndex = ref(-1)
+const admins = ref<AdminUser[]>([])
+const adminNames = computed(() => admins.value.map((a) => `${a.name}（${a.role}）`))
+
+async function loadAdmins() {
   try {
-    await apiPost('/api/duty/scores/cancel', { record_id: r.id, password: pwd })
+    admins.value = (await apiGet<AdminUser[]>('/api/duty/admins')) ?? []
+  } catch {
+    admins.value = []
+  }
+}
+
+async function cancelScore(r: ScoreRow) {
+  cancelTarget.value = r
+  cancelReason.value = ''
+  cancelPassword.value = ''
+  cancelAdminIndex.value = -1
+  if (!admins.value.length) await loadAdmins()
+  cancelDialog.value = true
+}
+
+async function confirmCancelScore() {
+  const r = cancelTarget.value
+  if (!r) return
+  if (cancelAdminIndex.value < 0) return toast('请选择销分人', 'error')
+  if (!cancelReason.value.trim()) return toast('请填写取消原因', 'error')
+  if (!cancelPassword.value) return toast('请输入密码', 'error')
+  busy.value = true
+  try {
+    // 后端字段：score_record_id / reason / admin_id / password（不是 record_id）
+    await apiPost('/api/duty/scores/cancel', {
+      score_record_id: r.id,
+      reason: cancelReason.value.trim(),
+      admin_id: admins.value[cancelAdminIndex.value]?.id,
+      password: cancelPassword.value
+    })
     r.is_cancelled = true
-    toast('记录已取消', 'success')
+    cancelDialog.value = false
+    toast('已取消该评分记录', 'success')
+    loadScores()
   } catch (err) {
     toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
   }
 }
 
