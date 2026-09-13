@@ -12,7 +12,8 @@
 
       <div v-else-if="!visible.length" class="yali-loading">
         <FontIcon :Glyph="GLYPH.polls" :FontSize="28" class="yali-muted-icon" />
-        <TextBlock Text="暂无投票" class="yali-muted" />
+        <TextBlock :Text="polls.length ? '暂无你可参与的投票' : '暂无投票'" class="yali-muted" />
+        <TextBlock v-if="!polls.length" Text="还没有投票活动，敬请期待" class="yali-muted" />
       </div>
 
       <ListView v-else :ItemsSource="visible" SelectionMode="None" class="yali-list">
@@ -33,6 +34,7 @@
             <div class="yali-item-meta">
               <span>{{ item.created_by }}</span>
               <span>{{ roleText(item.min_role) }}</span>
+              <span v-if="classText(item)">{{ classText(item) }}</span>
               <span>{{ item.total_votes }} 人参与</span>
               <span v-if="item.require_name">需留名</span>
             </div>
@@ -144,10 +146,12 @@ interface Poll {
   title: string
   description?: string
   status?: string
-  min_role?: string
+  min_role?: string | null
   created_by: string
   total_votes?: number
   require_name?: 0 | 1
+  /** 列表接口是 SELECT *，这里是**未解析的 JSON 字符串**；详情接口才解析成数组 */
+  allowed_classes?: string | string[]
 }
 
 const user = ref(getUser())
@@ -155,7 +159,41 @@ const admin = isAdmin()
 const polls = ref<Poll[]>([])
 const loading = ref(true)
 
-const visible = computed(() => polls.value)
+/** 班级白名单：列表接口给的是 JSON 字符串，需自行解析 */
+function classList(p: Poll): string[] {
+  const raw = p.allowed_classes
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function classText(p: Poll) {
+  const list = classList(p)
+  if (!list.length) return ''
+  return `限 ${list.join('、')}`
+}
+
+/* 可见性：与旧版 polls.js 一致 —— 按 min_role 权重与班级白名单过滤，
+   不可参与的投票不出现在列表里（管理员同样遵守，只有自己的投票始终可见） */
+const ROLE_WEIGHT: Record<string, number> = { member: 2, admin: 3, owner: 4 }
+
+const visible = computed(() => {
+  const u = user.value
+  const weight = u ? ROLE_WEIGHT[u.role] || 0 : 0
+  return polls.value.filter((p) => {
+    if (p.created_by === u?.name) return true
+    if (p.min_role === 'admin' && weight < 3) return false
+    if (p.min_role === 'member' && !u) return false
+    const classes = classList(p)
+    if (classes.length > 0 && (!u || !u.class_name || !classes.includes(u.class_name))) return false
+    return true
+  })
+})
 
 function roleText(role?: string) {
   if (!role) return '所有人'
@@ -186,10 +224,16 @@ function open(p: Poll) {
 
 async function exportCsv(p: Poll) {
   try {
-    const res = await fetch(`/api/polls/${p.id}/export`, {
-      headers: { Authorization: '' }
-    })
-    if (!res.ok) throw new Error('导出失败')
+    // 与旧版一致：同源 cookie 鉴权，无需额外请求头
+    const res = await fetch(`/api/polls/${p.id}/export`)
+    if (!res.ok) {
+      let msg = '导出失败'
+      try {
+        const d = await res.json()
+        if (d?.error) msg = d.error
+      } catch { /* 非 JSON 响应 */ }
+      throw new Error(msg)
+    }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

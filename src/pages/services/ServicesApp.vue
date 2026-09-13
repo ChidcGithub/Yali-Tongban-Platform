@@ -71,8 +71,15 @@
                 <TextBlock :Text="'备注：' + item.notes" TextWrapping="Wrap" />
               </div>
 
-              <img v-if="hasImage(item)" :src="item.image_url" alt="问题图片"
-                   class="yali-item-img" @click="openLightbox(toBlobUrl(item.image_url))" />
+              <!-- 两段式图片：列表接口只给 has_image，图片按批异步取回；
+                   未到达时先显示扫光占位（与公告页同一策略） -->
+              <div v-if="issueImageMap[item.id] && issueImageMap[item.id].length" class="yali-item-media">
+                <img :src="toBlobUrl(issueImageMap[item.id][0])" alt="问题图片"
+                     class="yali-item-img" @click="openLightbox(toBlobUrl(issueImageMap[item.id][0]))" />
+              </div>
+              <div v-else-if="item.has_image" class="yali-img-skeleton" aria-hidden="true">
+                <div class="yali-shimmer"></div>
+              </div>
 
               <div class="yali-item-meta">
                 <span>提交人：{{ item.submitted_by }}</span>
@@ -227,7 +234,8 @@ interface Issue {
   created_at: string
   updated_by?: string
   comment_count?: number
-  image_url?: string
+  /** 列表接口只给标记，图片走 /api/issues/images?ids= 按需取 */
+  has_image?: number | boolean
 }
 
 interface Comment {
@@ -279,8 +287,27 @@ const filteredIssues = computed(() =>
     : issues.value.filter((i) => i.status === activeFilter.value)
 )
 
-function hasImage(issue: Issue) {
-  return !!issue.image_url && issue.image_url.startsWith('data:')
+/* ── 两段式报修图片加载（沿用站点既有策略：每批 4 条） ── */
+const issueImageMap = reactive<Record<number, string[]>>({})
+
+async function loadIssueImagesLazy() {
+  const pending = issues.value
+    .filter((i) => i.has_image && !(i.id in issueImageMap))
+    .map((i) => i.id)
+
+  for (let i = 0; i < pending.length; i += 4) {
+    const batch = pending.slice(i, i + 4)
+    let map: Record<string, string> = {}
+    try {
+      map = await apiGet<Record<string, string>>(`/api/issues/images?ids=${batch.join(',')}`)
+    } catch {
+      map = {}
+    }
+    for (const id of batch) {
+      const url = map?.[id]
+      issueImageMap[id] = url ? [url] : []
+    }
+  }
 }
 
 async function loadIssues() {
@@ -288,6 +315,7 @@ async function loadIssues() {
   loadError.value = ''
   try {
     issues.value = await apiGet<Issue[]>('/api/issues')
+    void loadIssueImagesLazy()
   } catch (err) {
     loadError.value = '加载失败：' + (err as Error).message
   } finally {
@@ -397,7 +425,8 @@ async function loadBanner() {
     const data = await apiGet<{
       announcements?: Array<{ id: number; title: string; content: string; created_at: string; created_by: string }>
       hallBookings?: Array<{ date: string; start_time: string; end_time: string; purpose: string; applicant: string }>
-    }>('/api/banner')
+    // slim=1：只要文字，不要内联的 base64 图片（完整版可达数百 KB，本页横幅不展示图片）
+    }>('/api/banner?slim=1')
     const items: BannerEntry[] = []
     for (const a of data?.announcements ?? []) {
       items.push({
@@ -487,6 +516,14 @@ async function submitIssue() {
       image_url
     })
     issues.value.unshift(created)
+    // 创建接口返回的是完整行（含 image_url），转成列表形状：只留 has_image，
+    // 图片直接塞进 issueImageMap，无需再回一次接口
+    const createdImg = (created as unknown as { image_url?: string }).image_url
+    if (createdImg) {
+      issueImageMap[created.id] = [createdImg]
+      created.has_image = 1
+    }
+    delete (created as unknown as { image_url?: string }).image_url
     toast('问题提交成功！', 'success')
     legacy.checkCountAchievements?.()
     legacy.checkNovice?.()

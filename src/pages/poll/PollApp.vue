@@ -28,6 +28,8 @@
           <div class="yali-item-meta">
             <span>{{ poll.created_by }}</span>
             <span>{{ poll.total_votes }} 人参与</span>
+            <span v-if="poll.min_role">{{ poll.min_role === 'admin' ? '仅管理员' : '仅登录用户' }}</span>
+            <span v-if="classList.length">仅限 {{ classList.join('、') }}</span>
             <span v-if="poll.require_name">需留名</span>
           </div>
         </section>
@@ -62,6 +64,21 @@
               </span>
             </Button>
           </template>
+        </section>
+
+        <!-- 无参与资格：说明原因，不渲染必然被拒的表单 -->
+        <section v-else-if="blockReason" class="yali-section">
+          <div class="yali-loading pv-gap">
+            <FontIcon :Glyph="GLYPH.lock" :FontSize="24" class="yali-muted-icon" />
+            <TextBlock :Text="blockReason" class="yali-muted" />
+          </div>
+        </section>
+
+        <section v-else-if="poll.status !== 'open'" class="yali-section">
+          <div class="yali-loading pv-gap">
+            <FontIcon :Glyph="GLYPH.clock" :FontSize="24" class="yali-muted-icon" />
+            <TextBlock Text="此投票已结束" class="yali-muted" />
+          </div>
         </section>
 
         <!-- 未投票：答题 -->
@@ -108,7 +125,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiGet, apiPost, getUser, legacy, toast } from '../../shared/api'
@@ -127,6 +144,9 @@ interface Poll {
   created_by: string
   total_votes: number
   require_name?: 0 | 1
+  min_role?: string | null
+  /** 详情接口会把班级白名单解析成数组 */
+  allowed_classes?: string | string[]
   questions?: Question[]
 }
 interface QuestionResult {
@@ -150,6 +170,40 @@ const textAns = reactive<Record<number, string>>({})
 const voterName = ref('')
 
 const needName = ref(false)
+
+/* ── 参与资格：与后端 handleVotePoll 及旧版 poll.js 的判定保持一致 ──
+   不符合条件的用户不该看到投票表单（否则一提交必然被 403 拒绝） */
+const ROLE_WEIGHT: Record<string, number> = { member: 2, admin: 3, owner: 4 }
+
+const classList = computed<string[]>(() => {
+  const raw = poll.value?.allowed_classes
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+})
+
+const blockReason = computed(() => {
+  const p = poll.value
+  if (!p) return ''
+  const u = user.value
+  const weight = u ? ROLE_WEIGHT[u.role] || 0 : 0
+  const minWeight = p.min_role ? ROLE_WEIGHT[p.min_role] || 0 : 0
+  if (p.min_role && weight < minWeight) {
+    return p.min_role === 'admin' ? '此投票仅限管理员参与' : '此投票仅限登录用户参与'
+  }
+  const classes = classList.value
+  if (classes.length > 0 && (!u || !u.class_name || !classes.includes(u.class_name))) {
+    return `此投票仅限 ${classes.join('、')} 参与`
+  }
+  return ''
+})
+
+const canVote = computed(() => !voted.value && !blockReason.value && poll.value?.status === 'open')
 
 type Captcha = { getData: () => Record<string, string>; refresh: () => void }
 let captcha: Captcha | null = null
@@ -181,7 +235,7 @@ async function load() {
 
     await nextTick()
     const Ctor = legacy.CaptchaWidget
-    if (Ctor && !voted.value) captcha = new Ctor('yaliPollCaptcha')
+    if (Ctor && canVote.value) captcha = new Ctor('yaliPollCaptcha')
   } catch (err) {
     toast((err as Error).message, 'error')
     poll.value = null

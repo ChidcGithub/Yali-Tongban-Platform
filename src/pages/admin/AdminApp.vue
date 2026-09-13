@@ -115,11 +115,35 @@
 
         <section v-if="storage" class="yali-section">
           <TextBlock Text="存储统计" :FontSize="15" :FontWeight="500" />
-          <div class="ad-kv">
-            <span>公告</span><span>{{ storage.announcements ?? '—' }}</span>
-            <span>报修</span><span>{{ storage.issues ?? '—' }}</span>
-            <span>财务</span><span>{{ storage.finance ?? '—' }}</span>
-            <span>用户</span><span>{{ storage.users ?? '—' }}</span>
+
+          <div class="ad-bar-row">
+            <div class="ad-bar-head">
+              <span>图片</span>
+              <span><strong>{{ fmtMB(storage.imageBytes) }}</strong> / 5 GB</span>
+            </div>
+            <div class="ad-bar">
+              <div class="ad-bar-fill" :class="pctClass(storage.percent)"
+                   :style="{ width: Math.min(storage.percent ?? 0, 100) + '%' }" />
+            </div>
+            <div class="ad-bar-pct">{{ (storage.percent ?? 0).toFixed(1) }}%</div>
+          </div>
+
+          <div class="ad-bar-row">
+            <div class="ad-bar-head">
+              <span>文本</span>
+              <span><strong>{{ fmtMB(storage.textBytes) }}</strong> / 5 GB</span>
+            </div>
+            <div class="ad-bar">
+              <div class="ad-bar-fill" :class="pctClass(textPercent)"
+                   :style="{ width: Math.min(textPercent, 100) + '%' }" />
+            </div>
+            <div class="ad-bar-pct">{{ textPercent.toFixed(1) }}%</div>
+          </div>
+
+          <div class="ad-counts">
+            <span v-for="row in storageCounts" :key="row.label">
+              {{ row.label }} {{ row.value }}
+            </span>
           </div>
         </section>
 
@@ -227,7 +251,9 @@ const hasMoreUsers = ref(true)
 const keyword = ref('')
 const roleIndex = reactive<Record<number, number>>({})
 let userOffset = 0
-const PAGE = 50
+/** 后端 handleGetAllUsers 的 limit 是写死的 200，这里必须与之保持一致，
+    否则 offset 步进对不上（传 limit=50 也只返回 200 条） */
+const PAGE = 200
 
 async function loadUsers(reset = false) {
   if (usersLoading.value) return
@@ -237,11 +263,14 @@ async function loadUsers(reset = false) {
     users.value = []
   }
   try {
-    const list = await apiGet<User[]>(`/api/admin/users?offset=${userOffset}&limit=${PAGE}`)
-    const arr = Array.isArray(list) ? list : []
+    // 该接口返回的是 { results, hasMore } 包装对象，不是数组
+    const data = await apiGet<{ results?: User[]; hasMore?: boolean }>(
+      `/api/admin/users?offset=${userOffset}`
+    )
+    const arr = Array.isArray(data?.results) ? data.results : []
     users.value = [...users.value, ...arr]
     userOffset += arr.length
-    hasMoreUsers.value = arr.length >= PAGE
+    hasMoreUsers.value = !!data?.hasMore
     for (const u of arr) {
       const i = ROLE_VALUES.indexOf(u.role)
       roleIndex[u.id] = i >= 0 ? i : 2
@@ -328,7 +357,57 @@ const settings = reactive({
   site_closed_message: '',
   site_closed_by: ''
 })
-const storage = ref<Record<string, number> | null>(null)
+/** /api/admin/storage 返回的是字节数与各类计数（键名见 _utils.getStorageStats） */
+interface StorageStats {
+  imageBytes?: number
+  textBytes?: number
+  totalBytes?: number
+  limitBytes?: number
+  percent?: number
+  totalPercent?: number
+  financeCount?: number
+  userCount?: number
+  issueCount?: number
+  announceCount?: number
+  reviewCount?: number
+  chatCount?: number
+  hallCount?: number
+  pollCount?: number
+  commentCount?: number
+  volunteerCount?: number
+  feedCommentCount?: number
+}
+
+const D1_LIMIT = 5 * 1024 * 1024 * 1024
+const storage = ref<StorageStats | null>(null)
+
+function fmtMB(bytes?: number) {
+  return ((bytes ?? 0) / 1024 / 1024).toFixed(2) + ' MB'
+}
+
+const textPercent = computed(() => ((storage.value?.textBytes ?? 0) / D1_LIMIT) * 100)
+
+function pctClass(pct?: number) {
+  const p = pct ?? 0
+  return p > 80 ? 'is-danger' : p > 50 ? 'is-warn' : 'is-ok'
+}
+
+const storageCounts = computed(() => {
+  const s = storage.value
+  if (!s) return []
+  return [
+    { label: '财务', value: s.financeCount ?? 0 },
+    { label: '报修', value: s.issueCount ?? 0 },
+    { label: '公告', value: s.announceCount ?? 0 },
+    { label: '审核', value: s.reviewCount ?? 0 },
+    { label: '动态', value: s.chatCount ?? 0 },
+    { label: '千报', value: s.hallCount ?? 0 },
+    { label: '投票', value: s.pollCount ?? 0 },
+    { label: '评论', value: s.commentCount ?? 0 },
+    { label: '用户', value: s.userCount ?? 0 },
+    { label: '志愿', value: s.volunteerCount ?? 0 }
+  ]
+})
 
 async function loadSettings() {
   try {
@@ -345,7 +424,7 @@ async function loadSettings() {
 
 async function loadStorage() {
   try {
-    storage.value = await apiGet<Record<string, number>>('/api/admin/storage')
+    storage.value = await apiGet<StorageStats>('/api/admin/storage')
   } catch {
     storage.value = null
   }
@@ -470,6 +549,46 @@ onMounted(loadRegistrations)
   margin-top: 12px;
   font-size: 13px;
   color: var(--text-primary);
+}
+
+/* 存储占用条（颜色随占比变化：正常 / 偏高 / 告警） */
+.ad-bar-row {
+  margin-top: 12px;
+}
+.ad-bar-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ad-bar {
+  margin-top: 4px;
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--control-stroke-default, rgba(128, 128, 128, 0.24));
+}
+.ad-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+.ad-bar-fill.is-ok { background: var(--color-text-success, #0f7b0f); }
+.ad-bar-fill.is-warn { background: var(--color-text-caution, #9d5d00); }
+.ad-bar-fill.is-danger { background: var(--accent-base); }
+.ad-bar-pct {
+  margin-top: 2px;
+  font-size: 11px;
+  text-align: right;
+  color: var(--text-tertiary);
+}
+.ad-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+  gap: 4px 10px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 640px) {

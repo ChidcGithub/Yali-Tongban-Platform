@@ -148,6 +148,8 @@ interface Activity {
   need_volunteers?: boolean | number
   created_by: string
   volunteer_count?: number
+  /** 后端返回：当前登录用户是否已报名（未登录时不返回） */
+  signed_up?: number
   _signedUp?: boolean
 }
 
@@ -160,7 +162,10 @@ const saving = ref(false)
 async function load() {
   loading.value = true
   try {
-    items.value = await apiGet<Activity[]>('/api/activities')
+    const data = await apiGet<Activity[]>('/api/activities')
+    // 后端在登录态下会返回 signed_up（已报名次数），映射成本地状态，
+    // 否则已报名用户仍会看到可点击的「报名志愿者」按钮
+    items.value = (data ?? []).map((a) => ({ ...a, _signedUp: !!a.signed_up }))
   } catch (err) {
     toast((err as Error).message, 'error')
   } finally {

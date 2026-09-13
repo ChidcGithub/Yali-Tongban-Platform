@@ -1,6 +1,6 @@
 import { json, error, setCleanupCount, checkSiteClosed, requireMember, autoCleanup, initDB, isAdmin, isOwner, generateCaptcha } from './_utils.js';
 import { handleLogin, handleRegister, handleMe, handleCheckName, handleChangePassword, handleChangeName, handleChangeClass, handleChangeOwnDepartment } from './auth.js';
-import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDeleteIssue } from './issues.js';
+import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDeleteIssue, handleGetIssueImages } from './issues.js';
 import { handleCreateFeedback, handleGetFeedback, handleDeleteFeedback } from './feedback.js';
 import { handleGetAnnouncements, handleGetAnnouncementImages, handleCreateAnnouncement, handleDeleteAnnouncement, handleUpdateAnnouncement, handleReviewAnnouncement, handleAddAnnouncementImage } from './announcements.js';
 import { handleGetFinance, handleGetFinanceImages, handleCreateFinance, handleCompleteFinance, handleReimburseFinance, handleUnreimburseFinance, handleDeleteFinance } from './finance.js';
@@ -43,7 +43,8 @@ const routes = [
   { p: '/api/auth/change-class', m: 'POST', h: c => handleChangeClass(c.request, c.env, c.user) },
   { p: '/api/auth/change-department', m: 'POST', h: c => handleChangeOwnDepartment(c.request, c.env, c.user) },
   // Issues
-  { p: '/api/issues', m: 'GET', h: c => handleGetIssues(c.env) },
+  { p: '/api/issues/images', m: 'GET', h: c => handleGetIssueImages(c.env, c.url.searchParams.get('ids')) },
+  { p: '/api/issues', m: 'GET', h: c => handleGetIssues(c.env, c.user) },
   { p: '/api/issues', m: 'POST', h: c => handleCreateIssue(c.request, c.env) },
   { p: /^\/api\/issues\/(\d+)\/status$/, m: 'PUT', h: c => handleUpdateIssueStatus(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/issues\/(\d+)$/, m: 'DELETE', h: c => handleDeleteIssue(c.request, c.env, c.m[1], c.user) },
@@ -72,7 +73,7 @@ const routes = [
   { p: /^\/api\/reviews\/(\d+)\/review$/, m: 'PUT', h: c => handleReviewItem(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/reviews\/(\d+)$/, m: 'DELETE', h: c => handleDeleteReview(c.request, c.env, c.m[1], c.user) },
   // Banner
-  { p: '/api/banner', m: 'GET', h: c => handleGetBanner(c.env) },
+  { p: '/api/banner', m: 'GET', h: c => handleGetBanner(c.env, c.url) },
   // Activities
   { p: '/api/activities', m: 'GET', h: c => handleGetActivities(c.env, c.user) },
   { p: '/api/activities', m: 'POST', h: c => handleCreateActivity(c.request, c.env, c.user) },

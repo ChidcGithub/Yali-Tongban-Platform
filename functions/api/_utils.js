@@ -659,7 +659,10 @@ export async function addAchievementBatchEntry(env, userName, achId) {
   } catch {}
 }
 
-export async function getBannerData(env) {
+export async function getBannerData(env, opts = {}) {
+  // slim=true：不返回 image_url 全文（单张可达数 MB），只给 has_image 标记。
+  // 默认仍返回全文，供 sync.js 离线缓存与旧版页面使用。
+  const slim = !!opts.slim;
   const annRows = await env.DB.prepare(
     "SELECT id, title, content, image_url, created_by, created_at FROM announcements WHERE status IS NULL OR status = '已通过' ORDER BY created_at DESC LIMIT 3"
   ).all();
@@ -680,7 +683,12 @@ export async function getBannerData(env) {
     if (!imgUrl && row.image_url) {
       const parsed = safeParse(row.image_url); if (Array.isArray(parsed) && parsed.length > 0) imgUrl = parsed[0];
     }
-    announcements.push({ id: row.id, title: row.title, content: row.content, created_by: row.created_by, created_at: row.created_at, image_url: imgUrl, _images: imgUrl ? [imgUrl] : [] });
+    const base = { id: row.id, title: row.title, content: row.content, created_by: row.created_by, created_at: row.created_at };
+    if (slim) {
+      announcements.push({ ...base, has_image: imgUrl ? 1 : 0 });
+    } else {
+      announcements.push({ ...base, image_url: imgUrl, _images: imgUrl ? [imgUrl] : [] });
+    }
   }
   const hallRows = await env.DB.prepare(
     "SELECT date, start_time, end_time, purpose, applicant FROM hall_bookings WHERE status = 'approved' AND date >= date('now') ORDER BY date ASC, start_time ASC LIMIT 3"
