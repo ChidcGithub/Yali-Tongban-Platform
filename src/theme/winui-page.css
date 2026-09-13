@@ -128,6 +128,35 @@
   background: var(--accent-base);
   color: var(--accent-text);
 }
+/* 状态色变体 */
+.yali-chip-done {
+  background: rgba(16, 124, 16, 0.12);
+  color: #0f7b0f;
+}
+.yali-chip-danger {
+  background: rgba(196, 43, 28, 0.12);
+  color: #c42b1c;
+}
+.yali-chip-info {
+  background: var(--subtle-secondary);
+  color: var(--text-secondary);
+}
+.yali-chip-warn {
+  background: rgba(157, 93, 0, 0.12);
+  color: #9d5d00;
+}
+html.theme-dark .yali-chip-done {
+  background: rgba(108, 203, 95, 0.16);
+  color: #6ccb5f;
+}
+html.theme-dark .yali-chip-danger {
+  background: rgba(255, 153, 164, 0.16);
+  color: #ff99a4;
+}
+html.theme-dark .yali-chip-warn {
+  background: rgba(252, 225, 0, 0.16);
+  color: #fce100;
+}
 
 /* ── 图片区 ── */
 .yali-img-row {

@@ -5,11 +5,13 @@
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/check-glyphs.mjs && vite build",
     "preview": "vite preview",
     "dev:pages": "wrangler pages dev dist/",
     "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
-    "db:init": "wrangler d1 execute yali-tongban-db --file=schema.sql"
+    "db:init": "wrangler d1 execute yali-tongban-db --file=schema.sql",
+    "check:glyphs": "node scripts/check-glyphs.mjs",
+    "gen:page": "node scripts/gen-winui-page.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
