@@ -168,6 +168,21 @@ const FIXTURES = {
       { label: '午自习', start_time: '12:40', end_time: '13:00', auto_absent_min: 10 }
     ]
   },
+  admin: {
+    registrations: [
+      { id: 81, name: '新同学甲', role: 'pending', class_name: '2601', department: '组织部' },
+      { id: 82, name: '新同学乙', role: 'pending', class_name: '2602', department: '' }
+    ],
+    users: [
+      { id: 11, name: '张三', role: 'member', class_name: '2517', department: '办公室' },
+      { id: 12, name: '李四', role: 'admin', class_name: '2518', department: '组织部' }
+    ],
+    feedback: [
+      { id: 91, content: '希望增加夜间模式', contact: 'chidcout@outlook.com', page: '/services', section: '其它', version: '3.0.0', created_at: ts(3600) }
+    ],
+    adminSettings: { site_closed: false, site_closed_message: '', site_closed_by: '' },
+    storage: { announcements: 12, issues: 34, finance: 56, users: 78 }
+  },
   activities: {
     activities: [
       { id: 51, name: '秋季校园志愿服务', location: '校门口广场', time: '2026-10-01 09:00', departments: '组织部、青志协', need_volunteers: 1, created_by: '团委办公室', volunteer_count: 12 },
@@ -224,6 +239,11 @@ const stub = `
     if (fx.pollDetail && /\\/api\\/polls\\/\\d+/.test(url)) return fx.pollDetail;
     if (fx.polls && url.indexOf('/api/polls') === 0) return fx.polls;
     if (fx.activities && url.indexOf('/api/activities') === 0) return fx.activities;
+    if (fx.registrations && url.indexOf('/api/admin/registrations') === 0) return fx.registrations;
+    if (fx.users && url.indexOf('/api/admin/users?') === 0) return fx.users;
+    if (fx.feedback && url.indexOf('/api/admin/feedback') === 0) return fx.feedback;
+    if (fx.adminSettings && url.indexOf('/api/admin/settings') === 0) return fx.adminSettings;
+    if (fx.storage && url.indexOf('/api/admin/storage') === 0) return fx.storage;
     if (fx.schedule && url.indexOf('/api/duty/schedule?') === 0) return fx.schedule;
     if (fx.schedule && url.indexOf('/api/duty/schedule') === 0) return fx.schedule;
     if (fx.staff && url.indexOf('/api/duty/staff') === 0) return fx.staff;
