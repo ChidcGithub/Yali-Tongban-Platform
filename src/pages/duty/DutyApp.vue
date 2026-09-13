@@ -27,16 +27,16 @@
         <!-- 干事信息 -->
         <section class="yali-section duty-head">
           <div class="duty-staff">
-            <PersonPicture class="duty-avatar" :Initials="initial(data.staff_a)" />
+            <PersonPicture class="duty-avatar" :Initials="initial(data.staff_a?.name)" />
             <div>
-              <TextBlock :Text="data.staff_a" :FontSize="15" :FontWeight="600" />
+              <TextBlock :Text="data.staff_a?.name || '未指定'" :FontSize="15" :FontWeight="600" />
               <TextBlock Text="值日生 A" class="yali-muted" />
             </div>
           </div>
           <div class="duty-staff">
-            <PersonPicture class="duty-avatar" :Initials="initial(data.staff_b)" />
+            <PersonPicture class="duty-avatar" :Initials="initial(data.staff_b?.name)" />
             <div>
-              <TextBlock :Text="data.staff_b" :FontSize="15" :FontWeight="600" />
+              <TextBlock :Text="data.staff_b?.name || '未指定'" :FontSize="15" :FontWeight="600" />
               <TextBlock Text="值日生 B" class="yali-muted" />
             </div>
           </div>
@@ -57,8 +57,8 @@
             <div class="duty-row duty-row-head">
               <span>时段</span>
               <span>开始</span>
-              <span>{{ data.staff_a }}</span>
-              <span>{{ data.staff_b }}</span>
+              <span>{{ data.staff_a?.name || 'A' }}</span>
+              <span>{{ data.staff_b?.name || 'B' }}</span>
             </div>
             <div v-for="(p, i) in data.periods" :key="i" class="duty-row">
               <span class="duty-label">{{ p.label }}</span>
@@ -102,13 +102,13 @@
           </p>
         </section>
 
-        <!-- 部门统计 -->
+        <!-- 部门统计（后端只统计扣分记录，按合计扣分升序，最需要改进的排前面） -->
         <section v-if="stats.length" class="yali-section">
-          <TextBlock Text="各部门值日统计（近两周）" :FontSize="16" :FontWeight="600" />
+          <TextBlock Text="各部门值日扣分（近两周）" :FontSize="16" :FontWeight="600" />
           <div class="duty-stats">
-            <div v-for="s in stats" :key="s.department ?? s.name" class="duty-stat-row">
-              <span>{{ s.department ?? s.name }}</span>
-              <span class="yali-muted">{{ s.count ?? s.total ?? 0 }} 次 · {{ s.score ?? 0 }} 分</span>
+            <div v-for="s in stats" :key="s.department" class="duty-stat-row">
+              <span>{{ s.department }}</span>
+              <span class="yali-muted">{{ s.record_count ?? 0 }} 次 · 合计 {{ s.total_score ?? 0 }} 分</span>
             </div>
           </div>
         </section>
@@ -129,9 +129,18 @@ interface Attendance {
   sign_in_time?: string
   total?: number
 }
+/** 后端返回的干事对象（不是字符串） */
+interface StaffInfo {
+  id: number
+  department?: string
+  class?: string
+  name: string
+  user_id?: number | null
+}
 interface Period {
   label: string
   start_time: string
+  slot_type?: string
   auto_absent_min?: number
   a: Attendance
   b: Attendance
@@ -139,18 +148,15 @@ interface Period {
 interface DutyData {
   date: string
   schedule_id: number
-  staff_a: string
-  staff_b: string
+  /** 无排班时后端返回 null */
+  staff_a: StaffInfo | null
+  staff_b: StaffInfo | null
   periods: Period[]
-  staff_a_id?: number
-  staff_b_id?: number
 }
 interface DeptStat {
-  department?: string
-  name?: string
-  count?: number
-  total?: number
-  score?: number
+  department: string
+  total_score?: number
+  record_count?: number
 }
 
 const admin = isAdmin()
@@ -206,7 +212,14 @@ async function loadStats() {
 
 async function signIn(p: Period, side: 'a' | 'b') {
   if (!data.value) return
-  const staffId = side === 'a' ? data.value.staff_a_id : data.value.staff_b_id
+  // staff_a/staff_b 是对象（{id, name, ...}），之前误取不存在的 staff_a_id，
+  // 导致 staff_id 恒为 undefined、后端直接以「缺少必填字段」拒绝
+  const staff = side === 'a' ? data.value.staff_a : data.value.staff_b
+  const staffId = staff?.id
+  if (!staffId) {
+    toast('未取到该值日生信息，请刷新后重试', 'error')
+    return
+  }
   try {
     const res = await apiPost<{ attendance_id: number; sign_in_time: string; score?: number }>(
       '/api/duty/attendance/sign-in',

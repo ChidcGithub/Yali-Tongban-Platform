@@ -77,7 +77,7 @@
         <section class="yali-section">
           <div class="yali-section-head">
             <TextBlock :Text="'评分记录（' + scores.length + ' 条）'" :FontSize="15" :FontWeight="500" />
-            <Button @Click="scoreDialog = true">
+            <Button @Click="openScoreDialog">
               <span class="yali-btn-inner">
                 <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>手动加减分</span>
               </span>
@@ -103,15 +103,39 @@
       <!-- ── 时段 ── -->
       <template v-else>
         <section class="yali-section">
-          <TextBlock Text="时段配置" :FontSize="15" :FontWeight="500" />
-          <p v-if="!periods.length" class="yali-muted da-gap">暂无配置</p>
-          <div v-for="p in periods" :key="p.label ?? p.id" class="da-row">
-            <span class="da-name">{{ p.label }}</span>
-            <span class="yali-muted">开始 {{ p.start_time }}</span>
-            <span class="yali-muted">结束 {{ p.end_time || '—' }}</span>
-            <span class="yali-muted">缺岗判定 {{ p.auto_absent_min ?? '—' }} 分钟</span>
+          <div class="yali-section-head">
+            <TextBlock Text="时段配置" :FontSize="15" :FontWeight="500" />
+            <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!savingPeriods" @Click="savePeriods">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.check" :FontSize="13" />
+                <span>{{ savingPeriods ? '保存中…' : '保存时段' }}</span>
+              </span>
+            </Button>
           </div>
-          <p class="yali-muted da-gap">时段配置的编辑入口暂未迁移，可在管理面板或接口侧调整。</p>
+          <p v-if="!periods.length" class="yali-muted da-gap">暂无配置</p>
+          <div v-for="(p, i) in periods" :key="p.id ?? p.label" class="da-period">
+            <span class="da-name">{{ p.label }}</span>
+            <ComboBox :ItemsSource="SLOT_TYPES" :SelectedIndex="slotIndex(p)"
+                      @SelectionChanged="(a) => (p.slot_type = SLOT_VALUES[a?.SelectedIndex ?? 0])"
+                      class="da-period-slot" />
+            <TextBox v-model:Text="p.start_time" PlaceholderText="09:00" class="da-period-time" />
+            <NumberBox v-model:Value="p.auto_absent_min" :Minimum="0" :Maximum="120"
+                       class="da-period-min" />
+            <span class="yali-muted da-period-hint">缺岗判定（分钟）</span>
+            <button class="da-del" type="button" title="删除该时段" @click="removePeriod(i)">
+              <FontIcon :Glyph="GLYPH.delete" :FontSize="14" />
+            </button>
+          </div>
+          <div class="yali-form-actions da-gap">
+            <Button @Click="addPeriod">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>新增时段</span>
+              </span>
+            </Button>
+          </div>
+          <p class="yali-muted da-gap">
+            时段名称是签到记录的键，改动只影响展示与判定时间；标记为「不考勤」的时段不会出现在评分选择里。
+          </p>
         </section>
       </template>
     </div>
@@ -151,10 +175,17 @@
       <div class="yali-form">
         <label class="yali-field">
           <span class="yali-field-label">干事 <em>*</em></span>
-          <ComboBox :ItemsSource="staffNames" v-model:SelectedIndex="scoreStaffIndex"
+          <ComboBox :ItemsSource="staffNames" :SelectedIndex="scoreStaffIndex"
+                    @SelectionChanged="(a) => (scoreStaffIndex = a?.SelectedIndex ?? -1)"
                     PlaceholderText="选择干事" />
         </label>
         <div class="yali-form-row">
+          <label class="yali-field">
+            <span class="yali-field-label">时段 <em>*</em></span>
+            <ComboBox :ItemsSource="scorePeriodNames" :SelectedIndex="scorePeriodIndex"
+                      @SelectionChanged="(a) => (scorePeriodIndex = a?.SelectedIndex ?? -1)"
+                      PlaceholderText="选择时段" />
+          </label>
           <label class="yali-field">
             <span class="yali-field-label">分值（正数加分 / 负数扣分）</span>
             <NumberBox v-model:Value="scoreDraft.score" PlaceholderText="如 2 或 -1" />
@@ -363,7 +394,19 @@ interface ScoreRow {
 const scores = ref<ScoreRow[]>([])
 const scoreDialog = ref(false)
 const scoreStaffIndex = ref(-1)
+const scorePeriodIndex = ref(-1)
 const scoreDraft = reactive({ score: 0, date: fmt(new Date()), reason: '' })
+
+/** 评分可选时段：排除标记为「不考勤」的时段（与原页面一致） */
+const scorePeriods = computed(() => periods.value.filter((p) => p.slot_type !== 'no_duty'))
+const scorePeriodNames = computed(() => scorePeriods.value.map((p) => p.label))
+
+/** 打开评分对话框前确保时段已加载（时段只在切到第 4 个标签时才拉取） */
+async function openScoreDialog() {
+  if (!periods.value.length) await loadPeriods()
+  scorePeriodIndex.value = scorePeriods.value.length ? 0 : -1
+  scoreDialog.value = true
+}
 
 async function loadScores() {
   try {
@@ -376,11 +419,15 @@ async function loadScores() {
 
 async function addScore() {
   if (scoreStaffIndex.value < 0) return toast('请选择干事', 'error')
+  if (scorePeriodIndex.value < 0) return toast('请选择时段', 'error')
   if (!scoreDraft.score) return toast('请填写分值', 'error')
   busy.value = true
   try {
+    // 后端要的是 staff_id + period，不是姓名；此前传 name 会以「缺少必填字段」失败
+    const target = staff.value[scoreStaffIndex.value]
     await apiPost('/api/duty/scores/add', {
-      name: staffNames.value[scoreStaffIndex.value],
+      staff_id: target?.id,
+      period: scorePeriods.value[scorePeriodIndex.value]?.label,
       score: Number(scoreDraft.score),
       date: scoreDraft.date,
       reason: scoreDraft.reason
@@ -410,15 +457,70 @@ async function cancelScore(r: ScoreRow) {
   }
 }
 
-/* ── 时段 ── */
+/* ── 时段（后端 /api/duty/periods 支持 PUT，字段：label / slot_type / sort_order / start_time / auto_absent_min） ── */
 interface PeriodConfig {
-  label?: string
+  label: string
   id?: number
+  slot_type?: string
+  sort_order?: number
   start_time?: string
-  end_time?: string
   auto_absent_min?: number
 }
+
+const SLOT_VALUES = ['small_break', 'big_break', 'no_duty']
+const SLOT_TYPES = ['小课间', '大课间', '不考勤']
+
 const periods = ref<PeriodConfig[]>([])
+const savingPeriods = ref(false)
+
+function slotIndex(p: PeriodConfig) {
+  const i = SLOT_VALUES.indexOf(p.slot_type ?? '')
+  return i >= 0 ? i : 0
+}
+
+function addPeriod() {
+  periods.value.push({
+    label: '',
+    slot_type: 'small_break',
+    sort_order: periods.value.length + 1,
+    start_time: '08:00',
+    auto_absent_min: 10
+  })
+}
+
+function removePeriod(i: number) {
+  if (!window.confirm(`确定删除时段「${periods.value[i]?.label || '（未命名）'}」吗？`)) return
+  periods.value.splice(i, 1)
+}
+
+async function savePeriods() {
+  const payload = periods.value.map((p, i) => ({
+    id: p.id,
+    label: (p.label || '').trim(),
+    slot_type: p.slot_type || 'small_break',
+    sort_order: p.sort_order ?? i + 1,
+    start_time: p.start_time || '08:00',
+    auto_absent_min: Number(p.auto_absent_min ?? 10)
+  }))
+  if (payload.some((p) => !p.label)) {
+    toast('时段名称不能为空', 'error')
+    return
+  }
+  if (payload.some((p) => !/^\d{1,2}:\d{2}$/.test(p.start_time))) {
+    toast('开始时间格式应为 HH:MM', 'error')
+    return
+  }
+  savingPeriods.value = true
+  try {
+    await apiPut('/api/duty/periods', { periods: payload })
+    toast('时段配置已保存', 'success')
+    await loadPeriods()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    savingPeriods.value = false
+  }
+}
 
 async function loadPeriods() {
   try {
@@ -538,6 +640,44 @@ html.theme-dark .da-minus {
 .da-del:hover {
   background: var(--subtle-tertiary);
   color: var(--text-primary);
+}
+
+/* 时段配置编辑行 */
+.da-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--stroke-divider);
+  font-size: 13px;
+}
+.da-period-slot {
+  width: 132px;
+}
+.da-period-time {
+  width: 90px;
+}
+.da-period-min {
+  width: 92px;
+}
+.da-period-hint {
+  font-size: 12px;
+}
+.da-period .da-del {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .da-period {
+    flex-wrap: wrap;
+  }
+  .da-period-slot,
+  .da-period-time,
+  .da-period-min {
+    flex: 1 1 120px;
+    width: auto;
+  }
 }
 
 @media (max-width: 640px) {

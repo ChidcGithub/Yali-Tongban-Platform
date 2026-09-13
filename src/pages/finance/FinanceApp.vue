@@ -1,14 +1,14 @@
 <template>
   <YaliShell current="finance" title="财务">
     <div class="yali-page">
-      <!-- ── 汇总 ── -->
+      <!-- ── 汇总（本月全部记录，不随下方筛选变动） ── -->
       <section class="yali-section fin-summary">
         <div class="fin-stat">
-          <span class="fin-stat-label">收入</span>
+          <span class="fin-stat-label">本月收入</span>
           <span class="fin-stat-value fin-in">{{ money(summary.income) }}</span>
         </div>
         <div class="fin-stat">
-          <span class="fin-stat-label">支出</span>
+          <span class="fin-stat-label">本月支出</span>
           <span class="fin-stat-value fin-out">{{ money(summary.expense) }}</span>
         </div>
         <div class="fin-stat">
@@ -16,6 +16,20 @@
           <span class="fin-stat-value" :class="summary.income - summary.expense >= 0 ? 'fin-in' : 'fin-out'">
             {{ money(summary.income - summary.expense) }}
           </span>
+        </div>
+      </section>
+
+      <!-- ── 近 30 天报销比例（管理员） ── -->
+      <section v-if="admin" class="yali-section">
+        <div class="fin-ratio-head">
+          <TextBlock Text="近 30 天支出报销比例" :FontSize="14" :FontWeight="500" />
+          <span class="yali-muted">
+            {{ reimburseRatio.done }} / {{ reimburseRatio.total }}
+            （{{ reimburseRatio.pct.toFixed(0) }}%）
+          </span>
+        </div>
+        <div class="fin-ratio-bar">
+          <div class="fin-ratio-fill" :style="{ width: Math.min(reimburseRatio.pct, 100) + '%' }" />
         </div>
       </section>
 
@@ -56,10 +70,11 @@
                   <span class="fin-amount" :class="item.type === '收入' ? 'fin-in' : 'fin-out'">
                     {{ item.type === '收入' ? '+' : '-' }}{{ money(item.amount) }}
                   </span>
-                  <span class="yali-chip" :class="item.status === '已完成' ? 'yali-chip-done' : 'yali-chip-warn'">
+                  <span class="yali-chip" :class="statusChipClass(item.status)">
                     {{ item.status }}
                   </span>
                   <span v-if="item.department" class="yali-chip">{{ item.department }}</span>
+                  <span v-if="item.fund_type" class="yali-chip">{{ item.fund_type }}</span>
                   <span v-if="item.internal_activity" class="yali-chip">内部活动</span>
                 </div>
               </div>
@@ -90,10 +105,12 @@
                     <FontIcon :Glyph="GLYPH.check" :FontSize="14" /><span>标记完成</span>
                   </span>
                 </Button>
-                <Button v-if="item.status === '已完成' && !item.reimbursed" @Click="reimburse(item, true)">
+                <!-- 报销状态由 status 承担（后端：报销→'已报销'，取消→'待完成'），
+                     不存在独立的 reimbursed 字段 -->
+                <Button v-if="item.status !== '已报销'" @Click="reimburse(item, true)">
                   <span class="yali-btn-inner"><span>标记已报销</span></span>
                 </Button>
-                <Button v-if="item.reimbursed" @Click="reimburse(item, false)">
+                <Button v-else @Click="reimburse(item, false)">
                   <span class="yali-btn-inner"><span>取消报销</span></span>
                 </Button>
                 <Button @Click="remove(item)">
@@ -195,8 +212,8 @@ interface FinanceRecord {
   created_by: string
   created_at: string
   department?: string
+  fund_type?: string
   internal_activity?: number | boolean
-  reimbursed?: boolean
   has_image?: boolean | number
 }
 
@@ -254,21 +271,39 @@ const monthScoped = computed(() =>
 const visible = computed(() =>
   monthScoped.value.filter((f) => {
     if (typeFilter.value !== 'all' && f.type !== typeFilter.value) return false
-    if (onlyPending.value && f.status === '已完成') return false
+    if (onlyPending.value && f.status !== '待完成') return false
     return true
   })
 )
 
+/** 汇总口径：本月全部记录，不随类型/状态筛选变动（与原页面一致） */
 const summary = computed(() => {
   let income = 0
   let expense = 0
-  for (const f of visible.value) {
+  for (const f of monthScoped.value) {
     const amt = Number(f.amount || 0)
     if (f.type === '收入') income += amt
     else expense += amt
   }
   return { income, expense }
 })
+
+/** 近 30 天支出报销比例（管理员可见，原页面有此卡片） */
+const reimburseRatio = computed(() => {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000
+  const recentExpenses = all.value.filter(
+    (f) => f.type === '支出' && new Date((f.created_at || '').replace(/-/g, '/')).getTime() >= cutoff
+  )
+  const done = recentExpenses.filter((f) => f.status === '已报销').length
+  const total = recentExpenses.length
+  return { done, total, pct: total ? (done / total) * 100 : 0 }
+})
+
+function statusChipClass(status?: string) {
+  if (status === '已报销') return 'yali-chip-done'
+  if (status === '已完成') return 'yali-chip-done'
+  return 'yali-chip-warn'
+}
 
 function money(v: number | string) {
   return '¥' + Number(v || 0).toFixed(2)
@@ -327,7 +362,8 @@ async function complete(f: FinanceRecord) {
 async function reimburse(f: FinanceRecord, on: boolean) {
   try {
     await apiPut(`/api/finance/${f.id}/${on ? 'reimburse' : 'unreimburse'}`)
-    f.reimbursed = on
+    // 后端改的是 status（报销→已报销，取消→待完成），本地同步同一字段
+    f.status = on ? '已报销' : '待完成'
     toast(on ? '已标记报销' : '已取消报销标记', 'success')
   } catch (err) {
     toast((err as Error).message, 'error')
@@ -444,6 +480,27 @@ onMounted(reload)
   gap: 32px;
   flex-wrap: wrap;
 }
+/* 近 30 天报销比例 */
+.fin-ratio-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.fin-ratio-bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--control-stroke-default, rgba(128, 128, 128, 0.24));
+}
+.fin-ratio-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent-base);
+  transition: width 0.6s ease;
+}
+
 .fin-stat {
   display: flex;
   flex-direction: column;
