@@ -27,7 +27,7 @@
             <FontIcon :Glyph="GLYPH.user" :FontSize="16" />
             <span class="yali-account-name">{{ user.name }}</span>
           </div>
-          <Button class="yali-account-action" @click="onLogout">
+          <Button class="yali-account-action" :IsEnabled="!loggingOut" @click="onLogout">
             <span class="yali-account-action-inner">
               <FontIcon :Glyph="GLYPH.logout" :FontSize="14" />
               <span class="yali-account-action-text">登出</span>
@@ -81,6 +81,7 @@ import {
   type NavEntry
 } from '../shared/nav'
 import { attachTabScrollHints } from '../shared/tabscroll'
+import { alertDialog, logoutUser } from '../shared/api'
 
 const props = defineProps<{
   /** 当前页面的 id，与 nav.js 的 currentPage 一致 */
@@ -153,13 +154,37 @@ function onSelectionChanged(args: { SelectedItem?: NavEntry; IsSettingsSelected?
   go(item.href)
 }
 
-function onLogout() {
-  const fn = (window as unknown as { logout?: () => void }).logout
-  if (fn) fn()
-  else {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    window.location.href = 'services.html'
+/**
+ * 登出。
+ *
+ * ⚠️ 这里**不能**再依赖 `window.logout` —— 那是 `nav.js` 里的旧实现，
+ * 而 WinUI 页面刻意不加载 nav.js，于是它一直是 undefined，只能退化成
+ * 「只清 localStorage」：cookie 是 HttpOnly 的、前端删不掉，表面登出了，
+ * 下次进管理页 /api/auth/me 一请求就把用户恢复成登录态。
+ *
+ * 也不能「发完请求就走」—— 请求还在飞就跳转会被浏览器中断，
+ * cookie 清不掉（旧实现的"有时候登出没效果"就是这么来的）。
+ * 统一走 `logoutUser()`：等后端确认会话失效后再跳转。
+ */
+const loggingOut = ref(false)
+
+async function onLogout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    const cleared = await logoutUser()
+    if (!cleared) {
+      /* 没能确认会话已失效（多半是网络）。如实告知，别假装登出成功 ——
+         否则用户下次进来会「莫名其妙又是登录状态」。 */
+      await alertDialog({
+        title: '登出可能未完成',
+        message:
+          '没能联系上服务器清理登录凭据，你可能会在刷新后仍是登录状态。可以再点一次「登出」，或在浏览器里清除本站 Cookie。'
+      })
+    }
+  } finally {
+    // replace：别把已登录的页面留在历史里（按返回又回到登录态）
+    window.location.replace('services.html')
   }
 }
 

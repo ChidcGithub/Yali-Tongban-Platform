@@ -1405,6 +1405,110 @@ async function smokePaneAccountIcons() {
   }
 }
 
+/**
+ * 登出：必须真的让后端清掉 cookie，并且**等响应回来再跳转**
+ *
+ * 用户报「有时候登出并不能正常登出，刷新后还会保持登录」。查下来是两个缺陷叠加：
+ *
+ * ① `window.logout` 是 `nav.js` 里的旧实现，而 WinUI 页面**刻意不加载 nav.js**
+ *    → 它一直是 undefined，调用方只能退化成「只清 localStorage」。
+ *    而会话凭据是后端种的 **HttpOnly cookie**，前端删不掉 ——
+ *    于是表面登出了，下次进管理页（或刷新）时 `/api/auth/me` 靠 cookie
+ *    又把人恢复成登录态。**根子上是「根本没请求后端」。**
+ * ② 旧实现是「发完请求立刻 location.href」，请求会被导航中断，cookie 清不掉
+ *    → 这才是「有时候」的来源（取决于网络快慢）。
+ *
+ * 所以这里的两条核心断言是：
+ *   - 点登出**确实发出** `POST /api/auth/logout`（原先一次都不发）
+ *   - 后端还没响应时**不能跳走**（桩把该接口故意延迟，用来卡这个时间窗）
+ */
+async function smokeLogout() {
+  /* ① 侧栏「登出」按钮 */
+  {
+    const { page, pageErrors } = await openPage('services')
+    try {
+      /* ⚠️ 这里**不能**用 captureWrites：它会把写请求的响应直接伪造掉，
+         于是桩的登出分支根本不会执行、__loggedOut 永远为假，
+         探针就会一直说「还登录着」→ 前端白重试一次。
+         计数改用桩自己的调用记录（window.__calls）。 */
+      await page.evaluate(() => {
+        window.__loggedOut = false
+        window.__calls = []
+        // 让桩把登出接口拖慢 600ms，好卡住「响应回来之前」那个时间窗
+        window.__logoutLatency = 600
+      })
+
+      const btn = page.locator('.yali-account-action', { hasText: '登出' }).first()
+      check('登出：侧栏有「登出」入口', (await btn.count()) > 0, `${await btn.count()} 个`)
+      await btn.click()
+
+      // 250ms 后：请求已发、响应未回 —— 此时必须还停在原页
+      await page.waitForTimeout(250)
+      check(
+        '登出：等后端响应期间不跳转（请求不会被打断）',
+        await page.evaluate(() => !!document.getElementById('__loaded')),
+        page.url().replace(base, '')
+      )
+
+      const posts = await page.evaluate(
+        () => (window.__calls || []).filter((u) => u.indexOf('/api/auth/logout') >= 0).length
+      )
+      check('登出：确实请求了后端清 cookie（原先一次都不发）', posts === 1, `${posts} 次`)
+
+      /* 探针（/api/auth/me）在桩里已随登出变为 401，所以不该出现「重试第二次」——
+         多出来的那一次说明前端没能确认会话失效（会白等一轮再弹「登出可能未完成」） */
+      check('登出：会话探针一次就确认失效（没有空转重试）', posts === 1, `${posts} 次`)
+
+      /* ⚠️ 不能只 `waitForURL`：桩页把路径伪造成了 /services.html，URL 立刻就"命中"，
+         检查会跑在「跳转之前、localStorage 还没清」的时刻（第一次就是这么假红的）。
+         要等**真实页面**接管 —— 判据是桩自己的全局 `window.__calls` 消失。 */
+      await page.waitForFunction(() => !window.__calls, { timeout: 8000 }).catch(() => {})
+      check('登出：随后跳到服务页', /\/services\.html/.test(page.url()), page.url().replace(base, ''))
+      check(
+        '登出：本地用户信息已清空',
+        await page.evaluate(() => !localStorage.getItem('user') && !localStorage.getItem('token'))
+      )
+      check('登出：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ② 班级补填表单里的「退出登录」——它以前调 window.logout，是个**空按钮**：
+        点下去只是把表单关掉，人还是登录着的（cookie 还在） */
+  {
+    const { page } = await openPage('activities', '?noclass=1')
+    try {
+      const dlg = page.locator('.content-dialog')
+      await dlg.waitFor({ timeout: 6000 }).catch(() => {})
+      await page.evaluate(() => {
+        window.__loggedOut = false
+        window.__calls = []
+        // 拖慢到 1.5s：好在跳转之前读到请求计数（跳转后这个页面就没了）
+        window.__logoutLatency = 1500
+      })
+
+      const exitBtn = page.locator('.content-dialog-command-space button', { hasText: '退出登录' }).first()
+      check('班级表单：有「退出登录」出口', (await exitBtn.count()) > 0)
+      await exitBtn.click()
+      await page.waitForTimeout(400)
+
+      const posts = await page.evaluate(
+        () => (window.__calls || []).filter((u) => u.indexOf('/api/auth/logout') >= 0).length
+      )
+      check('班级表单：退出登录真的请求了后端（原先是个空按钮）', posts >= 1, `${posts} 次`)
+
+      await page.waitForURL(/\/services\.html/, { timeout: 8000 }).catch(() => {})
+      check(
+        '班级表单：退出后本地用户信息已清空',
+        await page.evaluate(() => !localStorage.getItem('user') && !localStorage.getItem('token'))
+      )
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1433,7 +1537,8 @@ const CASES = [
   ['值日页：签到计时精确到秒', smokeDutyCountdown],
   ['报修备注：提交者与解决者都能添加', smokeIssueNotes],
   ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons],
-  ['侧栏收起：账户区只显示图标', smokePaneAccountIcons]
+  ['侧栏收起：账户区只显示图标', smokePaneAccountIcons],
+  ['登出：清 cookie 且等响应后再跳转', smokeLogout]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

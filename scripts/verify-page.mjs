@@ -433,6 +433,8 @@ const stub = `
        恒返回 admin 会让「未登录也被当成管理员」这种 bug 永远测不出来 */
     if (url.indexOf('/api/auth/me') === 0) {
       if (window.__stubAnon) return { __fail: '未登录' };
+      // 已登出 → cookie 已失效 → 真实后端会回 401
+      if (window.__loggedOut) return { __fail: '未登录' };
       return window.getUser();
     }
     // 故意给非零值：让未读角标路径每次回归都被走到
@@ -460,6 +462,28 @@ const stub = `
     var url = typeof input === 'string' ? input : (input && input.url) || '';
     var p = payload(url);
     noteCall(url, p !== null);
+
+    /* 登出必须**如实建模**：真实后端在这一步回 Set-Cookie 把 token 清掉，
+       之后 /api/auth/me 就是 401。桩要是不知道这件事，就永远测不出
+       「表面登出、cookie 还在 → 刷新又变回登录态」这个 bug。 */
+    if (url.indexOf('/api/auth/logout') === 0) {
+      window.__loggedOut = true;
+      /* 故意慢一点：用来断言「跳转发生在响应之后」——
+         旧实现是发完请求立刻 location.href，请求会被导航打断，
+         cookie 清不掉（用户报的「有时候登出没效果」）。 */
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          resolve({
+            ok: true,
+            status: 200,
+            headers: { get: function () { return 'application/json'; } },
+            json: function () { return Promise.resolve({ message: '已登出' }); },
+            text: function () { return Promise.resolve('{"message":"已登出"}'); }
+          });
+        }, window.__logoutLatency || 500);
+      });
+    }
+
     if (p === null) return realFetch.call(window, input, init);
     /* payload 里返回 { __fail: '原因' } 表示这次请求应当失败 ——
        api.js 的 api() 只在 data.success 为假时抛错，所以这里必须如实伪造 */

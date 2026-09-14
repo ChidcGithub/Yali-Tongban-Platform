@@ -44,7 +44,7 @@
  * 触发点：`shared/guard.ts` 的 `checkAuth()` —— 与旧版 auth.js 同一位置。
  */
 import { computed, ref, watch } from 'vue'
-import { apiPost, toast } from '../shared/api'
+import { apiPost, logoutUser, toast } from '../shared/api'
 import { classError, classPromptState, settleClassPrompt } from '../shared/classprompt'
 
 const className = ref('')
@@ -100,10 +100,18 @@ async function submit() {
   }
 }
 
-function logout() {
+/**
+ * 退出登录（这个表单唯一的出口）。
+ *
+ * ⚠️ 原先这里调的是 `window.logout` —— 那是 nav.js 的旧实现，
+ * 而 WinUI 页面不加载 nav.js，所以它一直是 undefined：
+ * 点下去只是把表单关掉，**人还是登录着的**（cookie 还在），
+ * 下次进守卫页又被 `/api/auth/me` 恢复。现在真的走后端登出。
+ */
+async function logout() {
   settleClassPrompt(false)
-  const fn = (window as unknown as { logout?: () => void }).logout
-  fn?.()
+  await logoutUser()
+  window.location.replace('services.html')
 }
 </script>
 

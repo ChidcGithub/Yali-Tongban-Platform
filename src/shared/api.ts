@@ -156,3 +156,52 @@ export const legacy = {
  * 从 api 里再导一次，是为了让各页面只改调用本身、不用额外加一行 import。
  */
 export { confirmDialog, promptDialog, alertDialog } from './confirm'
+
+/* ── 会话 ── */
+
+/** 清掉本地残留的登录信息（localStorage 里的 user / token） */
+function clearLocalSession() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+}
+
+/**
+ * 真正登出。返回「后端是否确认会话已失效」。
+ *
+ * ⚠️ **只清 localStorage 是不够的**：会话凭据是后端种的 **HttpOnly cookie**，
+ * 前端读不到也删不掉，只有 `POST /api/auth/logout` 能让它失效
+ * （后端回 `Set-Cookie: token=; Max-Age=0`）。
+ *
+ * 旧版这段逻辑写在 `nav.js` 的 `logout()` 里，而 WinUI 页面**刻意不加载 nav.js**
+ * —— 于是 `window.logout` 是 undefined，调用方只能退化成「只清 localStorage」：
+ * 表面上登出了，cookie 还在，下次进管理页（或刷新）时 `/api/auth/me`
+ * 一请求就又把用户「恢复」成登录态。
+ *
+ * ⚠️ 另外必须**等响应回来再跳转**：请求还在飞就 `location.href`，
+ * 浏览器会把请求一起中断，cookie 清不掉 —— 这就是「有时候登出没效果」的来源。
+ */
+export async function logoutUser(): Promise<boolean> {
+  let cleared = false
+
+  // 最多两次：一次不成功就再试一次（网络抖动 / Set-Cookie 丢了）
+  for (let attempt = 0; attempt < 2 && !cleared; attempt += 1) {
+    try {
+      await apiPost('/api/auth/logout')
+    } catch {
+      /* 后端返回体不带 success 字段时 api() 会抛错，但 **Set-Cookie 已经生效**，
+         所以这里不能当失败 —— 真实结果由下面的探针判定 */
+    }
+
+    try {
+      // 直接用 fetch 探针：401/403 才等于「cookie 真的没了」，
+      // 这样能把「请求失败/断网」和「确实还登录着」区分开
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      cleared = res.status === 401 || res.status === 403
+    } catch {
+      // 网络异常 → 本轮无法确认，留给下一次循环；两次都不行则如实返回 false
+    }
+  }
+
+  clearLocalSession()
+  return cleared
+}
