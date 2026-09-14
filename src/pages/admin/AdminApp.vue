@@ -15,12 +15,12 @@
               <span class="yali-btn-inner"><span>全部批准</span></span>
             </Button>
           </div>
-          <p v-if="!registrations.length" class="yali-muted ad-gap">没有待审批的注册申请</p>
-          <div v-for="u in registrations" :key="u.id" class="ad-row">
-            <span class="ad-name">{{ u.name }}</span>
+          <p v-if="!registrations.length" class="yali-muted admin-gap">没有待审批的注册申请</p>
+          <div v-for="u in registrations" :key="u.id" class="admin-row">
+            <span class="admin-name">{{ u.name }}</span>
             <span class="yali-muted">{{ u.class_name || '—' }}</span>
             <span class="yali-chip">{{ u.department || '未选部门' }}</span>
-            <div class="ad-actions">
+            <div class="admin-actions">
               <Button @Click="approve(u)">
                 <span class="yali-btn-inner"><span>批准</span></span>
               </Button>
@@ -38,7 +38,7 @@
           <div class="yali-section-head">
             <TextBlock :Text="'成员（' + users.length + '）'" :FontSize="15" :FontWeight="500" />
             <div class="yali-head-tools">
-              <TextBox v-model:Text="keyword" PlaceholderText="搜索姓名" class="ad-search" />
+              <TextBox v-model:Text="keyword" PlaceholderText="搜索姓名" class="admin-search" />
               <Button @Click="openImport">
                 <span class="yali-btn-inner"><span>批量导入</span></span>
               </Button>
@@ -47,14 +47,14 @@
               </Button>
             </div>
           </div>
-          <div v-for="u in filteredUsers" :key="u.id" class="ad-row">
-            <span class="ad-name">{{ u.name }}</span>
+          <div v-for="u in filteredUsers" :key="u.id" class="admin-row">
+            <span class="admin-name">{{ u.name }}</span>
             <span class="yali-muted">{{ u.class_name || '—' }}</span>
             <span class="yali-chip">{{ u.department || '未分配' }}</span>
             <!-- ComboBox 的 SelectionChanged 不含 SelectedIndex，索引只从 update:SelectedIndex 出来 -->
             <ComboBox :ItemsSource="ROLE_LABELS" :SelectedIndex="roleIndex[u.id]"
-                      class="ad-role" @update:SelectedIndex="(i) => changeRole(u, i)" />
-            <div class="ad-actions">
+                      class="admin-role" @update:SelectedIndex="(i) => changeRole(u, i)" />
+            <div class="admin-actions">
               <Button @Click="renameUser(u)">
                 <span class="yali-btn-inner"><span>改名</span></span>
               </Button>
@@ -85,7 +85,7 @@
             </span>
           </div>
 
-          <div class="ad-filter-row">
+          <div class="admin-filter-row">
             <button v-for="f in ANNOUNCE_FILTERS" :key="f" class="btn btn-sm"
                     :class="announceFilter === f ? 'btn-primary' : 'btn-outline'"
                     type="button" @click="announceFilter = f">
@@ -93,7 +93,7 @@
             </button>
           </div>
 
-          <p v-if="!filteredAnnouncements.length" class="yali-muted ad-gap">暂无公告</p>
+          <p v-if="!filteredAnnouncements.length" class="yali-muted admin-gap">暂无公告</p>
           <div v-for="a in filteredAnnouncements" :key="a.id" class="yali-item">
             <div class="yali-item-head">
               <TextBlock :Text="a.title" class="yali-item-title" TextWrapping="Wrap" />
@@ -109,7 +109,7 @@
                  class="yali-img-skeleton" aria-hidden="true">
               <div class="yali-shimmer" />
             </div>
-            <div v-if="a.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ a.reject_reason }}</div>
+            <div v-if="a.reject_reason" class="yali-muted admin-gap">拒绝理由：{{ a.reject_reason }}</div>
             <div class="yali-item-meta">
               <span>{{ a.created_by }}</span>
               <span>{{ formatTime(a.created_at) }}</span>
@@ -131,7 +131,7 @@
       <template v-else-if="tabIndex === 3">
         <section class="yali-section">
           <TextBlock :Text="`审核记录（${reviews.length}）`" :FontSize="15" :FontWeight="500" />
-          <p v-if="!reviews.length" class="yali-muted ad-gap">暂无待审核记录</p>
+          <p v-if="!reviews.length" class="yali-muted admin-gap">暂无待审核记录</p>
           <div v-for="r in reviews" :key="r.id" class="yali-item">
             <div class="yali-item-head">
               <span class="yali-chip" :class="reviewChip(r.status)">{{ r.status }}</span>
@@ -139,16 +139,16 @@
             </div>
             <!-- 骨架只在「还没发起取图」时显示；取图失败也要登记 key（值为空串），
                  否则 `has_image` 为真而图永远不来 → 骨架一直转 -->
-            <div v-if="reviewImages[r.id]" class="ad-review-media">
+            <div v-if="reviewImages[r.id]" class="admin-review-media">
               <img :src="toBlobUrl(reviewImages[r.id])" alt="审核材料"
-                   class="ad-review-img" @click="openLightbox(toBlobUrl(reviewImages[r.id]))" />
+                   class="admin-review-img" @click="openLightbox(toBlobUrl(reviewImages[r.id]))" />
             </div>
             <div v-else-if="r.has_image && !(r.id in reviewImages)"
-                 class="yali-img-skeleton ad-review-skeleton" aria-hidden="true">
+                 class="yali-img-skeleton admin-review-skeleton" aria-hidden="true">
               <div class="yali-shimmer" />
             </div>
-            <div v-if="r.reject_reason" class="yali-muted ad-gap">拒绝理由：{{ r.reject_reason }}</div>
-            <div v-if="r.reviewed_by" class="yali-muted ad-gap">
+            <div v-if="r.reject_reason" class="yali-muted admin-gap">拒绝理由：{{ r.reject_reason }}</div>
+            <div v-if="r.reviewed_by" class="yali-muted admin-gap">
               审核者：{{ r.reviewed_by }}（{{ (r.reviewed_at || '').slice(0, 16) }}）
             </div>
             <div class="yali-item-actions">
@@ -167,18 +167,18 @@
       <template v-else-if="tabIndex === 4">
         <section class="yali-section">
           <TextBlock :Text="'用户反馈（' + feedback.length + '）'" :FontSize="15" :FontWeight="500" />
-          <p v-if="!feedback.length" class="yali-muted ad-gap">暂无反馈</p>
-          <div v-for="f in feedback" :key="f.id" class="ad-feedback">
-            <div class="ad-feedback-head">
+          <p v-if="!feedback.length" class="yali-muted admin-gap">暂无反馈</p>
+          <div v-for="f in feedback" :key="f.id" class="admin-feedback">
+            <div class="admin-feedback-head">
               <span class="yali-muted">{{ formatTime(f.created_at) }}</span>
               <span v-if="f.section" class="yali-chip">{{ f.section }}</span>
               <span v-if="f.version" class="yali-chip">v{{ f.version }}</span>
-              <button class="ad-del" type="button" title="删除" @click="removeFeedback(f)">
+              <button class="admin-del" type="button" title="删除" @click="removeFeedback(f)">
                 <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
               </button>
             </div>
-            <p class="ad-feedback-text">{{ f.content }}</p>
-            <p v-if="f.contact || f.page" class="yali-muted ad-feedback-meta">
+            <p class="admin-feedback-text">{{ f.content }}</p>
+            <p v-if="f.contact || f.page" class="yali-muted admin-feedback-meta">
               <span v-if="f.contact">联系方式：{{ f.contact }}</span>
               <span v-if="f.page">来源：{{ f.page }}</span>
             </p>
@@ -197,8 +197,8 @@
               </span>
             </Button>
           </div>
-          <p v-if="issuesError" class="yali-muted ad-gap">加载失败：{{ issuesError }}</p>
-          <p v-else-if="!issues.length" class="yali-muted ad-gap">暂无报修记录</p>
+          <p v-if="issuesError" class="yali-muted admin-gap">加载失败：{{ issuesError }}</p>
+          <p v-else-if="!issues.length" class="yali-muted admin-gap">暂无报修记录</p>
           <div v-for="it in issues" :key="it.id" class="yali-item">
             <div class="yali-item-head">
               <TextBlock :Text="it.location" class="yali-item-title" TextWrapping="Wrap" />
@@ -210,8 +210,8 @@
               <span>{{ it.submitted_by }}</span>
               <span>{{ formatTime(it.created_at) }}</span>
             </div>
-            <div v-if="issueImages[it.id]" class="ad-review-media">
-              <img :src="toBlobUrl(issueImages[it.id])" alt="报修图片" class="ad-review-img"
+            <div v-if="issueImages[it.id]" class="admin-review-media">
+              <img :src="toBlobUrl(issueImages[it.id])" alt="报修图片" class="admin-review-img"
                    @click="openLightbox(toBlobUrl(issueImages[it.id]))" />
             </div>
             <div class="yali-item-actions">
@@ -232,17 +232,17 @@
               </span>
             </Button>
           </div>
-          <p v-if="financeError" class="yali-muted ad-gap">加载失败：{{ financeError }}</p>
-          <p v-else-if="!financeList.length" class="yali-muted ad-gap">暂无财务记录</p>
-          <div v-for="f in financeList" :key="f.id" class="ad-row">
+          <p v-if="financeError" class="yali-muted admin-gap">加载失败：{{ financeError }}</p>
+          <p v-else-if="!financeList.length" class="yali-muted admin-gap">暂无财务记录</p>
+          <div v-for="f in financeList" :key="f.id" class="admin-row">
             <span class="yali-chip" :class="f.type === '收入' ? 'yali-chip-accent' : 'yali-chip-warn'">{{ f.type }}</span>
-            <span class="ad-name">¥{{ f.amount }}</span>
+            <span class="admin-name">¥{{ f.amount }}</span>
             <span class="yali-muted">{{ f.status }}</span>
             <span class="yali-muted">{{ f.department || '—' }}</span>
             <span class="yali-muted">{{ f.created_by }} · {{ formatTime(f.created_at) }}</span>
-            <div class="ad-actions">
+            <div class="admin-actions">
               <img v-if="financeImages[f.id]" :src="toBlobUrl(financeImages[f.id])" alt="票据"
-                   class="ad-review-img ad-fin-thumb"
+                   class="admin-review-img admin-fin-thumb"
                    @click="openLightbox(toBlobUrl(financeImages[f.id]))" />
               <button class="btn btn-sm btn-danger-outline" type="button" @click="removeFinance(f)">删除</button>
             </div>
@@ -261,8 +261,8 @@
               </span>
             </Button>
           </div>
-          <p v-if="featuresError" class="yali-muted ad-gap">加载失败：{{ featuresError }}</p>
-          <p v-else-if="!features.length" class="yali-muted ad-gap">暂无预定义功能</p>
+          <p v-if="featuresError" class="yali-muted admin-gap">加载失败：{{ featuresError }}</p>
+          <p v-else-if="!features.length" class="yali-muted admin-gap">暂无预定义功能</p>
 
           <div v-for="f in features" :key="f.key" class="yali-item">
             <div class="yali-item-head">
@@ -306,7 +306,7 @@
             </div>
             <ToggleSwitch v-model:IsOn="settings.site_closed" @Toggled="onClosedToggle" />
           </div>
-          <label v-if="settings.site_closed" class="yali-field ad-gap">
+          <label v-if="settings.site_closed" class="yali-field admin-gap">
             <span class="yali-field-label">维护提示文案</span>
             <TextBox v-model:Text="settings.site_closed_message" :MaxLength="500"
                      PlaceholderText="雅礼团委-通办暂时关闭" />
@@ -316,14 +316,14 @@
               <span class="yali-btn-inner"><span>{{ saving ? '保存中…' : '保存设置' }}</span></span>
             </Button>
           </div>
-          <p v-if="settings.site_closed_by" class="yali-muted ad-gap">
+          <p v-if="settings.site_closed_by" class="yali-muted admin-gap">
             上次由 {{ settings.site_closed_by }} 操作
           </p>
         </section>
 
         <section v-if="storageError" class="yali-section">
           <TextBlock Text="存储统计" :FontSize="15" :FontWeight="500" />
-          <p class="yali-muted ad-gap">加载失败：{{ storageError }}</p>
+          <p class="yali-muted admin-gap">加载失败：{{ storageError }}</p>
           <div class="yali-form-actions">
             <Button @Click="loadStorage">
               <span class="yali-btn-inner">
@@ -336,31 +336,31 @@
         <section v-else-if="storage" class="yali-section">
           <TextBlock Text="存储统计" :FontSize="15" :FontWeight="500" />
 
-          <div class="ad-bar-row">
-            <div class="ad-bar-head">
+          <div class="admin-bar-row">
+            <div class="admin-bar-head">
               <span>图片</span>
               <span><strong>{{ fmtMB(storage.imageBytes) }}</strong> / 5 GB</span>
             </div>
-            <div class="ad-bar">
-              <div class="ad-bar-fill" :class="pctClass(storage.percent)"
+            <div class="admin-bar">
+              <div class="admin-bar-fill" :class="pctClass(storage.percent)"
                    :style="{ width: Math.min(storage.percent ?? 0, 100) + '%' }" />
             </div>
-            <div class="ad-bar-pct">{{ (storage.percent ?? 0).toFixed(1) }}%</div>
+            <div class="admin-bar-pct">{{ (storage.percent ?? 0).toFixed(1) }}%</div>
           </div>
 
-          <div class="ad-bar-row">
-            <div class="ad-bar-head">
+          <div class="admin-bar-row">
+            <div class="admin-bar-head">
               <span>文本</span>
               <span><strong>{{ fmtMB(storage.textBytes) }}</strong> / 5 GB</span>
             </div>
-            <div class="ad-bar">
-              <div class="ad-bar-fill" :class="pctClass(textPercent)"
+            <div class="admin-bar">
+              <div class="admin-bar-fill" :class="pctClass(textPercent)"
                    :style="{ width: Math.min(textPercent, 100) + '%' }" />
             </div>
-            <div class="ad-bar-pct">{{ textPercent.toFixed(1) }}%</div>
+            <div class="admin-bar-pct">{{ textPercent.toFixed(1) }}%</div>
           </div>
 
-          <div class="ad-counts">
+          <div class="admin-counts">
             <span v-for="row in storageCounts" :key="row.label">
               {{ row.label }} {{ row.value }}
             </span>
@@ -391,11 +391,11 @@
       <div class="yali-form">
         <p v-if="inviteLoading" class="yali-muted">加载中…</p>
         <p v-else-if="!invitations.length" class="yali-muted">还没有邀请记录</p>
-        <div v-for="iv in invitations" :key="iv.user_id" class="ad-row">
-          <span class="ad-name">{{ iv.name }}</span>
+        <div v-for="iv in invitations" :key="iv.user_id" class="admin-row">
+          <span class="admin-name">{{ iv.name }}</span>
           <span class="yali-chip">{{ iv.status }}</span>
           <span class="yali-muted">{{ formatTime(iv.invited_at) }}</span>
-          <div class="ad-actions">
+          <div class="admin-actions">
             <Button @Click="resetInvitation(iv)">
               <span class="yali-btn-inner"><span>重置</span></span>
             </Button>
@@ -411,13 +411,13 @@
         <SelectorBar :Items="importModes" :SelectedItem="importModes[importMode]"
                      @SelectionChanged="(a) => { importMode = a?.Items?.indexOf(a.SelectedItem) ?? 0; importParsed = [] }" />
 
-        <label v-if="importMode === 0" class="yali-field ad-gap">
+        <label v-if="importMode === 0" class="yali-field admin-gap">
           <span class="yali-field-label">上传 CSV 文件</span>
           <input type="file" accept=".csv" class="form-input" @change="onImportFile" />
           <span class="yali-setting-desc">格式：姓名,密码,班级,部门（每行一条，部门可选）</span>
         </label>
 
-        <label v-else-if="importMode === 1" class="yali-field ad-gap">
+        <label v-else-if="importMode === 1" class="yali-field admin-gap">
           <span class="yali-field-label">上传 JSON 文件</span>
           <input type="file" accept=".json" class="form-input" @change="onImportFile" />
           <span class="yali-setting-desc">
@@ -426,7 +426,7 @@
         </label>
 
         <template v-else>
-          <label class="yali-field ad-gap">
+          <label class="yali-field admin-gap">
             <span class="yali-field-label">手动输入</span>
             <TextBox v-model:Text="importText" AcceptsReturn TextWrapping="Wrap"
                      PlaceholderText="每行一条：姓名 密码 班级 部门
@@ -441,10 +441,10 @@
 
         <template v-if="importParsed.length">
           <TextBlock :Text="`解析出 ${importParsed.length} 条，确认后提交`"
-                     :FontSize="13" :FontWeight="500" class="ad-gap" />
-          <div class="ad-import-preview">
-            <div v-for="(u, i) in importParsed" :key="i" class="ad-import-row">
-              <span class="ad-name">{{ u.name }}</span>
+                     :FontSize="13" :FontWeight="500" class="admin-gap" />
+          <div class="admin-import-preview">
+            <div v-for="(u, i) in importParsed" :key="i" class="admin-import-row">
+              <span class="admin-name">{{ u.name }}</span>
               <span class="yali-muted">{{ u.class_name || '—' }}</span>
               <span class="yali-chip">{{ u.department || '未分配' }}</span>
             </div>
@@ -456,7 +456,7 @@
           </div>
         </template>
 
-        <p v-if="importResult" class="yali-muted ad-gap">{{ importResult }}</p>
+        <p v-if="importResult" class="yali-muted admin-gap">{{ importResult }}</p>
       </div>
     </ContentDialog>
   </YaliShell>
@@ -1452,20 +1452,20 @@ onMounted(async () => {
 
 <style>
 /* ⚠️ 类名刻意不带 `ad-` 前缀。
-   这个元素曾经叫 `.ad-tabs`，而用户的 Edge 上有一条**针对它的隐藏规则**
+   这个元素曾经叫 `.admin-tabs`，而用户的 Edge 上有一条**针对它的隐藏规则**
    （`display: none`，只有管理页这条标签栏受影响，其他页面的标签栏与别的内容都正常；
    表现是「疯狂按 F5 会短暂闪一下」—— 注入样式在页面渲染之后才生效）。
    实测 `display:none` 会让下面的卡片正好上移 50px，与用户截图量出来的一致。
-   主流过滤表（easylistchina）里并没有命中 `.ad-tabs` 的通用规则，
+   主流过滤表（easylistchina）里并没有命中 `.admin-tabs` 的通用规则，
    所以那条规则来自本机配置（多半是「屏蔽此元素」这类手动规则）——
    换个类名即可让它失效；顺带也避免以后被广告过滤器误伤。 */
 .admin-tabs {
   margin-bottom: 16px;
 }
-.ad-gap {
+.admin-gap {
   margin-top: 12px;
 }
-.ad-row {
+.admin-row {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1474,23 +1474,23 @@ onMounted(async () => {
   font-size: 13px;
   flex-wrap: wrap;
 }
-.ad-name {
+.admin-name {
   font-weight: 500;
   color: var(--text-primary);
   min-width: 80px;
 }
-.ad-actions {
+.admin-actions {
   margin-left: auto;
   display: flex;
   gap: 6px;
 }
-.ad-role {
+.admin-role {
   width: 130px;
 }
-.ad-search {
+.admin-search {
   width: 180px;
 }
-.ad-del {
+.admin-del {
   border: none;
   background: none;
   padding: 4px;
@@ -1498,36 +1498,36 @@ onMounted(async () => {
   color: var(--text-tertiary);
   border-radius: 4px;
 }
-.ad-del:hover {
+.admin-del:hover {
   background: var(--subtle-tertiary);
   color: var(--text-primary);
 }
-.ad-feedback {
+.admin-feedback {
   padding: 10px 0;
   border-bottom: 1px solid var(--stroke-divider);
 }
-.ad-feedback-head {
+.admin-feedback-head {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 12px;
 }
-.ad-feedback-head .ad-del {
+.admin-feedback-head .admin-del {
   margin-left: auto;
 }
-.ad-feedback-text {
+.admin-feedback-text {
   margin: 6px 0 0;
   font-size: 13px;
   color: var(--text-primary);
   white-space: pre-wrap;
 }
-.ad-feedback-meta {
+.admin-feedback-meta {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   margin: 4px 0 0;
 }
-.ad-kv {
+.admin-kv {
   display: grid;
   grid-template-columns: 100px 1fr;
   gap: 6px 12px;
@@ -1537,43 +1537,43 @@ onMounted(async () => {
 }
 
 /* 存储占用条（颜色随占比变化：正常 / 偏高 / 告警） */
-.ad-bar-row {
+.admin-bar-row {
   margin-top: 12px;
 }
-.ad-bar-head {
+.admin-bar-head {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
   color: var(--text-secondary);
 }
-.ad-bar {
+.admin-bar {
   margin-top: 4px;
   height: 6px;
   border-radius: 4px;
   overflow: hidden;
   background: var(--control-stroke-default, rgba(128, 128, 128, 0.24));
 }
-.ad-bar-fill {
+.admin-bar-fill {
   height: 100%;
   border-radius: 4px;
   transition: width 0.6s ease;
 }
-.ad-bar-fill.is-ok { background: var(--color-text-success, #0f7b0f); }
-.ad-bar-fill.is-warn { background: var(--color-text-caution, #9d5d00); }
-.ad-bar-fill.is-danger { background: var(--accent-base); }
-.ad-bar-pct {
+.admin-bar-fill.is-ok { background: var(--color-text-success, #0f7b0f); }
+.admin-bar-fill.is-warn { background: var(--color-text-caution, #9d5d00); }
+.admin-bar-fill.is-danger { background: var(--accent-base); }
+.admin-bar-pct {
   margin-top: 2px;
   font-size: 11px;
   text-align: right;
   color: var(--text-tertiary);
 }
-.ad-filter-row {
+.admin-filter-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin: 12px 0;
 }
-.ad-import-preview {
+.admin-import-preview {
   max-height: 220px;
   overflow-y: auto;
   margin-top: 8px;
@@ -1581,7 +1581,7 @@ onMounted(async () => {
   border-radius: 6px;
   padding: 6px 10px;
 }
-.ad-import-row {
+.admin-import-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1589,18 +1589,18 @@ onMounted(async () => {
   font-size: 13px;
   border-bottom: 1px solid var(--stroke-divider);
 }
-.ad-import-row:last-child {
+.admin-import-row:last-child {
   border-bottom: none;
 }
-.ad-review-media {
+.admin-review-media {
   margin-top: 8px;
 }
-.ad-review-skeleton {
+.admin-review-skeleton {
   margin-top: 8px;
   width: 200px;
   height: 120px;
 }
-.ad-review-img {
+.admin-review-img {
   margin-top: 8px;
   max-width: 100%;
   max-height: 220px;
@@ -1609,12 +1609,12 @@ onMounted(async () => {
   cursor: pointer;
 }
 /* 财务票据缩略图：跟在操作按钮行里，得压小并去掉上外边距 */
-.ad-fin-thumb {
+.admin-fin-thumb {
   margin-top: 0;
   max-height: 40px;
   border-radius: 4px;
 }
-.ad-counts {
+.admin-counts {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
   gap: 4px 10px;
@@ -1624,11 +1624,11 @@ onMounted(async () => {
 }
 
 @media (max-width: 640px) {
-  .ad-search,
-  .ad-role {
+  .admin-search,
+  .admin-role {
     width: 100%;
   }
-  .ad-actions {
+  .admin-actions {
     margin-left: 0;
   }
 }

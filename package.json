@@ -5,7 +5,7 @@
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && vite build",
+    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && node scripts/check-classnames.mjs && vite build",
     "preview": "vite preview",
     "dev:pages": "wrangler pages dev dist/",
     "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
@@ -21,7 +21,8 @@
     "check:icons": "node scripts/check-icon-render.mjs",
     "subset:icons": "node scripts/subset-icons.mjs",
     "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs",
-    "check:icons:fast": "node scripts/check-icon-render.mjs --fast"
+    "check:icons:fast": "node scripts/check-icon-render.mjs --fast",
+    "check:classnames": "node scripts/check-classnames.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

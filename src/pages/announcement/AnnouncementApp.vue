@@ -16,13 +16,13 @@
       </div>
 
       <article v-else class="yali-section">
-        <header class="ad-head">
+        <header class="announce-head">
           <TextBlock :Text="item.title" :FontSize="22" :FontWeight="600" TextWrapping="Wrap" />
           <span v-if="item.status && item.status !== '已通过'" class="yali-chip yali-chip-warn">
             {{ item.status }}
           </span>
           <!-- 作者 / 管理员：编辑（回列表页带 ?edit=id 打开编辑器）与删除 -->
-          <div v-if="canManageItem" class="ad-head-actions">
+          <div v-if="canManageItem" class="announce-head-actions">
             <Button @Click="editItem">
               <span class="yali-btn-inner"><span>编辑</span></span>
             </Button>
@@ -34,14 +34,14 @@
           </div>
         </header>
 
-        <div class="yali-item-meta ad-meta">
+        <div class="yali-item-meta announce-meta">
           <span>{{ item.created_by }}</span>
           <span>{{ formatTime(item.created_at) }}</span>
         </div>
 
         <p v-if="item.reject_reason" class="yali-item-note">审核意见：{{ item.reject_reason }}</p>
 
-        <div class="ad-content">{{ item.content }}</div>
+        <div class="announce-content">{{ item.content }}</div>
 
         <!-- 两段式图片：详情接口只给 has_image -->
         <div v-if="images.length" class="yali-img-row">
@@ -53,10 +53,10 @@
         </div>
 
         <!-- 评论 -->
-        <section class="ad-comments">
+        <section class="announce-comments">
           <TextBlock :Text="'评论 (' + comments.length + ')'" :FontSize="15" :FontWeight="600" />
 
-          <p v-if="!comments.length" class="yali-muted ad-comment-empty">暂无评论</p>
+          <p v-if="!comments.length" class="yali-muted announce-comment-empty">暂无评论</p>
           <div v-for="c in comments" :key="c.id" class="yali-comment">
             <div class="yali-comment-head">
               <span class="yali-comment-author">{{ c.created_by }}</span>
@@ -64,7 +64,7 @@
             </div>
 
             <template v-if="editingId === c.id">
-              <TextBox v-model:Text="editDraft" AcceptsReturn :MaxLength="500" class="ad-edit" />
+              <TextBox v-model:Text="editDraft" AcceptsReturn :MaxLength="500" class="announce-edit" />
               <div class="yali-comment-actions">
                 <Button @Click="saveEdit(c)">
                   <span class="yali-btn-inner"><span>保存</span></span>
@@ -88,7 +88,7 @@
             </template>
           </div>
 
-          <div v-if="user" class="ad-comment-form">
+          <div v-if="user" class="announce-comment-form">
             <TextBox v-model:Text="draft" PlaceholderText="写下评论…" :MaxLength="500" AcceptsReturn />
             <Button :Style="'{StaticResource AccentButtonStyle}'"
                     :IsEnabled="!!draft.trim()" @Click="post">
@@ -342,49 +342,49 @@ onMounted(async () => {
 .yali-detail-page {
   max-width: 860px;
 }
-.ad-head {
+.announce-head {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   flex-wrap: wrap;
 }
-.ad-head-actions {
+.announce-head-actions {
   margin-left: auto;
   display: flex;
   gap: 8px;
   flex: none;
 }
-.ad-meta {
+.announce-meta {
   margin-top: 8px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--stroke-divider);
 }
-.ad-content {
+.announce-content {
   margin-top: 16px;
   font-size: 14px;
   line-height: 1.8;
   color: var(--text-primary);
   white-space: pre-wrap;
 }
-.ad-comments {
+.announce-comments {
   margin-top: 28px;
   padding-top: 20px;
   border-top: 1px solid var(--stroke-divider);
 }
-.ad-comment-empty {
+.announce-comment-empty {
   margin-top: 12px;
 }
-.ad-edit {
+.announce-edit {
   margin-top: 6px;
   min-height: 60px;
 }
-.ad-comment-form {
+.announce-comment-form {
   display: flex;
   gap: 8px;
   align-items: flex-end;
   margin-top: 16px;
 }
-.ad-comment-form > :first-child {
+.announce-comment-form > :first-child {
   flex: 1;
   min-width: 0;
   min-height: 64px;

@@ -188,7 +188,7 @@ async function smokeAdminTabs() {
 
     await tabs.nth(1).click()
     await page.waitForTimeout(400)
-    const memberRows = await page.locator('.ad-role').count()
+    const memberRows = await page.locator('.admin-role').count()
     check('admin：切到第 2 个标签「成员管理」', memberRows > 0, `角色下拉 ${memberRows} 个`)
 
     // 第 6 个标签 = 报修管理（本轮补回的标签，此前 /api/issues 的删除入口没有消费者）
@@ -200,7 +200,7 @@ async function smokeAdminTabs() {
     // 第 7 个标签 = 财务记录
     await tabs.nth(6).click()
     await page.waitForTimeout(500)
-    const financeRows = await page.locator('.ad-row').count()
+    const financeRows = await page.locator('.admin-row').count()
     check('admin：切到第 7 个标签「财务记录」并渲染条目', financeRows > 0, `${financeRows} 条`)
 
     // 第 8 个标签 = 功能开关（整套 /api/admin/features* 此前零消费者）
@@ -212,7 +212,7 @@ async function smokeAdminTabs() {
     // 点「邀请详情」应真的把 invitations 渲染出来
     await page.locator('.yali-item-actions button', { hasText: '邀请详情' }).first().click()
     await page.waitForTimeout(600)
-    const inviteRows = await page.locator('.content-dialog .ad-row').count()
+    const inviteRows = await page.locator('.content-dialog .admin-row').count()
     check('admin：功能开关的「邀请详情」能拉到名单', inviteRows > 0, `${inviteRows} 条`)
 
     check('admin：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
