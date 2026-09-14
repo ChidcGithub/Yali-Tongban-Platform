@@ -131,7 +131,7 @@ const routes = [
   { p: /^\/api\/messages\/(\d+)$/, m: 'POST', h: c => handleMarkRead(c.env, c.user, c.m[1]) },
   { p: /^\/api\/messages\/(\d+)$/, m: 'DELETE', h: c => handleDeleteMessage(c.env, c.user, c.m[1]) },
   // Comments
-  { p: /^\/api\/comments\/(announcement|issue)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
+  { p: /^\/api\/comments\/(announcement|issue|issue_note)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
   { p: '/api/comments', m: 'POST', h: c => handleCreateComment(c.request, c.env, c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'PUT', h: c => handleUpdateComment(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'DELETE', h: c => handleDeleteComment(c.request, c.env, c.m[1], c.user) },

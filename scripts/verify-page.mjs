@@ -66,7 +66,12 @@ const FIXTURES = {
     banner: {
       announcements: [{ id: 9, title: '团委换届通知', content: '请各班团支书于本周五前提交名单', created_at: ts(), created_by: '团委办公室' }]
     },
-    comments: [{ id: 11, created_by: '王五', content: '已安排人员处理', created_at: ts() }]
+    comments: [{ id: 11, created_by: '王五', content: '已安排人员处理', created_at: ts() }],
+    /* 报修处理备注（target_type='issue_note'）：与评论同表不同用途 */
+    issueNotes: [
+      { id: 71, created_by: '张三', content: '投影仪电源灯不亮，已换过插座', created_at: ts(7200) },
+      { id: 72, created_by: '团委办公室', content: '已联系厂商，预计明天上午上门', created_at: ts(3600) }
+    ]
   },
 
   announcements: {
@@ -382,6 +387,9 @@ const stub = `
     if (fx.issues && url.indexOf('/api/issues/images') === 0) return {};
     if (fx.issues && url.indexOf('/api/issues') === 0) return fx.issues;
     if (fx.banner && url.indexOf('/api/banner') === 0) return fx.banner;
+    /* 备注必须先判：/api/comments/issue_note/N 也以 /api/comments/ 开头，
+       放在后面会被通用评论分支拦走（那样备注区会拿到评论数据） */
+    if (fx.issueNotes && url.indexOf('/api/comments/issue_note/') === 0) return fx.issueNotes;
     if (fx.comments && url.indexOf('/api/comments/') === 0) return fx.comments;
     if (fx.msgPayload && url.indexOf('/api/messages') === 0) return fx.msgPayload;
     if (fx.feedPayload && url.indexOf('after=') > 0) return { messages: [], nextCursor: null, hasMore: false };

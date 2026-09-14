@@ -1150,6 +1150,86 @@ async function smokeDutyCountdown() {
   }
 }
 
+/**
+ * 报修「处理备注」：提交者与解决者都能追加
+ *
+ * 改动前：`issues.notes` 是**单字段**，只能在创建报修时由提交者填一次
+ * （≤50 字），后端连改它的接口都没有 —— 解决者处理完没有地方写说明。
+ * 现在备注是 comments 表上的 `issue_note` 类型（零迁移），带作者与时间，
+ * 提交者本人与管理员都能追加，其他人只读。
+ */
+async function smokeIssueNotes() {
+  /* ① 管理员（同时也是解决者）视角 */
+  {
+    const { page, pageErrors } = await openPage('services')
+    try {
+      await page.waitForTimeout(900)
+      const box = page.locator('.yali-note-box').first()
+      check('报修备注：备注区渲染出来', (await box.count()) > 0)
+
+      const text = await box.innerText().catch(() => '')
+      check(
+        '报修备注：已有备注带作者与内容',
+        text.includes('张三') && text.includes('已联系厂商'),
+        JSON.stringify(text.slice(0, 60))
+      )
+      check('报修备注：标题是「处理备注」', text.includes('处理备注'))
+
+      const addBtn = page.locator('.yali-note-box button', { hasText: '添加备注' }).first()
+      check('报修备注：解决者（管理员）能看到「添加备注」', (await addBtn.count()) > 0)
+
+      await addBtn.click()
+      await page.waitForTimeout(400)
+      const input = box.locator('input, textarea').first()
+      check('报修备注：点开后出现输入框', (await input.count()) > 0)
+
+      await captureWrites(page)
+      await input.fill('已更换电源模块，问题已解决')
+      await page.waitForTimeout(200)
+      await box.locator('button', { hasText: '提交备注' }).first().click()
+      await page.waitForTimeout(700)
+
+      const post = await page.evaluate(
+        () => window.__posted.filter((p) => p.url.indexOf('/api/comments') >= 0)[0] || null
+      )
+      check(
+        '报修备注：请求体是 {target_type:issue_note, target_id, content}',
+        !!post && post.body?.target_type === 'issue_note' && !!post.body?.target_id && !!post.body?.content,
+        JSON.stringify(post?.body ?? null)
+      )
+      check('报修备注：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ② 反向：普通成员、且不是这条报修的提交者 → 只读 */
+  {
+    const { page } = await openPage('services', '?role=member')
+    try {
+      await page.waitForTimeout(900)
+      const addBtn = page.locator('.yali-note-box button', { hasText: '添加备注' })
+      check('报修备注：无关成员看不到「添加备注」（只读）', (await addBtn.count()) === 0, `${await addBtn.count()} 个`)
+      const box = page.locator('.yali-note-box').first()
+      check('报修备注：无关成员仍能看备注', (await box.count()) > 0)
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ③ 未登录 → 只读（submitted_by 本来就不返回，无从判断身份） */
+  {
+    const { page } = await openPage('services', '?anon=1')
+    try {
+      await page.waitForTimeout(900)
+      const addBtn = page.locator('.yali-note-box button', { hasText: '添加备注' })
+      check('报修备注：未登录看不到「添加备注」', (await addBtn.count()) === 0, `${await addBtn.count()} 个`)
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1175,7 +1255,8 @@ const CASES = [
   ['班级补填：未填班级强制补填', smokeClassPrompt],
   ['破图兜底：不显示破图框', smokeBrokenImage],
   ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging],
-  ['值日页：签到计时精确到秒', smokeDutyCountdown]
+  ['值日页：签到计时精确到秒', smokeDutyCountdown],
+  ['报修备注：提交者与解决者都能添加', smokeIssueNotes]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

@@ -67,8 +67,58 @@
 
               <TextBlock :Text="item.description" TextWrapping="Wrap" class="yali-item-body" />
 
-              <div v-if="item.notes" class="yali-item-note">
-                <TextBlock :Text="'备注：' + item.notes" TextWrapping="Wrap" />
+              <!-- 处理备注：提交者与解决者都能追加。
+                   早先只有 issues.notes 这一个字段，且只能在**创建报修时**由提交者填一次，
+                   解决者处理完没有任何地方写说明。现在备注是一串带作者/时间的记录，
+                   与「评论」分开：评论是讨论（折叠区），备注是处理说明（常显、醒目）。 -->
+              <div v-if="showNoteBox(item)" class="yali-note-box">
+                <div class="yali-note-head">
+                  <FontIcon :Glyph="GLYPH.services" :FontSize="13" />
+                  <span>处理备注</span>
+                  <span class="yali-note-grow" />
+                  <Button v-if="canAddNote(item)" @Click="toggleNoteEditor(item.id)">
+                    <span class="yali-btn-inner">
+                      <FontIcon :Glyph="GLYPH.add" :FontSize="12" />
+                      <span>{{ noteOpen === item.id ? '收起' : '添加备注' }}</span>
+                    </span>
+                  </Button>
+                </div>
+
+                <!-- 创建报修时填的备注：历史字段，单独展示，不因为改版把老数据弄丢 -->
+                <div v-if="item.notes" class="yali-note-line">
+                  <div class="yali-note-meta">
+                    <span class="yali-note-author">提交时备注</span>
+                  </div>
+                  <p class="yali-note-text">{{ item.notes }}</p>
+                </div>
+
+                <p v-if="!noteLoaded[item.id]" class="yali-muted">加载中…</p>
+                <template v-else>
+                  <div v-for="n in notes[item.id] || []" :key="n.id" class="yali-note-line">
+                    <div class="yali-note-meta">
+                      <span class="yali-note-author">{{ n.created_by }}</span>
+                      <span class="yali-note-time">{{ formatTime(n.created_at) }}</span>
+                      <button v-if="canDeleteNote(n)" class="yali-note-del" type="button"
+                              title="删除这条备注" @click="removeNote(item, n)">
+                        <FontIcon :Glyph="GLYPH.delete" :FontSize="12" />
+                      </button>
+                    </div>
+                    <p class="yali-note-text">{{ n.content }}</p>
+                  </div>
+                  <p v-if="!item.notes && !(notes[item.id] || []).length" class="yali-muted">
+                    暂无备注
+                  </p>
+                </template>
+
+                <div v-if="noteOpen === item.id && canAddNote(item)" class="yali-note-form">
+                  <TextBox v-model:Text="noteDraft" PlaceholderText="补充处理说明…"
+                           :MaxLength="500" AcceptsReturn class="yali-note-input" />
+                  <div class="yali-note-form-actions">
+                    <Button :IsEnabled="!!noteDraft.trim() && !noteSaving" @Click="postNote(item)">
+                      <span class="yali-btn-inner"><span>提交备注</span></span>
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               <!-- 两段式图片：列表接口只给 has_image，图片按批异步取回；
@@ -272,6 +322,9 @@ interface Comment {
   created_at: string
 }
 
+/** 处理备注：与评论同表（comments），target_type = 'issue_note' */
+type IssueNote = Comment
+
 interface BannerEntry {
   key: string
   label: string
@@ -343,6 +396,7 @@ async function loadIssues() {
   try {
     issues.value = await apiGet<Issue[]>('/api/issues')
     void loadIssueImagesLazy()
+    void loadAllNotes()
   } catch (err) {
     loadError.value = '加载失败：' + (err as Error).message
   } finally {
@@ -519,6 +573,101 @@ function openBanner(item: BannerEntry) {
   window.location.href = item.href
 }
 
+/* ── 处理备注（提交者 + 解决者都能追加） ── */
+const notes = reactive<Record<number, IssueNote[]>>({})
+/** 已拉取过的条目：用来区分「还没到」与「确实没有」 */
+const noteLoaded = reactive<Record<number, boolean>>({})
+/** 正在展开输入框的条目 id */
+const noteOpen = ref<number | null>(null)
+const noteDraft = ref('')
+const noteSaving = ref(false)
+
+/**
+ * 谁能加备注：**提交者本人**或**解决者（管理员）**。
+ * 后端同口径校验（functions/api/comments.js），这里只是别把按钮露给做不到的人。
+ * ⚠️ submitted_by 只对已登录用户返回（隐私边界），所以未登录时这里恒为 false ——
+ * 未登录本来也不该写备注。
+ */
+function canAddNote(it: Issue) {
+  const u = user.value
+  if (!u) return false
+  if (isAdmin()) return true
+  return !!it.submitted_by && it.submitted_by === u.name
+}
+
+function canDeleteNote(n: IssueNote) {
+  const u = user.value
+  if (!u) return false
+  return u.name === n.created_by || isAdmin()
+}
+
+/** 备注区要不要出现：有内容、或自己能写；都没有就整块不占位（不闪空白） */
+function showNoteBox(it: Issue) {
+  if (it.notes) return true
+  if ((notes[it.id] || []).length) return true
+  return canAddNote(it)
+}
+
+function toggleNoteEditor(id: number) {
+  noteOpen.value = noteOpen.value === id ? null : id
+  noteDraft.value = ''
+}
+
+/**
+ * 批量拉备注（每条一个 GET，按批并发 —— 后端没有批量接口）。
+ * 取不到的条目也要登记成空数组，否则「加载中」会一直挂着。
+ */
+async function loadAllNotes() {
+  const ids = issues.value.map((i) => i.id)
+  for (let i = 0; i < ids.length; i += 4) {
+    const batch = ids.slice(i, i + 4)
+    await Promise.all(
+      batch.map(async (id) => {
+        try {
+          notes[id] = (await apiGet<IssueNote[]>(`/api/comments/issue_note/${id}`)) ?? []
+        } catch {
+          notes[id] = []
+        }
+        noteLoaded[id] = true
+      })
+    )
+  }
+}
+
+async function postNote(it: Issue) {
+  const content = noteDraft.value.trim()
+  if (!content) return
+  noteSaving.value = true
+  try {
+    const created = await apiPost<IssueNote>('/api/comments', {
+      target_type: 'issue_note',
+      target_id: it.id,
+      content
+    })
+    if (!notes[it.id]) notes[it.id] = []
+    notes[it.id].push(created)
+    noteLoaded[it.id] = true
+    noteDraft.value = ''
+    noteOpen.value = null
+    toast('备注已添加', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    noteSaving.value = false
+  }
+}
+
+async function removeNote(it: Issue, n: IssueNote) {
+  if (!(await confirmDialog({ title: '确认删除', message: '确定删除这条备注吗？', danger: true }))) return
+  try {
+    await apiDel(`/api/comments/${n.id}`)
+    notes[it.id] = (notes[it.id] || []).filter((x) => x.id !== n.id)
+    toast('备注已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 /* ── 提交表单 ── */
 const dialogOpen = ref(false)
 const submitting = ref(false)
@@ -642,6 +791,51 @@ onMounted(() => {
 .yali-banner-title { font-size: 14px; font-weight: 500; }
 .yali-banner-body { font-size: 13px; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .yali-banner-meta { font-size: 12px; color: var(--text-tertiary); }
+
+/* 处理备注（本页特有）：比评论更醒目 —— 它是「处理说明」，不是讨论 */
+.yali-note-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--md-error) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--md-error) 18%, transparent);
+}
+.yali-note-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--md-error);
+}
+.yali-note-grow { flex: 1 1 auto; }
+.yali-note-line { display: flex; flex-direction: column; gap: 2px; }
+.yali-note-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.yali-note-author { font-weight: 600; color: var(--md-on-surface); }
+.yali-note-time { color: var(--text-tertiary); }
+.yali-note-del {
+  margin-left: auto;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  line-height: 1;
+}
+.yali-note-del:hover { background: var(--subtle-secondary); color: var(--md-error); }
+.yali-note-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--md-on-surface);
+  white-space: pre-line;
+}
+.yali-note-form { display: flex; flex-direction: column; gap: 6px; }
+.yali-note-input { width: 100%; }
+.yali-note-form-actions { display: flex; justify-content: flex-end; }
 
 /* 工单图片（本页特有） */
 .yali-item-img { max-height: 200px; width: auto; max-width: 100%; border-radius: 4px; cursor: pointer; }
