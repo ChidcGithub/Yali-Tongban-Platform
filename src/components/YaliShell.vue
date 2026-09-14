@@ -19,6 +19,9 @@
     <!-- 侧栏底部：账户区 -->
     <template #PaneFooter>
       <div class="yali-account">
+        <!-- 收起态（图标栏）只留图标，靠 .yali-account-action-text 类名隐藏文字。
+             用类名而不是 `> span`：FontIcon 渲染出来的也是 <span class="win-font-icon">，
+             那样会把图标自己一起藏掉。 -->
         <template v-if="user">
           <div class="yali-account-row">
             <FontIcon :Glyph="GLYPH.user" :FontSize="16" />
@@ -27,7 +30,7 @@
           <Button class="yali-account-action" @click="onLogout">
             <span class="yali-account-action-inner">
               <FontIcon :Glyph="GLYPH.logout" :FontSize="14" />
-              <span>登出</span>
+              <span class="yali-account-action-text">登出</span>
             </span>
           </Button>
         </template>
@@ -35,7 +38,7 @@
           <Button class="yali-account-action" @click="go('login.html')">
             <span class="yali-account-action-inner">
               <FontIcon :Glyph="GLYPH.user" :FontSize="14" />
-              <span>登录</span>
+              <span class="yali-account-action-text">登录</span>
             </span>
           </Button>
         </template>
@@ -304,5 +307,54 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* ══════════════════════════════════════════════════════
+   侧栏收起成图标栏时，账户区也只留图标
+   ──────────────────────────────────────────────────────
+   导航项在收起态自动只显示图标，但账户区是自己写的 slot 内容，
+   上游那套紧凑规则管不到它 —— 于是 48px 宽的图标栏里，
+   「登录 / 登出」的文字被裁成半截，比别的项显得突兀。
+
+   收起态由上游 NavigationView 打在左侧栏根元素上：
+     `.win-nav-left-panel.is-compact` + `.is-closed-compact`
+   ⚠️ 别用 `.is-compact` 单独判定 —— 手机宽度是最小化模式
+   （`is-minimal`），此时 `is-compact` 也为真，但侧栏是以浮层展开的，
+   内容要完整显示。只有 `is-closed-compact`（紧凑 **且** 非最小化）
+   才等于「收成图标栏」。
+   ══════════════════════════════════════════════════════ */
+.win-nav-left-panel.is-closed-compact .yali-account {
+  align-items: center;
+}
+/* 尺寸与导航项对齐（收起态的项是 40×36、图标 16px） */
+.win-nav-left-panel.is-closed-compact .yali-account-row,
+.win-nav-left-panel.is-closed-compact .yali-account-action {
+  width: 40px;
+  min-width: 40px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  border-radius: 4px;
+}
+/* 去掉按钮默认的白色底＋描边 —— 否则图标栏里会多出一块白瓷砖，
+   与旁边的导航图标明显不是一路；悬停反馈沿用导航项的浅底。 */
+.win-nav-left-panel.is-closed-compact .yali-account-action {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+.win-nav-left-panel.is-closed-compact .yali-account-action:hover {
+  background: var(--subtle-secondary);
+}
+.win-nav-left-panel.is-closed-compact .yali-account-action-inner .win-font-icon,
+.win-nav-left-panel.is-closed-compact .yali-account-row .win-font-icon {
+  font-size: 16px;
+  line-height: 16px;
+}
+.win-nav-left-panel.is-closed-compact .yali-account-name,
+.win-nav-left-panel.is-closed-compact .yali-account-action-text {
+  display: none;
 }
 </style>

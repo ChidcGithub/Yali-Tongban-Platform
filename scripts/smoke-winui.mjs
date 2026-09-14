@@ -399,6 +399,15 @@ async function smokeMomentFeed() {
 async function smokePollImage() {
   const { page, pageErrors } = await openPage('poll', '?id=5')
   try {
+    /* ⚠️ `openPage` 只保证**外壳**挂载（`#__loaded` 哨兵），题目、配图、
+       验证码都是随后异步拉取的。这里必须等内容真的出来再断言 ——
+       否则机器一忙就会偶发「0 个」的假故障（跑全量时踩到过：4 条同时红，
+       单独跑这一页却全绿）。 */
+    await page
+      .locator('.yali-form-actions button', { hasText: '提交投票' })
+      .first()
+      .waitFor({ state: 'attached', timeout: 8000 })
+      .catch(() => {})
     /* 关键回归点：`/api/polls/:id/my-vote` 返回的是对象 `{voted:false}`。
        早先写成 `!!mine && (!Array.isArray(mine) || ...)` → voted 恒为 true，
        **投票表单永远不出现，所有人都投不了票**。 */
@@ -1297,6 +1306,105 @@ async function smokePasswordBoxIcons() {
   }
 }
 
+/**
+ * 侧栏收起成图标栏时，账户区（登录 / 登出）也只显示图标
+ *
+ * 导航项在收起态由上游组件切成图标栏，但账户区是站点写进 `PaneFooter` 的
+ * slot 内容 —— 上游那套紧凑规则够不到它，48px 宽的栏里文字被裁成半截。
+ *
+ * ⚠️ 收起态的判据必须是 `is-closed-compact`（紧凑 **且** 非最小化）。
+ * 手机宽度是最小化模式，那时 `is-compact` 也是真，但侧栏是以浮层展开的、
+ * 内容要完整显示 —— 所以专门有一条反向断言盯着「别用 is-compact 单独判定」。
+ */
+async function smokePaneAccountIcons() {
+  /* ① 收起态（800px = LeftCompact）：只留图标 */
+  {
+    const { page, pageErrors } = await openPage('services', '?anon=1', { width: 800, height: 820 })
+    try {
+      await page.waitForTimeout(700)
+      const rail = page.locator('.win-nav-left-panel')
+      check(
+        '侧栏收起：800px 进入图标栏（is-closed-compact）',
+        await rail.evaluate((el) => el.classList.contains('is-closed-compact'))
+      )
+
+      /* 用 computed display 判「隐藏规则是否命中」，而不是 isVisible() ——
+         后者在祖先 display:none 时也会是 false，可能让断言因为别的原因通过。 */
+      const textDisplay = await page
+        .locator('.win-nav-left-panel .yali-account-action-text')
+        .first()
+        .evaluate((el) => getComputedStyle(el).display)
+        .catch(() => '(找不到)')
+      check('侧栏收起：登录按钮的文字被隐藏', textDisplay === 'none', textDisplay)
+
+      const icon = page.locator('.win-nav-left-panel .yali-account-action .win-font-icon').first()
+      check('侧栏收起：图标还在（不是整块藏掉）', await icon.isVisible().catch(() => false))
+
+      const btn = await page.locator('.win-nav-left-panel .yali-account-action').first().boundingBox()
+      const item = await page.locator('.win-nav-left-panel .win-nav-item').first().boundingBox()
+      check(
+        '侧栏收起：登录图标的尺寸与导航项一致（40×36）',
+        !!btn && !!item && Math.round(btn.width) === Math.round(item.width) && Math.round(btn.height) === Math.round(item.height),
+        `${JSON.stringify(btn)} vs ${JSON.stringify(item)}`
+      )
+
+      const bg = await page.locator('.win-nav-left-panel .yali-account-action').first().evaluate((el) => getComputedStyle(el).backgroundColor)
+      check('侧栏收起：登录按钮没有白色底块（与导航项一样透明）', /rgba\(0, 0, 0, 0\)/.test(bg), bg)
+
+      /* 只显示图标不等于变成装饰 —— 还得能点进登录页 */
+      await page.locator('.win-nav-left-panel .yali-account-action').first().click()
+      const ok = await page
+        .waitForURL(/login\.html/, { timeout: 4000 })
+        .then(() => true)
+        .catch(() => false)
+      check('侧栏收起：点图标能进登录页', ok, page.url().replace(base, ''))
+
+      check('侧栏收起：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ② 反向：桌面展开态，文字必须在 */
+  {
+    const { page } = await openPage('services', '?anon=1')
+    try {
+      await page.waitForTimeout(700)
+      const rail = page.locator('.win-nav-left-panel')
+      check('侧栏展开：不是收起态', !(await rail.evaluate((el) => el.classList.contains('is-closed-compact'))))
+      const text = await page
+        .locator('.yali-account-action-text')
+        .first()
+        .evaluate((el) => getComputedStyle(el).display)
+        .catch(() => '(找不到)')
+      check('侧栏展开：登录文字正常显示（未被误藏）', text !== 'none', text)
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ③ 反向：手机宽度是最小化模式，不该被当成「图标栏」 */
+  {
+    const { page } = await openPage('services', '?anon=1', { width: 390, height: 844 })
+    try {
+      await page.waitForTimeout(700)
+      const rail = page.locator('.win-nav-left-panel')
+      check(
+        '手机宽度：不算图标栏收起态（is-compact ≠ is-closed-compact）',
+        !(await rail.evaluate((el) => el.classList.contains('is-closed-compact')))
+      )
+      const text = await page
+        .locator('.yali-account-action-text')
+        .first()
+        .evaluate((el) => getComputedStyle(el).display)
+        .catch(() => '(找不到)')
+      check('手机宽度：登录文字没有被隐藏规则命中', text !== 'none', text)
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1324,7 +1432,8 @@ const CASES = [
   ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging],
   ['值日页：签到计时精确到秒', smokeDutyCountdown],
   ['报修备注：提交者与解决者都能添加', smokeIssueNotes],
-  ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons]
+  ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons],
+  ['侧栏收起：账户区只显示图标', smokePaneAccountIcons]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)
