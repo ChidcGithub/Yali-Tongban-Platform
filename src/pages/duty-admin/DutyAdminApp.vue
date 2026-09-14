@@ -12,14 +12,17 @@
           <div class="yali-section-head">
             <TextBlock :Text="scheduleRangeText" :FontSize="15" :FontWeight="500" />
             <div class="yali-head-tools">
-              <Button @Click="shiftWeeks(-2)">
+              <!-- 日历是**两周**一屏（14 天），所以翻页也必须以 14 天为单位。
+                   早先按钮叫「上周/下周」却只传了 ±2 —— 参数被当成「天」用，
+                   于是每次只挪 2 天，看到的还是同一屏的绝大部分。 -->
+              <Button @Click="shiftPage(-1)">
                 <span class="yali-btn-inner">
-                  <FontIcon :Glyph="GLYPH.back" :FontSize="13" /><span>上周</span>
+                  <FontIcon :Glyph="GLYPH.back" :FontSize="13" /><span>上一页</span>
                 </span>
               </Button>
-              <Button @Click="shiftWeeks(2)">
+              <Button @Click="shiftPage(1)">
                 <span class="yali-btn-inner">
-                  <span>下周</span><FontIcon :Glyph="GLYPH.forward" :FontSize="13" />
+                  <span>下一页</span><FontIcon :Glyph="GLYPH.forward" :FontSize="13" />
                 </span>
               </Button>
               <Button @Click="generate">
@@ -402,9 +405,17 @@ function fmt(d: Date) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-function shiftWeeks(delta: number) {
+/**
+ * 翻页：一页 = 两周 = 14 天（与日历视图一致）。
+ *
+ * 早先这个函数收的是「天数」，按钮却按「上周/下周」的语义传 ±2，
+ * 结果每次只挪 2 天 —— 看起来就像翻页失效。
+ */
+const DAYS_PER_PAGE = 14
+
+function shiftPage(delta: number) {
   const d = new Date(weekStart.value)
-  d.setDate(d.getDate() + delta)
+  d.setDate(d.getDate() + delta * DAYS_PER_PAGE)
   weekStart.value = d
   loadSchedule()
 }

@@ -1064,6 +1064,50 @@ async function smokeBrokenImage() {
   }
 }
 
+/**
+ * 值日管理：排班日历的翻页步长必须是 14 天（一屏就是两周）
+ *
+ * 早先按钮叫「上周 / 下周」，绑的却是 shiftWeeks(±2) —— 参数被当成「天数」，
+ * 每次只挪 2 天，翻页看起来几乎没动。这类「步长写错」不会报错，
+ * 只会让人觉得按钮不好使，必须靠断言把数字钉住。
+ */
+async function smokeDutyAdminPaging() {
+  const { page, pageErrors } = await openPage('duty-admin')
+  try {
+    const rangeText = () =>
+      page.locator('.yali-section-head').first().innerText().catch(() => '')
+    const dayOf = (t) => {
+      const m = t.match(/(\d{4})-(\d{2})-(\d{2})/)
+      return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN
+    }
+
+    const start = await rangeText()
+    const startDay = dayOf(start)
+    check('duty-admin：排班视图显示当前区间', !Number.isNaN(startDay), JSON.stringify(start))
+
+    /* 页面上的按钮文案应为「上一页 / 下一页」（不再是「上周 / 下周」） */
+    const btns = await page.locator('.yali-section-head button').allInnerTexts().catch(() => [])
+    check('duty-admin：翻页按钮是「上一页 / 下一页」', btns.some((t) => t.includes('下一页')), JSON.stringify(btns))
+
+    await page.locator('button', { hasText: '下一页' }).first().click()
+    await page.waitForTimeout(700)
+    const next = await rangeText()
+    const nextShift = Math.round((dayOf(next) - startDay) / 86400000)
+    check('duty-admin：「下一页」平移 14 天', nextShift === 14, `实际 ${nextShift} 天（${start} → ${next}）`)
+
+    await page.locator('button', { hasText: '上一页' }).first().click()
+    await page.waitForTimeout(700)
+    const back = await rangeText()
+    const backShift = Math.round((dayOf(back) - dayOf(next)) / 86400000)
+    check('duty-admin：「上一页」平移 -14 天', backShift === -14, `实际 ${backShift} 天`)
+    check('duty-admin：来回翻页回到原区间', dayOf(back) === startDay, `${back} vs ${start}`)
+
+    check('duty-admin：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1087,7 +1131,8 @@ const CASES = [
   ['权限守卫：无权访问管理页跳 404', smokeGuards],
   ['Cookie 横幅：WinUI 版', smokeCookieBanner],
   ['班级补填：未填班级强制补填', smokeClassPrompt],
-  ['破图兜底：不显示破图框', smokeBrokenImage]
+  ['破图兜底：不显示破图框', smokeBrokenImage],
+  ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)
