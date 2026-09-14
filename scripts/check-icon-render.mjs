@@ -65,11 +65,17 @@ const COLLECT = () => {
       .filter((cp) => cp >= 0xe000 && cp <= 0xf8ff)
     if (!chars.length) continue
     const cs = getComputedStyle(el)
+    /* 判据二：这个元素到底用没用图标字体。
+       字形在字体里、字体也加载了，但只要元素继承的是 UI 字体（Segoe UI …），
+       私用区字符照样是豆腐块 —— PasswordBox 的显示密码按钮与
+       TextBox 的清除按钮就是这样：它们的 span 从未指定过图标字体。 */
+    const family = cs.fontFamily
     out.push({
       chars,
       tag: el.tagName.toLowerCase(),
       cls: (el.className || '').toString().slice(0, 60),
-      family: cs.fontFamily
+      family,
+      usesIconFont: /Segoe (Fluent|MDL2)/i.test(family)
     })
   }
   return out
@@ -87,8 +93,19 @@ for (const entry of PAGES) {
   const collect = async (state) => {
     for (const hit of await page.evaluate(COLLECT)) {
       for (const cp of hit.chars) {
-        if (shipped.has(cp)) continue
-        if (!problems.has(cp)) problems.set(cp, { entry, state, ...hit })
+        const missingGlyph = !shipped.has(cp)
+        const wrongFont = !hit.usesIconFont
+        if (!missingGlyph && !wrongFont) continue
+        const key = `${cp}:${wrongFont ? 'font' : 'glyph'}`
+        if (!problems.has(key)) {
+          problems.set(key, {
+            cp,
+            reason: missingGlyph ? '字体里没有这个字形' : '元素没用图标字体',
+            entry,
+            state,
+            ...hit
+          })
+        }
       }
     }
   }
@@ -129,12 +146,13 @@ if (!problems.size) {
   process.exit(0)
 }
 
-console.log(`\n✗ ${problems.size} 种字符不在随包字体里 —— 非 Windows 设备上会显示成方框：\n`)
-for (const [cp, info] of problems) {
+console.log(`\n✗ 发现 ${problems.size} 处图标渲染问题：\n`)
+for (const info of problems.values()) {
   console.log(
-    `  U+${cp.toString(16).toUpperCase().padStart(4, '0')}  ${info.entry} / ${info.state}` +
-      `  <${info.tag} class="${info.cls}">`
+    `  U+${info.cp.toString(16).toUpperCase().padStart(4, '0')}  [${info.reason}]` +
+      `  ${info.entry} / ${info.state}  <${info.tag} class="${info.cls}">`
   )
+  console.log(`       字体：${info.family}`)
 }
 console.log(`\n字体：dist/assets/${fontFile}`)
 process.exit(1)

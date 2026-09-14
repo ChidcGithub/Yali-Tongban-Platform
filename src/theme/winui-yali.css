@@ -38,7 +38,19 @@
 .win-font-icon,
 .win-symbol-icon,
 .animated-icon,
-.win-nav-group-chevron {
+.win-nav-group-chevron,
+/* ↓ 2026-09-14 补：一批「以 span 承载字形、组件内却从未指定图标字体」的地方。
+   这是「图标是个框框」的**第二类成因** —— 字形在随包字体里有、字体也加载了，
+   但元素继承的是 UI 字体（Segoe UI Variable / Segoe UI …），
+   私用区字符在 UI 字体里没有字形，于是画出一个空框。
+   实测踩到：TextBox 的清除「X」、PasswordBox 的显示/隐藏密码、
+   NumberBox 的上下箭头、AutoSuggestBox 的搜索图标。
+   注意选择器要落到真正放字形的那个 span 上（父元素多半只是布局）。 */
+.win-textbox-delete-glyph,
+.win-textbox-action-button > span,
+.win-number-spin-button > span,
+.win-number-compact-indicator > span,
+.win-asb-icon {
   font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets', sans-serif;
 }
 

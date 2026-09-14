@@ -19,12 +19,13 @@
  */
 
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 import { promisify } from 'node:util'
 import { startStaticServer } from './static-server.mjs'
+import { readFontCodepoints } from './font-cmap.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -52,6 +53,14 @@ const SEL = {
   sliderRoot: '.win-slider-root',
   sliderThumb: '.win-slider-thumb'
 }
+
+/* 随包分发的图标字体覆盖了哪些码位 —— 断言「字形确实能画出来」的依据。 */
+const shippedCodepoints = (() => {
+  const assets = join(dist, 'assets')
+  const font = readdirSync(assets).find((f) => /^segoeicons.*\.ttf$/i.test(f))
+  if (!font) return new Set()
+  return readFontCodepoints(join(assets, font))
+})()
 
 const results = []
 function check(name, ok, detail = '') {
@@ -1230,6 +1239,64 @@ async function smokeIssueNotes() {
   }
 }
 
+/**
+ * 密码框的两个图标：清除「X」与显示/隐藏密码
+ *
+ * 它们曾经是**框框**，而且是两个独立成因叠在一起：
+ *   ① 字形没进子集 —— U+E894（清除）与 U+F78D（显示密码）在组件模板里写的是
+ *      **字面**私用区字符，而 subset-icons.mjs 只匹配转义写法，于是漏收；
+ *      check-glyphs.mjs 用同一套收集逻辑，于是也拦不住。
+ *   ② 元素没用图标字体 —— 这两个 span 继承的是 UI 字体（Segoe UI Variable），
+ *      私用区字符在 UI 字体里没有字形，就算随包字体有也画不出来。
+ *
+ * 所以这里断言两件事：字符在**随包字体**的 cmap 里，且元素用的是**图标字体**。
+ * 少任何一条，用户看到的都还是一个空框。
+ */
+async function smokePasswordBoxIcons() {
+  const { page, pageErrors } = await openPage('login')
+  try {
+    const pwd = page.locator('.win-password-box input').first()
+    await pwd.fill('Yali@1234')
+    await pwd.hover()
+    await page.waitForTimeout(450)
+
+    const icons = await page.locator('.win-password-box button').evaluateAll((els) =>
+      els.map((el) => {
+        /* 要取**真正放字形的那一层** span —— 清除按钮的结构是
+           button > span.layout > span.glyph，外层只是布局、内层才声明字体。
+           取 el.querySelector('span') 会拿到外层，量出「用的是 UI 字体」的假故障。 */
+        const holder =
+          [...el.querySelectorAll('span')].reverse().find((sp) => sp.textContent.trim()) || el
+        const cs = getComputedStyle(holder)
+        return {
+          code: [...el.textContent].map((c) => c.codePointAt(0)),
+          font: cs.fontFamily
+        }
+      })
+    )
+    check('密码框：输入后出现「清除 + 显示密码」两个图标按钮', icons.length === 2, `${icons.length} 个`)
+
+    check(
+      '密码框：图标字符用的是图标字体（不是 UI 字体）',
+      icons.length > 0 && icons.every((i) => /Segoe (Fluent|MDL2)/.test(i.font)),
+      JSON.stringify(icons.map((i) => i.font))
+    )
+
+    /* 字形必须在**随包分发**的字体里 —— 这是任何设备上都能画出来的前提 */
+    const missing = []
+    for (const icon of icons) {
+      for (const cp of icon.code) {
+        if (!shippedCodepoints.has(cp)) missing.push('U+' + cp.toString(16).toUpperCase())
+      }
+    }
+    check('密码框：图标字形在随包字体子集里', missing.length === 0, missing.join(', '))
+
+    check('密码框：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1256,7 +1323,8 @@ const CASES = [
   ['破图兜底：不显示破图框', smokeBrokenImage],
   ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging],
   ['值日页：签到计时精确到秒', smokeDutyCountdown],
-  ['报修备注：提交者与解决者都能添加', smokeIssueNotes]
+  ['报修备注：提交者与解决者都能添加', smokeIssueNotes],
+  ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

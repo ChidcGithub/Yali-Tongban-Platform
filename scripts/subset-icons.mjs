@@ -46,6 +46,16 @@ function collectCodepoints() {
     for (const m of s.matchAll(/\\u([EFef][0-9A-Fa-f]{3})/g)) codes.add(parseInt(m[1], 16))
     // 组件内部的图标名映射表用的是裸十六进制字符串，如 { home: 'E80F' }
     for (const m of s.matchAll(/'([EFef][0-9A-Fa-f]{3})'/g)) codes.add(parseInt(m[1], 16))
+
+    /* 直接写在模板里的**字面**私用区字符，形如 <span>󾞍</span>。
+       上面三个正则都只认「转义写法」，于是这类字符既不会进子集、
+       也会被 check-glyphs 的同类收集逻辑放过 —— 图标就渲染成豆腐块。
+       实测踩过：PasswordBox 的显示/隐藏密码图标（U+F78D）、
+       TextBox 的清除按钮（U+E894）、NumberBox 的一个图标（U+EC8F）。 */
+    for (const ch of s) {
+      const cp = ch.codePointAt(0)
+      if (cp >= 0xe000 && cp <= 0xf8ff) codes.add(cp)
+    }
   }
   return [...codes].sort((a, b) => a - b)
 }

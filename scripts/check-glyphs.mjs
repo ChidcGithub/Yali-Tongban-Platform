@@ -57,6 +57,13 @@ if (existsSync(FULL)) {
     for (const m of s.matchAll(/&#x([0-9A-Fa-f]{4,5});/g)) referenced.add(parseInt(m[1], 16))
     for (const m of s.matchAll(/\\u([EFef][0-9A-Fa-f]{3})/g)) referenced.add(parseInt(m[1], 16))
     for (const m of s.matchAll(/'([EFef][0-9A-Fa-f]{3})'/g)) referenced.add(parseInt(m[1], 16))
+    /* 直接写在模板里的**字面**私用区字符（如 <span>󾞍</span>）。
+       只扫转义写法会漏掉它们 —— 而漏掉的表现就是「图标是个框框」，
+       而且本脚本此前也是这么漏的（PasswordBox 的眼睛 / TextBox 的清除 X）。 */
+    for (const ch of s) {
+      const cp = ch.codePointAt(0)
+      if (cp >= 0xe000 && cp <= 0xf8ff) referenced.add(cp)
+    }
   }
   const lost = [...referenced].filter((c) => full.has(c) && !font.has(c)).sort((a, b) => a - b)
   if (lost.length) {
