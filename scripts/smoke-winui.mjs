@@ -170,6 +170,22 @@ async function smokeAdminTabs() {
     const n = await tabs.count()
     check('admin：9 个标签都渲染出来', n === 9, `实际 ${n}`)
 
+    /* 标签栏属于**可见**元素，且页内 CSS 与模板类名对得上。
+       这条是给「重命名类名」这类改动兜底的：类名改了而 CSS 没跟上（或反之），
+       表现是样式静默丢失（页面上看不出报错），只有 margin/尺寸这类可测量的东西能发现。
+       另外也顺带守住「标签栏被外部样式整条隐藏」——那时 box 会是 0 高。 */
+    const barBox = await page.locator('.win-selector-bar').first().boundingBox()
+    const barMargin = await page
+      .locator('.win-selector-bar')
+      .first()
+      .evaluate((el) => getComputedStyle(el).marginBottom)
+    check(
+      'admin：标签栏可见（不是 0 高）',
+      !!barBox && Math.round(barBox.height) >= 40,
+      JSON.stringify(barBox)
+    )
+    check('admin：标签栏的页内样式生效（类名与 CSS 对得上）', barMargin === '16px', barMargin)
+
     await tabs.nth(1).click()
     await page.waitForTimeout(400)
     const memberRows = await page.locator('.ad-role').count()

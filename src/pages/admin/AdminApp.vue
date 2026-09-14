@@ -3,7 +3,7 @@
     <div class="yali-page">
     <!-- SelectorBar 的 SelectionChanged 首参是 sender，只暴露 Items / SelectedItem，
          没有 SelectedIndex —— 必须自己 indexOf，否则 tabIndex 恒被写回 0 -->
-    <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="ad-tabs"
+    <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="admin-tabs"
                  @SelectionChanged="(a) => (tabIndex = a?.Items?.indexOf(a.SelectedItem) ?? 0)" />
 
       <!-- ── 注册审批 ── -->
@@ -1451,7 +1451,15 @@ onMounted(async () => {
 </script>
 
 <style>
-.ad-tabs {
+/* ⚠️ 类名刻意不带 `ad-` 前缀。
+   这个元素曾经叫 `.ad-tabs`，而用户的 Edge 上有一条**针对它的隐藏规则**
+   （`display: none`，只有管理页这条标签栏受影响，其他页面的标签栏与别的内容都正常；
+   表现是「疯狂按 F5 会短暂闪一下」—— 注入样式在页面渲染之后才生效）。
+   实测 `display:none` 会让下面的卡片正好上移 50px，与用户截图量出来的一致。
+   主流过滤表（easylistchina）里并没有命中 `.ad-tabs` 的通用规则，
+   所以那条规则来自本机配置（多半是「屏蔽此元素」这类手动规则）——
+   换个类名即可让它失效；顺带也避免以后被广告过滤器误伤。 */
+.admin-tabs {
   margin-bottom: 16px;
 }
 .ad-gap {
