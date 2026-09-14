@@ -1108,6 +1108,48 @@ async function smokeDutyAdminPaging() {
   }
 }
 
+/**
+ * 值日页：签到中的计时精确到秒，并且真的每秒在跳
+ *
+ * 之前只在格式化时砍到分钟（`min >= 60 ? '1h2m' : '45m'`），
+ * 于是「刚签到」和「签到 59 秒」看起来一模一样 —— 用户会以为没记上。
+ * 这类问题光看「有数字」是查不出来的，必须断言 ① 格式带秒 ② 隔一秒数值变了。
+ */
+async function smokeDutyCountdown() {
+  const { page, pageErrors } = await openPage('duty')
+  try {
+    const btn = page.locator('.duty-row button', { hasText: '签退' }).first()
+    const count = await btn.count()
+    check('duty：存在「签到中」的条目（桩里有 signed_in 记录）', count > 0, `${count} 条`)
+
+    if (count > 0) {
+      const first = (await btn.innerText()).replace(/\s+/g, ' ')
+      check(
+        'duty：计时精确到秒（Xm Ys / Xh Ym Zs）',
+        /\d+h\d+m\d+s|\d+m\d+s/.test(first),
+        JSON.stringify(first)
+      )
+
+      /* 隔一秒再取一次：秒数必须变，否则说明只是格式化写了秒、实际没刷新 */
+      await page.waitForTimeout(2200)
+      const second = (await btn.innerText()).replace(/\s+/g, ' ')
+      const secOf = (t) => {
+        const m = t.match(/(\d+)m(\d+)s/)
+        return m ? Number(m[1]) * 60 + Number(m[2]) : NaN
+      }
+      check(
+        'duty：计时真的在走（隔两秒读数不同）',
+        first !== second && secOf(second) > secOf(first),
+        `${first} → ${second}`
+      )
+    }
+
+    check('duty：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1132,7 +1174,8 @@ const CASES = [
   ['Cookie 横幅：WinUI 版', smokeCookieBanner],
   ['班级补填：未填班级强制补填', smokeClassPrompt],
   ['破图兜底：不显示破图框', smokeBrokenImage],
-  ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging]
+  ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging],
+  ['值日页：签到计时精确到秒', smokeDutyCountdown]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

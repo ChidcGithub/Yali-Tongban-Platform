@@ -188,8 +188,14 @@ function elapsed(st: Attendance) {
   const start = new Date(iso.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z')
   if (isNaN(start.getTime())) return ''
   void tick.value
-  const min = Math.max(0, Math.floor((Date.now() - start.getTime()) / 60000))
-  return min >= 60 ? `${Math.floor(min / 60)}h${min % 60}m` : `${min}m`
+  /* 精确到秒：tick 本来就是每秒递增的，之前只在格式化时砍到了分钟，
+     于是「刚签到」和「签到 59 秒」看起来一模一样，用户会以为没记上。
+     格式与原来的 h/m 风格保持一致（1h23m45s / 45m30s），不另行发明新写法。 */
+  const total = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return h > 0 ? `${h}h${m}m${s}s` : `${m}m${s}s`
 }
 
 function signed(v: number) {
