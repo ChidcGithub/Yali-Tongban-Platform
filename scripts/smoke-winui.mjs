@@ -1581,6 +1581,122 @@ async function smokeCredits() {
   }
 }
 
+/**
+ * 页面宽度：卡片列跟随可用宽度
+ *
+ * 原先 `.yali-page` 只有 `max-width: 1000px`，且**没有居中**
+ * （旧版是 `.container { max-width: 960px; margin: 0 auto }`，迁移时丢了 auto）。
+ * 后果：1920 视口下卡片右侧空出 635px、1515 下空出 230px，整页像被挤在左边。
+ *
+ * 断言分三组，缺一不可：
+ *   ① 跟随 —— 宽屏下卡片要撑满可用宽度
+ *   ② 有上限 —— 超宽屏不能无限拉长（正文行会难读）
+ *   ③ 不回归 —— 窄屏仍是「视口 − 2×16」，且阅读型页面（公告/投票详情）
+ *      保留自己的 860 窄栏（那是刻意的版式，不该被一起拉宽）
+ */
+async function smokePageWidth() {
+  const sidebarOf = (page) =>
+    page.evaluate(() => {
+      const el = document.querySelector('.win-nav-left-panel')
+      return el ? Math.round(el.getBoundingClientRect().width) : 0
+    })
+
+  /* ① 跟随：1515 视口下卡片要接近「视口 − 侧栏 − 页内边距」 */
+  {
+    const { page, pageErrors } = await openPage('about', '', { width: 1515, height: 826 })
+    try {
+      await page.waitForTimeout(700)
+      const sidebar = await sidebarOf(page)
+      const m = await page.evaluate(() => {
+        const sec = document.querySelector('.yali-section')
+        const page = document.querySelector('.yali-page')
+        const r = sec.getBoundingClientRect()
+        return {
+          cardW: Math.round(r.width),
+          pageW: Math.round(page.getBoundingClientRect().width),
+          rightGap: Math.round(window.innerWidth - r.right),
+          vw: window.innerWidth
+        }
+      })
+      const expect = m.vw - sidebar - 72 // 页面左右各 36 padding
+      check(
+        '页面宽度：卡片跟随可用宽度（1515 视口撑满）',
+        Math.abs(m.cardW - expect) <= 4,
+        `卡片 ${m.cardW} vs 期望 ${expect}`
+      )
+      check(
+        '页面宽度：右侧不再留大片空白',
+        m.rightGap <= 48,
+        `右侧空白 ${m.rightGap}px（改前 230px）`
+      )
+      check('页面宽度：不产生横向滚动', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)))
+      check('页面宽度：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ② 上限：超宽屏收在 1400px 并居中（避免一行上百字） */
+  {
+    const { page } = await openPage('about', '', { width: 2400, height: 900 })
+    try {
+      await page.waitForTimeout(700)
+      const sidebar = await sidebarOf(page)
+      const m = await page.evaluate(() => {
+        const page = document.querySelector('.yali-page')
+        const r = page.getBoundingClientRect()
+        return {
+          pageW: Math.round(r.width),
+          left: Math.round(r.left),
+          right: Math.round(window.innerWidth - r.right)
+        }
+      })
+      check('页面宽度：超宽屏有上限（不无限拉长）', m.pageW <= 1400, `${m.pageW}px`)
+      /* ⚠️ 居中的基准是**内容区**不是视口：`left` 里含侧栏宽度（本页 320px），
+         直接比较 left 与 right 会得到「没居中」的假故障（第一次就是这么红的）。 */
+      check(
+        '页面宽度：达到上限后在内容区内居中',
+        Math.abs(m.left - sidebar - m.right) <= 2,
+        `内容区内 左 ${m.left - sidebar} / 右 ${m.right}（侧栏 ${sidebar}）`
+      )
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ③ 反向：阅读型页面保留自己的窄栏（不该被一起拉宽） */
+  {
+    const { page } = await openPage('announcement', '', { width: 1515, height: 826 })
+    try {
+      await page.waitForTimeout(700)
+      const w = await page.evaluate(() =>
+        Math.round(document.querySelector('.yali-page').getBoundingClientRect().width)
+      )
+      check('页面宽度：公告详情仍是 860 窄栏（阅读型长文刻意收窄）', w <= 860, `${w}px`)
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ④ 不回归：窄屏仍是「视口 − 32」（页内边距 16×2） */
+  {
+    const { page, pageErrors } = await openPage('about', '', { width: 390, height: 844 })
+    try {
+      await page.waitForTimeout(700)
+      const m = await page.evaluate(() => {
+        const sec = document.querySelector('.yali-section')
+        const r = sec.getBoundingClientRect()
+        return { cardW: Math.round(r.width), vw: window.innerWidth }
+      })
+      check('页面宽度：窄屏卡片 = 视口 − 32（未被宽屏规则影响）', m.cardW === m.vw - 32, `${m.cardW} vs ${m.vw - 32}`)
+      check('页面宽度：窄屏无横向滚动', !(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)))
+      check('页面宽度：窄屏无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1611,7 +1727,8 @@ const CASES = [
   ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons],
   ['侧栏收起：账户区只显示图标', smokePaneAccountIcons],
   ['登出：清 cookie 且等响应后再跳转', smokeLogout],
-  ['鸣谢：开源库署名与源码地址', smokeCredits]
+  ['鸣谢：开源库署名与源码地址', smokeCredits],
+  ['页面宽度：卡片跟随可用宽度', smokePageWidth]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

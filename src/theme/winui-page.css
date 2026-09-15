@@ -16,7 +16,20 @@
 /* ── 页面骨架 ── */
 .yali-page {
   padding: 24px 36px 96px;
-  max-width: 1000px;
+  /* 卡片列跟随可用宽度。
+     ──────────────────────────────────────────────────────
+     原先只有 `max-width: 1000px`，既没有 `margin: 0 auto`（旧版
+     `.container { max-width: 960px; margin: 0 auto }` 是居中的，迁移时丢了），
+     上限也完全不跟随窗口 —— 实测 1920 视口下卡片右侧空出 **635px**，
+     1515 视口下空出 230px，整页看着像被挤在左边。
+     现在：撑满可用宽度，只在一个「再宽也不至于难读」的上限处收住并居中。
+     1400px 这个值让 1920 屏每侧各留 100px（原本 635 全在右侧），
+     同时避免超宽屏出现一行上百字的正文。
+     注：公告详情 / 投票详情自带 `.yali-detail-page { max-width: 860px }`
+     （阅读型长文，窄栏是刻意的），不受这里影响。 */
+  width: 100%;
+  max-width: 1400px;
+  margin-inline: auto;
 }
 .yali-page-head {
   margin-bottom: 8px;
