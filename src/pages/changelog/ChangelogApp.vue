@@ -51,8 +51,12 @@ const entries = ref<LogEntry[]>(
   (window as unknown as { CHANGELOG_ENTRIES?: LogEntry[] }).CHANGELOG_ENTRIES ?? []
 )
 
+/* 数据里实际用到的类型比旧词表多：`feature`（13 处）与 `new`（11 处）从来没有对应文案，
+   旧版页面也是直接显示英文原文。这里补齐，历史条目一并修好。 */
 const TYPE_LABELS: Record<string, string> = {
   add: '新增',
+  new: '新增',
+  feature: '新增',
   change: '改进',
   fix: '修复',
   ui: 'UI',

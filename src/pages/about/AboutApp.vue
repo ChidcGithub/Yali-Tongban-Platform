@@ -112,7 +112,7 @@ import { GLYPH } from '../../shared/icons'
 import { getUser } from '../../shared/api'
 
 const version = ref(
-  (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '3.0.0'
+  (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '4.0.0-0915'
 )
 const deployed = ref(
   (window as unknown as { APP_DEPLOYED?: string }).APP_DEPLOYED ?? ''
