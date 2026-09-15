@@ -1525,6 +1525,62 @@ async function smokeLogout() {
   }
 }
 
+/**
+ * 鸣谢页：开源库的署名与源码地址
+ *
+ * `credits.ts` 是纯静态数据 —— 漏写 `url` 不会报错，
+ * 名称只会悄悄退化成普通文字、地址整行消失（页面看起来仍然「正常」）。
+ * 而开源库（尤其 GPL-3.0 这类 copyleft）署不出来源是实质问题，
+ * 所以要断言「名称可点、地址正确、新窗口且不泄露来源、作者在列」。
+ */
+async function smokeCredits() {
+  const { page, pageErrors } = await openPage('thanks')
+  try {
+    await page.waitForTimeout(700)
+    const items = await page.locator('.yali-thanks-item').evaluateAll((els) =>
+      els.map((el) => {
+        const link = el.querySelector('a.yali-thanks-url')
+        const nameEl = el.querySelector('.yali-thanks-name')
+        return {
+          name: (nameEl?.textContent || '').trim(),
+          clickable: el.querySelector('a.yali-thanks-name') !== null,
+          href: link?.getAttribute('href') || null,
+          target: link?.getAttribute('target') || null,
+          rel: link?.getAttribute('rel') || null,
+          author: (el.querySelector('.yali-thanks-meta')?.textContent || '').trim() || null,
+          shown: (link?.textContent || '').trim() || null
+        }
+      })
+    )
+    const byName = (n) => items.find((i) => i.name === n)
+    check('鸣谢：共渲染出条目', items.length > 10, `${items.length} 条`)
+    check('鸣谢：组件库 WinUIonWeb 在列', !!byName('WinUIonWeb'))
+    check('鸣谢：框架 Vue 在列', !!byName('Vue'))
+
+    for (const name of ['Vue', 'WinUIonWeb']) {
+      const it = byName(name)
+      if (!it) continue
+      check(`鸣谢：${name} 名称可点进源码仓`, it.clickable, JSON.stringify(it))
+      check(
+        `鸣谢：${name} 外链新窗口且不泄露来源`,
+        it.target === '_blank' && (it.rel || '').includes('noopener'),
+        `${it.target} / ${it.rel}`
+      )
+      check(`鸣谢：${name} 有作者署名`, !!it.author && it.author.startsWith('作者'), String(it.author))
+      /* 显示去掉协议头、跳转用完整 https —— 卡片窄，带 https:// 会把行撑爆 */
+      check(
+        `鸣谢：${name} 地址显示去协议头、跳转仍完整`,
+        !!it.shown && !it.shown.startsWith('http') && (it.href || '').startsWith('https://'),
+        `${it.shown} → ${it.href}`
+      )
+    }
+
+    check('鸣谢：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1554,7 +1610,8 @@ const CASES = [
   ['报修备注：提交者与解决者都能添加', smokeIssueNotes],
   ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons],
   ['侧栏收起：账户区只显示图标', smokePaneAccountIcons],
-  ['登出：清 cookie 且等响应后再跳转', smokeLogout]
+  ['登出：清 cookie 且等响应后再跳转', smokeLogout],
+  ['鸣谢：开源库署名与源码地址', smokeCredits]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

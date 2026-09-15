@@ -21,6 +21,13 @@ export const CREDITS: CreditSection[] = [
     "sub": "",
     "items": [
       {
+        "name": "Vue",
+        "license": "MIT",
+        "author": "Evan You 与 Vue.js 贡献者",
+        "url": "https://github.com/vuejs/core",
+        "desc": "渐进式 JavaScript 框架 —— 26 个页面的组件化与响应式基础（vue 3.5）"
+      },
+      {
         "name": "WinUIonWeb",
         "license": "GPL-3.0",
         "author": "Furry-Xiyi",
@@ -95,6 +102,13 @@ export const CREDITS: CreditSection[] = [
     "title": "开发工具",
     "sub": "",
     "items": [
+      {
+        "name": "Vite",
+        "license": "MIT",
+        "author": "Evan You 与 Vite 贡献者",
+        "url": "https://github.com/vitejs/vite",
+        "desc": "前端构建与开发服务器 —— 26 个页面入口的打包与静态资源产出"
+      },
       {
         "name": "wrangler",
         "license": "MIT / Apache-2.0",
