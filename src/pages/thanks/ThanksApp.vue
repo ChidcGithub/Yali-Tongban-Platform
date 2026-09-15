@@ -15,10 +15,16 @@
             <FontIcon :Glyph="GLYPH.package" :FontSize="16" class="yali-thanks-icon" />
             <div class="yali-thanks-body">
               <div class="yali-thanks-head">
-                <span class="yali-thanks-name">{{ item.name }}</span>
+                <!-- 有源码地址就把名称本身做成外链，地址另起一行完整显示 -->
+                <a v-if="item.url" class="yali-thanks-name yali-thanks-link" :href="item.url"
+                   target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+                <span v-else class="yali-thanks-name">{{ item.name }}</span>
                 <span v-if="item.license" class="yali-chip">{{ item.license }}</span>
               </div>
+              <p v-if="item.author" class="yali-thanks-meta">作者 · {{ item.author }}</p>
               <p v-if="item.desc" class="yali-thanks-desc">{{ item.desc }}</p>
+              <a v-if="item.url" class="yali-thanks-url" :href="item.url" target="_blank"
+                 rel="noopener noreferrer">{{ prettyUrl(item.url) }}</a>
             </div>
           </div>
         </div>
@@ -31,6 +37,11 @@
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import { CREDITS } from './credits'
+
+/** 地址去掉协议头再显示：卡片窄，完整 https:// 会把行撑爆 */
+function prettyUrl(url: string) {
+  return url.replace(/^https?:\/\//, '')
+}
 </script>
 
 <style>
@@ -72,5 +83,30 @@ import { CREDITS } from './credits'
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--text-secondary);
+}
+.yali-thanks-meta {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--text-tertiary);
+}
+.yali-thanks-link {
+  text-decoration: none;
+}
+.yali-thanks-link:hover {
+  text-decoration: underline;
+}
+.yali-thanks-url {
+  display: inline-block;
+  margin-top: 2px;
+  max-width: 100%;
+  font-size: 12.5px;
+  color: var(--md-primary);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.yali-thanks-url:hover {
+  text-decoration: underline;
 }
 </style>
