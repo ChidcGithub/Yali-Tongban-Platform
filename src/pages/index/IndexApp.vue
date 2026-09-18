@@ -16,7 +16,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 /* 启动闪屏：不进 NavigationView 外壳，用全屏 WinUI 排版 */
 const version = ref(
-  (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '4.0.0-0915'
+  (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '4.0.1.823-0918'
 )
 
 let timer: number | undefined

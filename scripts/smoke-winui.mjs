@@ -1756,6 +1756,97 @@ async function smokeActivityAnonymousSignup() {
   }
 }
 
+/**
+ * 首次使用欢迎引导
+ *
+ * 规则：只在主页（services）+ 每个浏览器一次；任何方式关掉都记为已读。
+ * 功能名称必须与侧栏导航逐字一致 —— 欢迎页是导航的预告，
+ * 若在这里用了另一套叫法，用户对着侧栏会找不到。
+ *
+ * 桩默认把访客当成「已看过」（否则欢迎框的遮罩会挡住其它用例的点击），
+ * `?welcome=1` 模拟首次访问。
+ */
+async function smokeWelcome() {
+  /* ① 首次访问主页 → 弹出 */
+  {
+    const { page, pageErrors } = await openPage('services', '?welcome=1')
+    try {
+      await page.waitForTimeout(900)
+      const dlg = page.locator('.content-dialog')
+      check('欢迎：首次访问主页会弹出', (await dlg.count()) === 1, `${await dlg.count()} 个`)
+
+      /* ⚠️ 必须断言「过渡真的走完了」。
+         这个对话框在应用挂载的同一帧里打开，进场过渡会卡在 enter-from
+         （overlay opacity:0）—— DOM 里有、能点、但**看不见**。
+         只数 `.content-dialog` 个数的话，这条 bug 是全绿的。 */
+      const visible = await page.evaluate(() => {
+        const el = document.querySelector('.content-dialog-overlay')
+        if (!el) return { ok: false, why: 'overlay 不存在' }
+        const cs = getComputedStyle(el)
+        const stuck = /enter-from|enter-active/.test(el.className)
+        return {
+          ok: !stuck && cs.opacity === '1' && cs.visibility === 'visible',
+          why: `class=${el.className} opacity=${cs.opacity}`
+        }
+      })
+      check('欢迎：进场过渡完成（真实可见，不是 opacity:0 卡住）', visible.ok, visible.why)
+
+      const title = await page.locator('.content-dialog-title').first().innerText().catch(() => '')
+      check('欢迎：标题含「欢迎使用」', title.includes('欢迎使用'), JSON.stringify(title))
+
+      const text = await dlg.first().innerText().catch(() => '')
+      /* 与 shared/nav.ts 的侧栏标签逐字一致 —— 少一个都是「介绍的功能点不进去」 */
+      const need = ['服务', '公告', '活动', '值日', '财务', '投票', '动态', '消息', '个性化', '管理']
+      const missing = need.filter((n) => !text.includes(n))
+      check('欢迎：覆盖全部功能且与侧栏同名', missing.length === 0, `缺 ${missing.join(',') || '无'}`)
+      check('欢迎：有「需登录」提示', text.includes('登录'), '')
+
+      const primary = page.locator('.content-dialog-primary').first()
+      check(
+        '欢迎：主按钮是「开始使用」',
+        (await primary.innerText().catch(() => '')).includes('开始使用'),
+        ''
+      )
+
+      await primary.click()
+      await page.waitForTimeout(700)
+      check('欢迎：点「开始使用」后关闭', (await page.locator('.content-dialog').count()) === 0)
+      check('欢迎：已写入已读标记', await page.evaluate(() => localStorage.getItem('welcome_seen') === '1'))
+
+      /* 同一浏览器再来一次（同 context，localStorage 保留）→ 不再弹 */
+      await page.reload()
+      await page.waitForTimeout(900)
+      check('欢迎：第二次访问不再弹', (await page.locator('.content-dialog').count()) === 0)
+
+      check('欢迎：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ② 反向：默认桩（已看过的访客）不弹 —— 保护其它用例不被遮罩挡住 */
+  {
+    const { page } = await openPage('services')
+    try {
+      await page.waitForTimeout(800)
+      check('欢迎：老访客不弹（未误伤）', (await page.locator('.content-dialog').count()) === 0)
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ③ 反向：深链进来的首次访客也不弹（只打扰主页） */
+  {
+    const { page } = await openPage('about', '?welcome=1')
+    try {
+      await page.waitForTimeout(800)
+      check('欢迎：非主页不弹（不打扰深链访客）', (await page.locator('.content-dialog').count()) === 0)
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1788,7 +1879,8 @@ const CASES = [
   ['登出：清 cookie 且等响应后再跳转', smokeLogout],
   ['鸣谢：开源库署名与源码地址', smokeCredits],
   ['页面宽度：卡片跟随可用宽度', smokePageWidth],
-  ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup]
+  ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup],
+  ['欢迎引导：首次访问主页', smokeWelcome]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

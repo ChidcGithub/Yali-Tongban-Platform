@@ -1,5 +1,15 @@
 var CHANGELOG_ENTRIES = [
   {
+    date: '2026-09-18',
+    version: 'v4.0.1.823-0918',
+    items: [
+      { type: 'add', text: '新增首次使用欢迎引导：第一次访问会在主页简要介绍各项功能' },
+      { type: 'fix', text: '修复未登录时报名志愿者失败的问题' },
+      { type: 'ui', text: '页面内容跟随窗口宽度，宽屏不再留大片空白' },
+      { type: 'ui', text: '清理对话框里重复的「取消」按钮' },
+    ]
+  },
+  {
     date: '2026-09-15',
     version: 'v4.0.0-0915',
     items: [

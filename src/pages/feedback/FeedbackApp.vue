@@ -56,7 +56,7 @@ const sectionIndex = ref(-1)
 const form = reactive({ content: '', contact: '' })
 const busy = ref(false)
 const sent = ref(false)
-const version = (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '4.0.0-0915'
+const version = (window as unknown as { APP_VERSION?: string }).APP_VERSION ?? '4.0.1.823-0918'
 
 type Captcha = { getData: () => Record<string, string>; refresh: () => void }
 let captcha: Captcha | null = null

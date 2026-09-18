@@ -374,6 +374,10 @@ const stub = `
   window.__stubAnon = __anon;
   localStorage.setItem('token', 'stub');
   localStorage.setItem('user', JSON.stringify(__anon ? null : __stubUser));
+  /* 欢迎引导：默认视为「已看过」—— 否则它会在每个 services 用例里弹出来，
+     模态遮罩会吃掉后续点击（198 条断言全体遭殃）。?welcome=1 模拟首次访问。 */
+  if (__q.indexOf('welcome=1') >= 0) localStorage.removeItem('welcome_seen');
+  else localStorage.setItem('welcome_seen', '1');
   /* 站点里已经没有 window.confirm 了（35 处全部换成站点对话框，见 shared/confirm.ts）；
      这里保留一个自动拒绝的桩，只为防止遗留脚本万一调用时阻塞无头浏览器
      —— 原生弹窗在 Playwright 里会挂住整个用例。 */

@@ -13,6 +13,7 @@ import { initWinUITheme } from './theme'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import CookieBanner from '../components/CookieBanner.vue'
 import ClassPrompt from '../components/ClassPrompt.vue'
+import WelcomeDialog from '../components/WelcomeDialog.vue'
 
 import '../winui/styles/theme.css'
 import '../winui/styles/animations.css'
@@ -70,6 +71,18 @@ function mountClassPrompt() {
 }
 
 /**
+ * 首次使用欢迎引导（只在主页 + 每个浏览器一次）。
+ * 触发条件在组件内部判断（路径 + localStorage 标记）。
+ */
+let welcomeMounted = false
+
+function mountWelcome() {
+  if (welcomeMounted) return
+  welcomeMounted = true
+  mountSingleton(WelcomeDialog, 'winui-welcome-host')
+}
+
+/**
  * 图片加载失败的兜底（破图 → 不加处理的话就是浏览器那个「框框」图标）。
  *
  * 站点的图片是 base64 存在 D1、前端再转 blob URL 的，
@@ -119,6 +132,7 @@ export function mountWinUI(rootComponent: Component, selector = '#winui-root') {
   mountCookieBanner()
   mountConfirmHost()
   mountClassPrompt()
+  mountWelcome()
 
   const app = createApp(rootComponent)
   app.use(WinUIonWeb, { locale: 'zh-CN' })
