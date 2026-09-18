@@ -17,8 +17,8 @@
  * 必须出现在「导入 / 声明 / 平台全局」三者之一里。
  * ══════════════════════════════════════════════════════════
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
+import { join, resolve, dirname } from 'node:path'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -134,6 +134,73 @@ function analyze(file) {
   return missing
 }
 
+/* ── 判据二：导入的名字必须在目标模块里真的有导出 ──
+   写错名字（或对方改名了）在 ESM 里是**链接期错误**：
+   不仅是那一行出错，而是**整个模块的所有请求都 500**。
+   这比第一个判据更致命，但同样只有运行时才暴露。 */
+
+/** 目标模块导出了哪些名字 */
+function exportedNames(file) {
+  const ast = parser.parse(readFileSync(file, 'utf8'), { sourceType: 'module', errorRecovery: true })
+  const names = new Set()
+  let hasStar = false
+  walk(ast, (node) => {
+    if (node.type === 'ExportNamedDeclaration') {
+      const d = node.declaration
+      if (d) {
+        if (d.type === 'FunctionDeclaration' || d.type === 'ClassDeclaration') {
+          if (d.id) names.add(d.id.name)
+        } else if (d.type === 'VariableDeclaration') {
+          for (const decl of d.declarations) collectPattern(decl.id, names)
+        }
+      }
+      for (const sp of node.specifiers || []) {
+        if (sp.type === 'ExportSpecifier') names.add(sp.exported.name || sp.exported.value)
+      }
+    } else if (node.type === 'ExportDefaultDeclaration') {
+      names.add('default')
+    } else if (node.type === 'ExportAllDeclaration') {
+      hasStar = true // export * from … → 静态判断不了，放行
+    }
+  })
+  return { names, hasStar }
+}
+
+const exportCache = new Map()
+function exportsOf(file) {
+  if (!exportCache.has(file)) exportCache.set(file, exportedNames(file))
+  return exportCache.get(file)
+}
+
+/** 返回该文件里「导入了但目标模块没有」的清单 */
+function badImports(file) {
+  const ast = parser.parse(readFileSync(file, 'utf8'), { sourceType: 'module', errorRecovery: true })
+  const bad = []
+  walk(ast, (node) => {
+    if (node.type !== 'ImportDeclaration') return
+    const spec = String(node.source.value || '')
+    if (!spec.startsWith('.')) return // 裸模块名（项目里目前没有）
+    const target = resolve(dirname(file), spec)
+    if (!existsSync(target)) {
+      bad.push({ line: node.loc?.start.line ?? 0, name: `（模块不存在）${spec}` })
+      return
+    }
+    const { names, hasStar } = exportsOf(target)
+    if (hasStar) return
+    for (const s of node.specifiers || []) {
+      const line = s.loc?.start.line ?? node.loc?.start.line ?? 0
+      if (s.type === 'ImportNamespaceSpecifier') continue
+      if (s.type === 'ImportDefaultSpecifier') {
+        if (!names.has('default')) bad.push({ line, name: `default ← ${spec}` })
+        continue
+      }
+      const imported = s.imported.name || s.imported.value
+      if (!names.has(imported)) bad.push({ line, name: `${imported} ← ${spec}` })
+    }
+  })
+  return bad
+}
+
 /* ── 扫描 ── */
 const root = process.argv[2] || 'functions'
 const files = []
@@ -146,6 +213,7 @@ const files = []
 })(root)
 
 let bad = 0
+let importBad = 0
 for (const f of files) {
   let missing
   try {
@@ -155,16 +223,33 @@ for (const f of files) {
     bad += 1
     continue
   }
-  if (!missing.length) continue
-  bad += missing.length
-  console.log(`✗ ${f}`)
-  for (const m of missing) {
-    console.log(`   第 ${m.line} 行：${m.name}(…) ← 未声明也未导入`)
+  if (missing.length) {
+    bad += missing.length
+    console.log(`✗ ${f}`)
+    for (const m of missing) {
+      console.log(`   第 ${m.line} 行：${m.name}(…) ← 未声明也未导入`)
+    }
+  }
+
+  let wrongImports
+  try {
+    wrongImports = badImports(f)
+  } catch {
+    wrongImports = []
+  }
+  if (wrongImports.length) {
+    importBad += wrongImports.length
+    console.log(`✗ ${f}`)
+    for (const m of wrongImports) {
+      console.log(`   第 ${m.line} 行：导入了不存在的名字 ${m.name}`)
+    }
   }
 }
 
-if (bad) {
-  console.log(`\n✗ 后端检查失败：${bad} 处「调用了但没导入/声明」的标识符 —— 运行时会 ReferenceError（表现为 500）`)
+if (bad || importBad) {
+  console.log('')
+  if (bad) console.log(`✗ ${bad} 处「调用了但没导入/声明」的标识符 —— 运行时会 ReferenceError（表现为 500）`)
+  if (importBad) console.log(`✗ ${importBad} 处「导入了不存在的名字」—— ESM 链接期错误，整个模块全部请求都会 500`)
   process.exit(1)
 }
-console.log(`✅ 后端检查通过（${files.length} 个文件，无未声明的调用）`)
+console.log(`✅ 后端检查通过（${files.length} 个文件：无未声明的调用、无错误的导入）`)
