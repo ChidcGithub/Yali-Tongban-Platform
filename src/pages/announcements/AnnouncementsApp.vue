@@ -142,7 +142,6 @@
     <ContentDialog
       :IsOpen="editorOpen"
       :Title="editing ? '编辑公告' : '发布公告'"
-      CloseButtonText="取消"
       @update:IsOpen="editorOpen = $event">
       <div class="yali-form">
         <label class="yali-field">

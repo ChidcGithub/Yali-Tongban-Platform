@@ -136,7 +136,7 @@
     </button>
 
     <!-- 新增记录 -->
-    <ContentDialog :IsOpen="dialogOpen" Title="新增财务记录" CloseButtonText="取消"
+    <ContentDialog :IsOpen="dialogOpen" Title="新增财务记录"
                    @update:IsOpen="dialogOpen = $event">
       <div class="yali-form">
         <label class="yali-field">

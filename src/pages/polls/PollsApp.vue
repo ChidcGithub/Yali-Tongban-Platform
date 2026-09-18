@@ -64,7 +64,7 @@
     </button>
 
     <!-- 发起投票 -->
-    <ContentDialog :IsOpen="dialogOpen" Title="发起投票" CloseButtonText="取消"
+    <ContentDialog :IsOpen="dialogOpen" Title="发起投票"
                    @update:IsOpen="dialogOpen = $event">
       <div class="yali-form poll-form">
         <label class="yali-field">

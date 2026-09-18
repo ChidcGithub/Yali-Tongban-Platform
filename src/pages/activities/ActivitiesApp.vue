@@ -72,7 +72,7 @@
     </button>
 
     <!-- 发布活动 -->
-    <ContentDialog :IsOpen="dialogOpen" Title="发布活动" CloseButtonText="取消"
+    <ContentDialog :IsOpen="dialogOpen" Title="发布活动"
                    @update:IsOpen="dialogOpen = $event">
       <div class="yali-form">
         <label class="yali-field">
@@ -111,7 +111,7 @@
     </ContentDialog>
 
     <!-- 匿名报名 -->
-    <ContentDialog :IsOpen="signupOpen" Title="报名志愿者" CloseButtonText="取消"
+    <ContentDialog :IsOpen="signupOpen" Title="报名志愿者"
                    @update:IsOpen="signupOpen = $event">
       <div class="yali-form">
         <label class="yali-field">

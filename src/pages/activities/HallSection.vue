@@ -135,7 +135,7 @@
     </section>
 
     <!-- ── 提交预约 ── -->
-    <ContentDialog :IsOpen="bookingOpen" Title="预约千人报告厅" CloseButtonText="取消"
+    <ContentDialog :IsOpen="bookingOpen" Title="预约千人报告厅"
                    @update:IsOpen="bookingOpen = $event">
       <div class="yali-form">
         <p class="yali-muted">{{ formatDate(bookingDraft.date) }}</p>

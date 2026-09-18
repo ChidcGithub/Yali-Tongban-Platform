@@ -226,7 +226,6 @@
     <ContentDialog
       :IsOpen="dialogOpen"
       Title="提交问题"
-      CloseButtonText="取消"
       @update:IsOpen="dialogOpen = $event">
       <div class="yali-form">
         <div class="yali-form-row">

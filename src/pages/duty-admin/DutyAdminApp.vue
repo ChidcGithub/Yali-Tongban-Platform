@@ -178,7 +178,7 @@
     </div>
 
     <!-- 添加干事 -->
-    <ContentDialog :IsOpen="staffDialog" Title="添加干事" CloseButtonText="取消"
+    <ContentDialog :IsOpen="staffDialog" Title="添加干事"
                    @update:IsOpen="staffDialog = $event">
       <div class="yali-form">
         <label class="yali-field">
@@ -208,7 +208,7 @@
 
     <!-- 销分（后端要 score_record_id + reason + admin_id + password 四项，
          其中 reason 是必填、admin_id 必须是一个真实管理员账号用于验密） -->
-    <ContentDialog :IsOpen="cancelDialog" Title="取消评分记录" CloseButtonText="取消"
+    <ContentDialog :IsOpen="cancelDialog" Title="取消评分记录"
                    @update:IsOpen="cancelDialog = $event">
       <div class="yali-form">
         <p class="yali-muted">
@@ -241,7 +241,7 @@
     </ContentDialog>
 
     <!-- 手动加减分 -->
-    <ContentDialog :IsOpen="scoreDialog" Title="手动加减分" CloseButtonText="取消"
+    <ContentDialog :IsOpen="scoreDialog" Title="手动加减分"
                    @update:IsOpen="scoreDialog = $event">
       <div class="yali-form">
         <label class="yali-field">
@@ -282,8 +282,7 @@
     </ContentDialog>
 
     <!-- 批量销分（旧版 duty-admin.js 的复选框 + 全选 + 批量销分） -->
-    <ContentDialog :IsOpen="batchDialog" :Title="'批量销分 · ' + selectedScoreIds.length + ' 条'"
-                   CloseButtonText="取消" @update:IsOpen="batchDialog = $event">
+    <ContentDialog :IsOpen="batchDialog" :Title="'批量销分 · ' + selectedScoreIds.length + ' 条'" @update:IsOpen="batchDialog = $event">
       <div class="yali-form">
         <p class="yali-muted">将对所选的 {{ selectedScoreIds.length }} 条记录执行销分并回滚对应考勤得分。</p>
         <label class="yali-field">
