@@ -1697,6 +1697,65 @@ async function smokePageWidth() {
   }
 }
 
+/**
+ * 活动报名（未登录）：走「姓名 + 人机验证」，两端字段名必须一致
+ *
+ * 背景：未登录报名曾经整体 500 —— 后端 `handleSignupVolunteer` 的匿名分支调了
+ * `checkRateLimit`，而它没写进 `activities.js` 的 import（函数本身在 _utils.js 里有）
+ * → ReferenceError → 路由兜底成 500。**登录用户走另一个分支，所以只有匿名会炸**
+ * （用户报的正是「未登录报名失败」）。
+ *
+ * 后端那类问题由构建期守卫 `scripts/check-functions.mjs` 拦。
+ * 这里守的是**另一端**：前端发出的请求体字段名必须与后端读的一致
+ * （后端读 `body.name` / `body.captcha_token` / `body.captcha_code`）。
+ * 这类「两端字段名对不上」的错同样只会得到一个 4xx，也不会有人告诉你为什么。
+ */
+async function smokeActivityAnonymousSignup() {
+  const { page, pageErrors } = await openPage('activities', '?anon=1')
+  try {
+    await page.waitForTimeout(1000)
+    const entry = page.locator('button', { hasText: '报名志愿者' }).first()
+    check('活动报名（未登录）：有报名入口', (await entry.count()) > 0, `${await entry.count()} 个`)
+    if (!(await entry.count())) return
+
+    await entry.click()
+    await page.waitForTimeout(700)
+    const dlg = page.locator('.content-dialog')
+    check('活动报名（未登录）：弹出报名表单', (await dlg.count()) === 1, `${await dlg.count()} 个`)
+
+    const text = await dlg.first().innerText().catch(() => '')
+    check(
+      '活动报名（未登录）：要求填姓名与人机验证',
+      text.includes('你的姓名') && text.includes('人机验证'),
+      JSON.stringify(text.slice(0, 60))
+    )
+
+    const capInput = page.locator('#yaliVolunteerCaptcha .captcha-input')
+    check('活动报名（未登录）：验证码已挂载进对话框', (await capInput.count()) === 1, `${await capInput.count()} 个`)
+
+    /* 姓名框在验证码之前（DOM 顺序），取第一个 input 即姓名 */
+    await dlg.locator('input').first().fill('匿名测试同学')
+    await capInput.fill('ABCD')
+    await captureWrites(page)
+    await dlg.locator('button', { hasText: '报名' }).first().click()
+    await page.waitForTimeout(900)
+
+    const post = await page.evaluate(
+      () => window.__posted.filter((p) => /\/api\/activities\/\d+\/volunteer$/.test(p.url))[0] || null
+    )
+    check('活动报名（未登录）：请求打到 /api/activities/:id/volunteer', !!post, JSON.stringify(post?.url ?? null))
+    check(
+      '活动报名（未登录）：请求体字段与后端一致（name + captcha_token + captcha_code）',
+      !!post && !!post.body?.name && 'captcha_token' in post.body && 'captcha_code' in post.body,
+      JSON.stringify(post?.body ?? null)
+    )
+    check('活动报名（未登录）：报名成功后表单关闭', (await page.locator('.content-dialog').count()) === 0)
+    check('活动报名（未登录）：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 /* ══════════════════════════════════════════════════════════ */
 
 const CASES = [
@@ -1728,7 +1787,8 @@ const CASES = [
   ['侧栏收起：账户区只显示图标', smokePaneAccountIcons],
   ['登出：清 cookie 且等响应后再跳转', smokeLogout],
   ['鸣谢：开源库署名与源码地址', smokeCredits],
-  ['页面宽度：卡片跟随可用宽度', smokePageWidth]
+  ['页面宽度：卡片跟随可用宽度', smokePageWidth],
+  ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

@@ -5,7 +5,7 @@
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && node scripts/check-classnames.mjs && vite build",
+    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && node scripts/check-classnames.mjs && node scripts/check-functions.mjs && vite build",
     "preview": "vite preview",
     "dev:pages": "wrangler pages dev dist/",
     "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
@@ -22,7 +22,8 @@
     "subset:icons": "node scripts/subset-icons.mjs",
     "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs",
     "check:icons:fast": "node scripts/check-icon-render.mjs --fast",
-    "check:classnames": "node scripts/check-classnames.mjs"
+    "check:classnames": "node scripts/check-classnames.mjs",
+    "check:functions": "node scripts/check-functions.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -30,6 +31,7 @@
     "vue": "^3.5.42"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.8",
     "@vitejs/plugin-vue": "^6.0.8",
     "vite": "^7.3.6",
     "wrangler": "^4.101.0"
