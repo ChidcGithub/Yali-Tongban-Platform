@@ -15,7 +15,7 @@
         </Button>
       </div>
 
-      <div v-else-if="!data" class="yali-loading">
+      <div v-else-if="!data" class="yali-loading duty-empty">
         <FontIcon :Glyph="GLYPH.duty" :FontSize="28" class="yali-muted-icon" />
         <TextBlock Text="今日无排班" class="yali-muted" />
         <Button v-if="admin" @Click="go('duty-admin.html')">
@@ -308,6 +308,13 @@ onBeforeUnmount(() => {
 </script>
 
 <style>
+/* 无排班空状态：内容矮时垂直居中于剩余视口，别孤零零贴在页首 */
+.yali-loading.duty-empty {
+  padding: 0;
+  min-height: max(300px, calc(100dvh - 340px));
+  justify-content: center;
+}
+
 .duty-head {
   display: flex;
   align-items: center;

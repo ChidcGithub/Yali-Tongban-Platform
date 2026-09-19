@@ -163,7 +163,8 @@ const FIXTURES = {
   duty: {
     // 形状照抄后端 handleDutyAttendanceToday：staff_a/staff_b 是**对象**，
     // periods[].a|b 是 {attendance_id,status,sign_in_time,sign_out_time,score_absent,score_duration,total}
-    dutyToday: {
+    // ?dutynull=1 → 空对象（无 staff_a → 页面 data=null → 「今日无排班」空状态）
+    dutyToday: query.includes('dutynull=1') ? {} : {
       date: '2026-09-13', schedule_id: 9001,
       staff_a: { id: 11, name: '张三', department: '办公室', class: '2517', user_id: 101 },
       staff_b: { id: 12, name: '李四', department: '组织部', class: '2518', user_id: 102 },

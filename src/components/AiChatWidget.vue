@@ -1,4 +1,8 @@
 <template>
+  <!-- ⚠️ 必须 Teleport 到 body：YaliShell/NavigationView 的导航过渡会给祖先
+       挂 perspective/transform —— 祖先带 transform 时 position:fixed 退化为
+       相对该祖先定位，页面内容矮（如「今日无排班」）时悬浮球就悬在半空。 -->
+  <Teleport to="body">
   <!-- 悬浮球：登录 + AI 已配置才出现（widget 自己查 status，页面无需守卫） -->
   <button v-if="fabVisible" class="aiw-fab" type="button" :title="open ? '收起 AI 助手' : 'AI 助手'" @click="toggle">
     <FontIcon :Glyph="GLYPH.close" v-if="open" :FontSize="20" />
@@ -77,6 +81,7 @@
       </button>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
