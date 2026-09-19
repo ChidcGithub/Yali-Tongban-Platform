@@ -500,7 +500,7 @@ const stub = `
       var __nocfg = __q.indexOf('ainocfg=1') >= 0;
 
       if (url.indexOf('/api/ai/status') === 0) {
-        return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'glm-4-flash', tools: true, webSearch: false }));
+        return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'deepseek-flash', tools: true, webSearch: false }));
       }
       if (url.indexOf('/api/ai/messages') === 0) {
         if (method === 'DELETE') {

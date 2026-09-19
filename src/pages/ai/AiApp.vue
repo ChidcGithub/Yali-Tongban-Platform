@@ -27,10 +27,12 @@
           AI 服务尚未配置
         </p>
         <p>
-          在 Cloudflare Pages 项目的环境变量里设置 <code>AI_API_KEY</code>（OpenAI 兼容接口，
-          如智谱开放平台的 Key，默认走 <code>open.bigmodel.cn</code>、模型 <code>glm-4-flash</code>；
-          可用 <code>AI_BASE_URL</code> / <code>AI_MODEL</code> 覆盖），或在项目设置里绑定
-          Workers AI（<code>env.AI</code>，零密钥）。保存后重新部署即可生效。
+          在 Cloudflare Pages 项目的环境变量里设置 <code>AI_API_KEY</code>（推荐
+          <b>DeepSeek</b> 开放平台的 Key，在 <code>platform.deepseek.com</code> 注册获取；
+          默认走 <code>api.deepseek.com</code>、模型 <code>deepseek-flash</code>，
+          支持工具调用、价格极低。也可用 <code>AI_BASE_URL</code> / <code>AI_MODEL</code>
+          换成任意 OpenAI 兼容服务），或在项目设置里绑定 Workers AI（<code>env.AI</code>，
+          零密钥）。保存后重新部署即可生效。
         </p>
         <Button @Click="loadStatus">
           <span class="yali-btn-inner"><FontIcon :Glyph="GLYPH.refresh" :FontSize="13" /><span>重新检测</span></span>

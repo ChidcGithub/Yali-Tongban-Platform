@@ -9,8 +9,11 @@
  *
  * 供应商配置（Cloudflare 环境变量，二选一）：
  *   AI_API_KEY (+ AI_BASE_URL / AI_MODEL)  → OpenAI 兼容接口
- *     （智谱 / DeepSeek / Moonshot 等，默认指向智谱 open.bigmodel.cn，
- *      默认模型 glm-4-flash——免费档，支持工具调用）
+ *     （默认 DeepSeek：api.deepseek.com + deepseek-flash，支持工具调用，
+ *      价格极低且无免费额度依赖；也可换成智谱 / Moonshot 等任意
+ *      OpenAI 兼容服务。DeepSeek 模型默认显式关闭思考模式 —— 助手场景
+ *      要快，且免去思考模式下「带 tools 的请求必须回传 reasoning_content」
+ *      的 400 陷阱）
  *   或在 Pages 项目设置里绑定 Workers AI（env.AI），零密钥但无工具调用。
  *
  * 安全边界：
@@ -39,8 +42,8 @@ export function getAIConfig(env) {
     return {
       provider: 'openai',
       key: env.AI_API_KEY,
-      baseUrl: String(env.AI_BASE_URL || 'https://open.bigmodel.cn/api/paas/v4').replace(/\/+$/, ''),
-      model: env.AI_MODEL || 'glm-4-flash',
+      baseUrl: String(env.AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
+      model: env.AI_MODEL || 'deepseek-flash',
       tools: true,
       webSearch: Boolean(env.TAVILY_API_KEY)
     };
