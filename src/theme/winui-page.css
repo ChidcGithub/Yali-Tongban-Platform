@@ -649,3 +649,32 @@ img.yali-img-broken {
   /* 图片内容区被替换成空 —— 浏览器就不再绘制破图图标 */
   content: '';
 }
+
+/* ══════════════════════════════════════════════════════
+   对话框长内容必须在壳内滚动
+   ──────────────────────────────────────────────────────
+   上游 ScrollViewer 的视口高度链在这里断了：
+   `.win-scroll-viewer-viewport { height: 100% }` 实际解析成了
+   「内容自身的高度」（实测 754.969px = 内容高），root 的
+   `overflow: visible` 于是把溢出部分直接画出去 —— footer 与内容
+   重叠、超出 100vh 的部分被整体裁掉，且滚不动
+   （手机上 10 项的功能速览就撞上了：最后一项和「开始使用」挤在一行）。
+
+   这里把视口约束到 root 的内容盒（root 本身已被 flex 正确收缩：
+   scrollH 779 vs clientH 669），内容超出时走 overflow-y: auto。
+   短内容对话框不受影响（max-height 够高，永远不出现滚动条）。
+   选择器限定在 .content-dialog 内，不影响 ComboBox / Flyout 等同组件用法。
+   ══════════════════════════════════════════════════════ */
+/* 实测备注：先试过 `max-height: 100%` —— 无效。父级（root）是外层 flex 的
+   伸缩项，浏览器视其高度「不确定」，百分比 max-height 被按 none 处理。
+   改成嵌套 flex（root 做 flex 列、viewport 做伸缩项）后必然收缩：
+   容器 622px、内容 755px、viewport 默认 flex 0 1 auto 且 min-height 已是 0。 */
+.content-dialog .content-dialog-content {
+  display: flex;
+  flex-direction: column;
+}
+.content-dialog .content-dialog-content .win-scroll-viewer-viewport {
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+}
