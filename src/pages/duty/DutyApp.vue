@@ -119,11 +119,23 @@
         </section>
       </template>
     </div>
+
+    <!-- 页内 AI 浮窗：共享 AI 助手后端与对话历史，场景=值日 -->
+    <AiChatWidget context="值日" :quick="AI_QUICK" />
   </YaliShell>
 </template>
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import AiChatWidget from '../../components/AiChatWidget.vue'
+
+/* 浮窗快捷提问（场景=值日） */
+const AI_QUICK = [
+  '这周我哪天值日？',
+  '本周值日出勤情况怎么样？',
+  '最近值日评分最高的是谁？',
+  '帮我记住：值日我要提前 10 分钟到'
+]
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
 import { apiGet, apiPost, isAdmin, toast } from '../../shared/api'

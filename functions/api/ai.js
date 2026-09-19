@@ -330,6 +330,8 @@ export async function handleAIChat(request, env, user) {
   const body = await parseBody(request);
   const wantThink = body?.thinking === true; // 深度思考（仅 DeepSeek 生效）
   const wantWeb = body?.webSearch === true && cfg.webSearch === true; // 联网（配置了才真正开）
+  // 页内浮窗的场景说明（如「值日」）：前端传固定文案，这里只做清洗与截断
+  const pageCtx = String(body?.context || '').trim().replace(/[\r\n]+/g, ' ').slice(0, 100);
   const message = String(body?.message || '').trim();
   if (!message) return error('消息不能为空', 400);
   if (message.length > 2000) return error('消息过长（最多 2000 字）', 400);
@@ -347,7 +349,9 @@ export async function handleAIChat(request, env, user) {
     .bind(user.userId)
     .all();
 
-  const system = buildSystemPrompt(user, memories.results || [], cfg, wantWeb);
+  const system =
+    buildSystemPrompt(user, memories.results || [], cfg, wantWeb) +
+    (pageCtx ? `\n\n用户当前正在站点的「${pageCtx}」相关页面，回答优先贴近这个场景。` : '');
   // 传给模型的消息（本轮用户消息稍后追加）
   const convo = [
     { role: 'system', content: system },

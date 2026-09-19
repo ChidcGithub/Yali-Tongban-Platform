@@ -2014,6 +2014,39 @@ async function smokeWelcome() {
 
 /* ══════════════════════════════════════════════════════════ */
 
+/**
+ * 值日页 AI 浮窗（AiChatWidget 首个落地页面）
+ * 悬浮球显隐（登录+已配置）、浮窗打开、场景快捷提问、context 透传、流式回答。
+ */
+async function smokeDutyAiWidget() {
+  const { page, pageErrors } = await openPage('duty')
+  try {
+    await page.waitForTimeout(1000)
+    check('值日AI：悬浮球可见（登录+已配置）', (await page.locator('.aiw-fab').count()) === 1)
+    await page.locator('.aiw-fab').click()
+    await page.waitForTimeout(600)
+    check('值日AI：浮窗打开', (await page.locator('.aiw-panel').count()) === 1)
+    check('值日AI：标题带场景', (await page.evaluate(() => document.body.innerText)).includes('AI 助手 · 值日'))
+    await page.locator('.aiw-quick button').first().click()
+    await page.waitForTimeout(900)
+    const t = await page.evaluate(() => document.body.innerText)
+    check('值日AI：流式回答呈现', t.includes('周五志愿者培训'))
+    check('值日AI：工具 chip 呈现', t.includes('查询站点数据库'))
+    const chats = await page.evaluate(() => window.__aiChats)
+    check(
+      '值日AI：请求带 context=值日',
+      Array.isArray(chats) && chats.length === 1 && chats[0].context === '值日',
+      JSON.stringify(chats)
+    )
+    await page.locator('.aiw-close').click()
+    await page.waitForTimeout(300)
+    check('值日AI：关闭后浮窗消失', (await page.locator('.aiw-panel').count()) === 0)
+    check('值日AI：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 const CASES = [
   ['登录页：验证码挂载 + 单次提交', smokeLogin],
   ['对话框内验证码（报修 / 财务 / 活动报名）', smokeDialogCaptchas],
@@ -2046,7 +2079,8 @@ const CASES = [
   ['页面宽度：卡片跟随可用宽度', smokePageWidth],
   ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup],
   ['欢迎引导：首次访问主页', smokeWelcome],
-  ['AI 助手：对话 / 工具 / 记忆 / 未配置态', smokeAiAssistant]
+  ['AI 助手：对话 / 工具 / 记忆 / 未配置态', smokeAiAssistant],
+  ['值日页 AI 浮窗', smokeDutyAiWidget]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)
