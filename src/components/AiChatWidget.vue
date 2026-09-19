@@ -153,7 +153,11 @@ async function loadAll() {
     const r = await apiGet<{ messages: ChatMsg[] }>('/api/ai/messages')
     messages.value = r.messages || []
   } catch {
+    /* ⚠️ /api/ai/status 是公开接口（未登录也 200），登录态只能在这里探：
+       messages 401 = 未登录 → 连悬浮球一起藏掉，否则游客点开全是失败请求 */
+    fabVisible.value = false
     messages.value = []
+    return
   }
   loaded.value = true
   scrollBottom()

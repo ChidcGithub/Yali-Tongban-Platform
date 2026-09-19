@@ -2041,6 +2041,17 @@ async function smokeDutyAiWidget() {
     await page.locator('.aiw-close').click()
     await page.waitForTimeout(300)
     check('值日AI：关闭后浮窗消失', (await page.locator('.aiw-panel').count()) === 0)
+    /* 未登录：status 公开 200，但 messages 401 → 悬浮球必须隐藏（线上踩过的兜底） */
+    {
+      const { page: anonPage } = await openPage('duty', '?anon=1')
+      try {
+        await anonPage.waitForTimeout(1200)
+        check('值日AI：未登录不显示悬浮球', (await anonPage.locator('.aiw-fab').count()) === 0)
+      } finally {
+        await anonPage.close()
+      }
+    }
+
     check('值日AI：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
   } finally {
     await page.close()

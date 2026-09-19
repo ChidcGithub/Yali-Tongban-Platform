@@ -500,6 +500,12 @@ const stub = `
       var __nocfg = __q.indexOf('ainocfg=1') >= 0;
       var __aiWeb = __q.indexOf('aiweb=1') >= 0; /* 模拟已配 TAVILY_API_KEY */
 
+      /* 未登录：status 是公开接口（200），但 messages/memories/chat 都 401 ——
+         复刻真实后端，用于断言「浮窗靠 messages 401 兜底隐藏」 */
+      if (__anon && url.indexOf('/api/ai/status') !== 0) {
+        return Promise.resolve({ ok: false, status: 401, headers: { get: function () { return 'application/json'; } }, json: function () { return Promise.resolve({ success: false, error: '需要登录' }); }, text: function () { return Promise.resolve('{"success":false,"error":"需要登录"}'); } });
+      }
+
       if (url.indexOf('/api/ai/status') === 0) {
         return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'deepseek-flash', tools: true, webSearch: __aiWeb }));
       }
