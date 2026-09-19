@@ -1835,12 +1835,28 @@ async function smokeWelcome() {
     }
   }
 
-  /* ③ 反向：深链进来的首次访客也不弹（只打扰主页） */
+  /* ③ 反向：非主页（深链进来的首次访客）不弹 */
   {
     const { page } = await openPage('about', '?welcome=1')
     try {
       await page.waitForTimeout(800)
       check('欢迎：非主页不弹（不打扰深链访客）', (await page.locator('.content-dialog').count()) === 0)
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ④ 线上是 clean URL：/services.html 被 308 到 /services（pathname 无 .html）。
+     第一版只认 .html —— 本地全绿、线上不弹。用 ?cleanurl=1 复刻线上形态。 */
+  {
+    const { page } = await openPage('services', '?welcome=1&cleanurl=1')
+    try {
+      await page.waitForTimeout(900)
+      check(
+        '欢迎：clean URL（pathname 无 .html）也能弹',
+        (await page.locator('.content-dialog').count()) === 1,
+        `pathname=${await page.evaluate(() => location.pathname)}`
+      )
     } finally {
       await page.close()
     }

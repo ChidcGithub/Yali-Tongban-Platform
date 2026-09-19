@@ -324,8 +324,11 @@ const stub = `
   /* 伪造真实路径：打桩页的 URL 是 /__verify.html，而页面代码（权限守卫等）
      会读 location.pathname 推导「我是哪个页面」（旧版 auth.js 的 _pageName 同理）。
      不改的话，404 跳转永远带不上 ?from=<页面名>，这类断言就成了假绿。
-     replaceState 只改 URL 不触发导航，静态服务不需要真的有这个文件。 */
-  try { history.replaceState(null, '', '/${entry}.html' + location.search); } catch (e) {}
+     replaceState 只改 URL 不触发导航，静态服务不需要真的有这个文件。
+     cleanurl=1 模拟 Cloudflare Pages 的 clean URL：线上 /services.html 会被
+     308 到 /services —— pathname 没有 .html，凡是判 pathname 的代码都要兼容。 */
+  var __clean = ${JSON.stringify(query)}.indexOf('cleanurl=1') >= 0 ? '' : '.html';
+  try { history.replaceState(null, '', '/${entry}' + __clean + location.search); } catch (e) {}
 
   window.addEventListener('error', function (e) { record((e.message || '') + ' @' + (e.filename || '')); });
   window.addEventListener('unhandledrejection', function (e) { record('unhandledrejection: ' + ((e.reason && e.reason.message) || e.reason)); });

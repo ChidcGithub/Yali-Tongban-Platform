@@ -52,8 +52,11 @@ const FEATURES = [
 ] as const
 
 onMounted(() => {
-  // 只在主页弹：从深链（某条公告/投票）进来的访客不打扰
-  if (!/\/services\.html$/.test(location.pathname)) return
+  /* ⚠️ Cloudflare Pages 会把 /services.html **308 到 /services**（clean URL），
+     所以线上 pathname 没有 .html —— 两种形态都要认。
+     （第一版只认 .html，本地全绿、线上不弹，就是栽在这里。）
+     只在主页弹：从深链（某条公告/投票）进来的访客不打扰。 */
+  if (!/\/services(\.html)?$/.test(location.pathname)) return
   if (localStorage.getItem(KEY)) return
 
   /* ⚠️ 不能在 onMounted 里同步打开。
