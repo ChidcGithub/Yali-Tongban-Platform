@@ -22,6 +22,7 @@ export const GLYPH = {
   activities: '\uE787', // 日历 —— 活动（原为 calendar）
   duty: '\uE916', // 秒表 —— 值日（原为 clock）
   admin: '\uE72E', // 锁 —— 管理（原为 shield，字体无盾牌字形）
+  ai: '\uE99A', // 机器人 —— AI 助手
   feedback: '\uE8BD', // 对话气泡 —— 反馈（原为 message-square）
 
   /* 侧栏底部与账户 */

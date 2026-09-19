@@ -34,7 +34,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'activities', label: '活动', icon: GLYPH.activities, href: 'activities.html' },
   { id: 'duty', label: '值日', icon: GLYPH.duty, href: 'duty.html', roleMin: 'public' },
   { id: 'admin', label: '管理', icon: GLYPH.admin, href: 'admin.html', adminOnly: true },
-  { id: 'feedback', label: '反馈', icon: GLYPH.feedback, href: 'feedback.html' }
+  { id: 'feedback', label: '反馈', icon: GLYPH.feedback, href: 'feedback.html' },
+  { id: 'ai', label: 'AI 助手', icon: GLYPH.ai, href: 'ai.html', roleMin: 'member' },
 ]
 
 const ROLE_WEIGHT: Record<string, number> = {

@@ -18,6 +18,7 @@ import { handleGetPublicSettings } from './settings.js';
 import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats } from './duty.js';
 import { handleAdminGetFeatures, handleAdminToggleFeature, handleAdminInvite, handleAdminResetUser, handleAdminGetInvitations, handleGetPendingFeatures, handleRespondFeature, handleGetEnabledFeatures } from './features.js';
 import { handleGetMessages, handleGetUnreadCount, handleMarkRead, handleMarkAllRead, handleDeleteMessage, handleClearRead } from './messages.js';
+import { handleAIStatus, handleAIMessagesGet, handleAIMessagesClear, handleAIMemoriesGet, handleAIMemoriesClear, handleAIChat } from './ai.js';
 
 /* ═══════════════════════════════════════════════════════
    声明式路由表（原 292 行 if/else 重构而来）
@@ -130,6 +131,14 @@ const routes = [
   { p: '/api/messages', m: 'DELETE', h: c => handleClearRead(c.env, c.user) },
   { p: /^\/api\/messages\/(\d+)$/, m: 'POST', h: c => handleMarkRead(c.env, c.user, c.m[1]) },
   { p: /^\/api\/messages\/(\d+)$/, m: 'DELETE', h: c => handleDeleteMessage(c.env, c.user, c.m[1]) },
+
+  // AI 助手（仅登录用户；配置见 functions/api/ai.js 头部注释）
+  { p: '/api/ai/status', m: 'GET', h: c => handleAIStatus(c.env) },
+  { p: '/api/ai/messages', m: 'GET', h: c => handleAIMessagesGet(c.env, c.user) },
+  { p: '/api/ai/messages', m: 'DELETE', h: c => handleAIMessagesClear(c.env, c.user) },
+  { p: '/api/ai/memories', m: 'GET', h: c => handleAIMemoriesGet(c.env, c.user) },
+  { p: '/api/ai/memories', m: 'DELETE', h: c => handleAIMemoriesClear(c.env, c.user) },
+  { p: '/api/ai/chat', m: 'POST', h: c => handleAIChat(c.request, c.env, c.user) },
   // Comments
   { p: /^\/api\/comments\/(announcement|issue|issue_note)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
   { p: '/api/comments', m: 'POST', h: c => handleCreateComment(c.request, c.env, c.user) },

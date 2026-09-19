@@ -46,6 +46,7 @@ const CHROME = join(
 const PAGES = [
   ['index', { query: '', budget: 1200 }],
   ['services', { query: '' }],
+  ['ai', { query: '' }],
   ['announcements', { query: '' }],
   ['announcement', { query: '?id=21' }],
   ['messages', { query: '' }],

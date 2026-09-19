@@ -465,14 +465,84 @@ const stub = `
     if (!el) { el = document.createElement('div'); el.id = '__calls'; document.documentElement.appendChild(el); }
     el.textContent = window.__calls.join(' || ');
   }
+  /* AI 助手的桩内状态（历史/记忆），供交互断言 */
+  var __aiState = {
+    messages: [],
+    memories: [
+      { id: 1, content: '用户是办公室成员，偏好简洁回答', created_at: '2026-09-19 10:00:00' },
+      { id: 2, content: '用户负责站点的日常运营', created_at: '2026-09-19 10:01:00' }
+    ]
+  };
+  var __aiSeq = 2;
+  function __aiJson(obj) {
+    var body = JSON.stringify({ success: true, data: obj });
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      headers: { get: function () { return 'application/json'; } },
+      json: function () { return Promise.resolve({ success: true, data: obj }); },
+      text: function () { return Promise.resolve(body); }
+    });
+  }
   window.fetch = function (input, init) {
     var url = typeof input === 'string' ? input : (input && input.url) || '';
+    var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
     var p = payload(url);
     noteCall(url, p !== null);
 
     /* 登出必须**如实建模**：真实后端在这一步回 Set-Cookie 把 token 清掉，
        之后 /api/auth/me 就是 401。桩要是不知道这件事，就永远测不出
        「表面登出、cookie 还在 → 刷新又变回登录态」这个 bug。 */
+    /* AI 助手：有状态的桩（历史/记忆在桩内维护，可断言清空等交互）。
+       ?ainocfg=1 模拟「AI 服务未配置」。 */
+    if (url.indexOf('/api/ai/') === 0) {
+      window.__aiChats = window.__aiChats || [];
+      var __nocfg = __q.indexOf('ainocfg=1') >= 0;
+
+      if (url.indexOf('/api/ai/status') === 0) {
+        return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'glm-4-flash', tools: true, webSearch: false }));
+      }
+      if (url.indexOf('/api/ai/messages') === 0) {
+        if (method === 'DELETE') {
+          __aiState.messages = [];
+          return Promise.resolve(__aiJson({ message: '对话已清空' }));
+        }
+        return Promise.resolve(__aiJson({ messages: __aiState.messages.slice() }));
+      }
+      if (url.indexOf('/api/ai/memories') === 0) {
+        if (method === 'DELETE') {
+          __aiState.memories = [];
+          return Promise.resolve(__aiJson({ message: '记忆已清空' }));
+        }
+        return Promise.resolve(__aiJson({ memories: __aiState.memories.slice() }));
+      }
+      if (url.indexOf('/api/ai/chat') === 0) {
+        var __aiBody = {};
+        try { __aiBody = JSON.parse(init.body); } catch (e) {}
+        window.__aiChats.push(__aiBody);
+        var __reply = __aiBody.message && __aiBody.message.indexOf('记住') >= 0
+          ? { tool: 'save_memory', text: '好的，已记住你的偏好。' }
+          : { tool: 'query_database', text: '本周共有 2 场活动：周三篮球赛、周五志愿者培训。' };
+        var __enc = new TextEncoder();
+        var __stream = new ReadableStream({
+          start: function (c) {
+            var push = function (o) { c.enqueue(__enc.encode('data: ' + JSON.stringify(o) + '\\n\\n')); };
+            setTimeout(function () {
+              push({ tool: { name: __reply.tool, args: '{}' } });
+              push({ delta: __reply.text.slice(0, 6) });
+              push({ delta: __reply.text.slice(6) });
+              push({ done: true });
+              c.close();
+              /* 服务端在完整回答后落库 —— 桩同步维护历史 */
+              __aiState.messages.push({ id: ++__aiSeq, role: 'user', content: __aiBody.message });
+              __aiState.messages.push({ id: ++__aiSeq, role: 'assistant', content: __reply.text });
+            }, 150);
+          }
+        });
+        return Promise.resolve(new Response(__stream, { headers: { 'content-type': 'text/event-stream' } }));
+      }
+    }
+
     if (url.indexOf('/api/auth/logout') === 0) {
       window.__loggedOut = true;
       /* 故意慢一点：用来断言「跳转发生在响应之后」——

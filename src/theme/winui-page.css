@@ -678,3 +678,17 @@ img.yali-img-broken {
   max-height: none;
   overflow-y: auto;
 }
+
+/* ══════════════════════════════════════════════════════
+   确认框必须永远在最上层
+   ──────────────────────────────────────────────────────
+   共享 ConfirmDialog 的 overlay 会在挂载时就进 DOM（teleport 到
+   body），z-index 与普通 ContentDialog 同为 10000。之后页面自己的
+   对话框（如「记忆管理」）再打开时追加在 body 末尾 → 同层级盖住
+   确认框 → 确认按钮点不到（实测「清空记忆」卡死 30s）。
+   用 :has 精确识别共享确认框的 overlay（.yali-confirm 只在
+   ConfirmDialog 的正文里出现），永远置顶。
+   ══════════════════════════════════════════════════════ */
+.content-dialog-overlay:has(.yali-confirm) {
+  z-index: 10050;
+}

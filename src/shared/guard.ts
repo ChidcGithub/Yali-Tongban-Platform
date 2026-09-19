@@ -34,7 +34,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/settings': '个人设置',
   '/finance': '财务管理',
   '/announcements': '公告管理',
-  '/announcement': '公告详情'
+  '/announcement': '公告详情',
+  '/ai': 'AI 助手',
 }
 
 export function pageTitle(): string {

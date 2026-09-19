@@ -1757,6 +1757,120 @@ async function smokeActivityAnonymousSignup() {
 }
 
 /**
+ * AI 助手（新页面 + 新后端 + 新桩）
+ *
+ * 页面 requireAuth（匿名 → 404 伪装）；流式回答经桩内 SSE 模拟；
+ * 历史/记忆在桩内有状态，可断言「清空对话」「清空记忆」交互。
+ * 未配置态用 ?ainocfg=1（对应后端读不到 AI_API_KEY / env.AI 时的 UI）。
+ */
+async function smokeAiAssistant() {
+  /* ① 匿名 → 404 伪装（跳转类用例不能复用 openPage：页面会在挂载前跳走） */
+  {
+    await buildVerifyPage('ai', '?anon=1')
+    const page = await context.newPage()
+    await page.goto(`${base}/__verify.html`, { waitUntil: 'load' })
+    const ok404 = await page
+      .waitForURL(/\/404\.html/, { timeout: 6000 })
+      .then(() => true)
+      .catch(() => false)
+    check('AI 助手：未登录访问 → 跳 404（伪装）', ok404, page.url().replace(base, ''))
+    await page.close()
+  }
+
+  /* ② 登录：页面骨架 + 导航入口 */
+  {
+    const { page, pageErrors } = await openPage('ai')
+    try {
+      await page.waitForTimeout(900)
+      check(
+        'AI 助手：侧栏出现「AI 助手」入口',
+        (await page.locator('.win-nav-left-panel .win-nav-item', { hasText: 'AI 助手' }).count()) === 1
+      )
+      check('AI 助手：空状态引导可见', (await page.locator('.ai-empty').count()) === 1)
+      check(
+        'AI 助手：快捷提问 4 条',
+        (await page.locator('.ai-quick button').count()) === 4,
+        `${await page.locator('.ai-quick button').count()} 条`
+      )
+
+      /* ③ 快捷提问发送 → SSE 桩 → 工具 chip + 流式回答 */
+      await page.locator('.ai-quick button').first().click()
+      await page.waitForTimeout(900)
+      const text1 = await page.evaluate(() => document.body.innerText)
+      check('AI 助手：显示「查询站点数据库」工具 chip', text1.includes('查询站点数据库'))
+      check('AI 助手：流式回答完整呈现', text1.includes('周五志愿者培训'), '')
+      check(
+        'AI 助手：气泡结构 = 1 问 1 答',
+        (await page.locator('.ai-msg').count()) === 2,
+        `${await page.locator('.ai-msg').count()} 个`
+      )
+      check('AI 助手：发送后输入框已清空', (await page.locator('.ai-input input').inputValue()) === '')
+
+      /* ④ 输入框 Enter 发送（走原生 keydown 监听） */
+      const input = page.locator('.ai-input input')
+      await input.fill('帮我记住：我偏好简洁回答')
+      await input.press('Enter')
+      await page.waitForTimeout(900)
+      const text2 = await page.evaluate(() => document.body.innerText)
+      check('AI 助手：Enter 发送成功（save_memory 工具）', text2.includes('保存记忆'))
+      check('AI 助手：第二轮回答呈现', text2.includes('已记住你的偏好'))
+      const chats = await page.evaluate(() => window.__aiChats)
+      check(
+        'AI 助手：请求体是 { message }（2 次）',
+        Array.isArray(chats) && chats.length === 2 && chats.every((c) => typeof c.message === 'string' && c.message.length > 0),
+        JSON.stringify(chats)
+      )
+
+      /* ⑤ 清空对话（确认框 → 确定） */
+      await page.locator('button', { hasText: '清空对话' }).first().click()
+      await page.waitForTimeout(600)
+      const confirmTitle = await page.locator('.content-dialog-title').first().innerText().catch(() => '')
+      check('AI 助手：清空前有确认框', confirmTitle.includes('清空对话'), JSON.stringify(confirmTitle))
+      await page.locator('.content-dialog-primary').first().click()
+      await page.waitForTimeout(700)
+      check('AI 助手：确认后气泡清空', (await page.locator('.ai-msg').count()) === 0)
+
+      /* ⑥ 记忆管理 */
+      await page.locator('.ai-chip-btn', { hasText: '记忆' }).click()
+      await page.waitForTimeout(600)
+      const memTitle = await page.locator('.content-dialog-title').first().innerText().catch(() => '')
+      check('AI 助手：记忆对话框打开', memTitle.includes('记忆'), JSON.stringify(memTitle))
+      check(
+        'AI 助手：列出 2 条既有记忆',
+        (await page.locator('.ai-mem-item').count()) === 2,
+        `${await page.locator('.ai-mem-item').count()} 条`
+      )
+      await page.locator('button', { hasText: '清空全部记忆' }).first().click()
+      await page.waitForTimeout(600)
+      await page.locator('.content-dialog-primary').first().click()
+      await page.waitForTimeout(700)
+      check('AI 助手：清空记忆后列表为空', (await page.locator('.ai-mem-item').count()) === 0)
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(400)
+
+      check('AI 助手：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ⑦ 未配置态 */
+  {
+    const { page, pageErrors } = await openPage('ai', '?ainocfg=1')
+    try {
+      await page.waitForTimeout(900)
+      const body = await page.evaluate(() => document.body.innerText)
+      check('AI 助手：未配置时显示开通指引', body.includes('AI 服务尚未配置'))
+      check('AI 助手：未配置时输入框禁用', await page.locator('.ai-input input').isDisabled())
+      check('AI 助手：未配置不显示记忆入口', (await page.locator('.ai-chip-btn').count()) === 0)
+      check('AI 助手：未配置无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+/**
  * 首次使用欢迎引导
  *
  * 规则：只在主页（services）+ 每个浏览器一次；任何方式关掉都记为已读。
@@ -1896,7 +2010,8 @@ const CASES = [
   ['鸣谢：开源库署名与源码地址', smokeCredits],
   ['页面宽度：卡片跟随可用宽度', smokePageWidth],
   ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup],
-  ['欢迎引导：首次访问主页', smokeWelcome]
+  ['欢迎引导：首次访问主页', smokeWelcome],
+  ['AI 助手：对话 / 工具 / 记忆 / 未配置态', smokeAiAssistant]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)

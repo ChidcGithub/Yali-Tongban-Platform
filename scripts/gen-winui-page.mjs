@@ -52,7 +52,8 @@ const PAGE_SCRIPTS = {
   admin: ['base', 'auth', 'lightbox'],
   settings: ['base', 'auth'],
   personalize: ['base', 'auth'],
-  login: ['base', 'captcha']
+  login: ['base', 'captcha'],
+  ai: ['base', 'auth'],
 }
 
 const ALL = Object.keys(PAGE_SCRIPTS)
