@@ -55,6 +55,10 @@
               <div v-if="m.tools && m.tools.length" class="ai-tools">
                 <span v-for="(t, j) in m.tools" :key="j" class="ai-tool-chip">{{ t }}</span>
               </div>
+              <details v-if="m.reasoning" class="ai-think">
+                <summary>思考过程</summary>
+                <div class="ai-think-body">{{ m.reasoning }}</div>
+              </details>
               <div class="ai-bubble" v-html="render(m.content)"></div>
             </div>
           </div>
@@ -68,6 +72,10 @@
                   {{ t }}
                 </span>
               </div>
+              <details v-if="thinkText" class="ai-think" open>
+                <summary>思考过程</summary>
+                <div class="ai-think-body">{{ thinkText }}</div>
+              </details>
               <div v-if="streamText" class="ai-bubble" v-html="render(streamText)"></div>
               <div v-else class="ai-bubble ai-bubble-typing">
                 <span class="ai-typing"><span></span><span></span><span></span></span>
@@ -79,6 +87,26 @@
         <!-- 快捷提问 -->
         <div class="ai-quick">
           <button v-for="q in QUICK" :key="q" type="button" :disabled="busy" @click="send(q)">{{ q }}</button>
+        </div>
+
+        <!-- 思考 / 联网开关 -->
+        <div class="ai-toggles">
+          <button v-if="canThink" type="button" class="ai-toggle" :class="{ on: thinkOn }" :disabled="busy" @click="toggleThink">
+            <FontIcon :Glyph="GLYPH.star" :FontSize="12" />
+            <span>深度思考</span>
+          </button>
+          <button
+            type="button"
+            class="ai-toggle"
+            :class="{ on: webOn }"
+            :disabled="busy || !canWeb"
+            :title="canWeb ? '开启后 AI 会联网检索公开信息' : '需管理员配置 TAVILY_API_KEY'"
+            @click="toggleWeb"
+          >
+            <FontIcon :Glyph="GLYPH.refresh" :FontSize="12" />
+            <span>联网搜索</span>
+          </button>
+          <span v-if="configured && !canWeb" class="ai-toggle-hint">联网未配置（TAVILY_API_KEY）</span>
         </div>
 
         <!-- 输入区 -->
@@ -141,6 +169,7 @@ interface ChatMsg {
   role: 'user' | 'assistant'
   content: string
   tools?: string[]
+  reasoning?: string
 }
 interface AIMemory {
   id: number
@@ -171,12 +200,17 @@ const draft = ref('')
 const busy = ref(false)
 const streamText = ref('')
 const toolChips = ref<string[]>([])
+const thinkText = ref('')
+const thinkOn = ref(false)
+const webOn = ref(false)
 const memOpen = ref(false)
 const clearingMem = ref(false)
 const listRef = ref<HTMLElement | null>(null)
 const composerRef = ref<{ $el?: HTMLElement } | null>(null)
 
 const configured = computed(() => !!status.value?.configured)
+const canThink = computed(() => (status.value?.model || '').startsWith('deepseek'))
+const canWeb = computed(() => !!status.value?.webSearch)
 
 async function loadStatus() {
   try {
@@ -184,6 +218,8 @@ async function loadStatus() {
   } catch {
     status.value = { configured: false }
   }
+  thinkOn.value = localStorage.getItem('ai_think') === '1' && canThink.value
+  webOn.value = localStorage.getItem('ai_web') === '1' && canWeb.value
 }
 
 async function loadMessages() {
@@ -211,6 +247,17 @@ function scrollBottom() {
   })
 }
 
+/* ── 思考 / 联网开关（记住上次选择） ── */
+function toggleThink() {
+  thinkOn.value = !thinkOn.value
+  localStorage.setItem('ai_think', thinkOn.value ? '1' : '0')
+}
+function toggleWeb() {
+  if (!canWeb.value) return
+  webOn.value = !webOn.value
+  localStorage.setItem('ai_web', webOn.value ? '1' : '0')
+}
+
 /* ── 发送（SSE 流式） ── */
 let stopCtl: AbortController | null = null
 
@@ -222,6 +269,7 @@ async function send(text?: string) {
   busy.value = true
   streamText.value = ''
   toolChips.value = []
+  thinkText.value = ''
   scrollBottom()
 
   stopCtl = new AbortController()
@@ -230,7 +278,7 @@ async function send(text?: string) {
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: msg }),
+      body: JSON.stringify({ message: msg, thinking: thinkOn.value, webSearch: webOn.value }),
       signal: stopCtl.signal
     })
     if (!res.ok || !res.body) {
@@ -252,13 +300,17 @@ async function send(text?: string) {
         if (!raw.startsWith('data:')) continue
         const payload = JSON.parse(raw.slice(5).trim()) as {
           delta?: string
+          reasoning?: string
           reset?: boolean
           tool?: { name: string }
           error?: string
           done?: boolean
         }
         if (payload.reset) streamText.value = ''
-        else if (payload.delta) {
+        else if (payload.reasoning) {
+          thinkText.value += payload.reasoning
+          scrollBottom()
+        } else if (payload.delta) {
           streamText.value += payload.delta
           scrollBottom()
         } else if (payload.tool) {
@@ -273,7 +325,7 @@ async function send(text?: string) {
     if (gotError) throw new Error(gotError)
     if (streamText.value) {
       // 工具调用记录随消息保留（原先流结束即清空，用户看不到 AI 用了什么工具）
-      messages.value.push({ role: 'assistant', content: streamText.value, tools: toolChips.value.slice() })
+      messages.value.push({ role: 'assistant', content: streamText.value, tools: toolChips.value.slice(), reasoning: thinkText.value || undefined })
     } else if (!toolChips.value.length) {
       throw new Error('AI 没有返回内容，请重试')
     }
@@ -286,6 +338,7 @@ async function send(text?: string) {
     busy.value = false
     streamText.value = ''
     toolChips.value = []
+    thinkText.value = ''
     stopCtl = null
     scrollBottom()
   }
@@ -654,6 +707,28 @@ onMounted(async () => {
 .ai-chip-btn:hover {
   border-color: var(--md-primary);
   color: var(--md-primary);
+}
+
+/* 思考 / 联网开关 */
+.ai-toggles { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 2px 0; }
+.ai-toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 99px;
+  border: 1px solid var(--card-stroke); background: var(--card-bg);
+  font-size: 12px; color: var(--text-secondary); cursor: pointer;
+}
+.ai-toggle.on {
+  border-color: var(--md-primary); color: var(--md-primary); font-weight: 600;
+  background: color-mix(in srgb, var(--md-primary) 10%, transparent);
+}
+.ai-toggle:disabled { opacity: 0.45; cursor: not-allowed; }
+.ai-toggle-hint { font-size: 11.5px; color: var(--text-tertiary); }
+.ai-think { margin: 2px 0 6px; font-size: 12px; color: var(--text-tertiary); }
+.ai-think summary { cursor: pointer; user-select: none; }
+.ai-think-body {
+  white-space: pre-wrap; margin-top: 6px; padding: 8px 10px;
+  border-left: 2px solid var(--card-stroke);
+  max-height: 200px; overflow-y: auto; line-height: 1.6;
 }
 
 @media (max-width: 640px) {

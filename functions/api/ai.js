@@ -11,9 +11,9 @@
  *   AI_API_KEY (+ AI_BASE_URL / AI_MODEL)  → OpenAI 兼容接口
  *     （默认 DeepSeek：api.deepseek.com + deepseek-flash，支持工具调用，
  *      价格极低且无免费额度依赖；也可换成智谱 / Moonshot 等任意
- *      OpenAI 兼容服务。DeepSeek 模型默认显式关闭思考模式 —— 助手场景
- *      要快，且免去思考模式下「带 tools 的请求必须回传 reasoning_content」
- *      的 400 陷阱）
+ *      OpenAI 兼容服务。DeepSeek 思考模式默认关（快），前端「深度思考」
+ *      开关可开 —— 打开时带 tools 的多轮请求会回传 reasoning_content
+ *      （DeepSeek 的 400 陷阱，已处理））
  *   或在 Pages 项目设置里绑定 Workers AI（env.AI），零密钥但无工具调用。
  *
  * 安全边界：
@@ -27,13 +27,17 @@ import { json, error, parseBody, checkRateLimit } from './_utils.js';
 /* ── 表（沿用站点「运行时建表」的惯例，零迁移） ── */
 async function ensureTables(env) {
   await env.DB.prepare(
-    "CREATE TABLE IF NOT EXISTS ai_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')))"
+    "CREATE TABLE IF NOT EXISTS ai_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, reasoning TEXT, created_at TEXT DEFAULT (datetime('now')))"
   ).run();
   await env.DB.prepare(
     "CREATE TABLE IF NOT EXISTS ai_memories (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, content TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')))"
   ).run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ai_messages_user ON ai_messages(user_id, id)').run();
   await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_ai_memories_user ON ai_memories(user_id, id)').run();
+  // 旧库升级：补思考内容列（列已存在会抛 duplicate column → 忽略）
+  try {
+    await env.DB.prepare('ALTER TABLE ai_messages ADD COLUMN reasoning TEXT').run();
+  } catch {}
 }
 
 /* ── 供应商配置 ── */
@@ -72,7 +76,7 @@ export async function handleAIMessagesGet(env, user) {
   const r = await env.DB.prepare(
     'SELECT id, role, content, created_at FROM ai_messages WHERE user_id = ? ORDER BY id DESC LIMIT 50'
   )
-    .bind(user.id)
+    .bind(user.userId)
     .all();
   return json({ messages: (r.results || []).reverse() });
 }
@@ -80,7 +84,7 @@ export async function handleAIMessagesGet(env, user) {
 export async function handleAIMessagesClear(env, user) {
   if (!user) return error('需要登录', 401);
   await ensureTables(env);
-  await env.DB.prepare('DELETE FROM ai_messages WHERE user_id = ?').bind(user.id).run();
+  await env.DB.prepare('DELETE FROM ai_messages WHERE user_id = ?').bind(user.userId).run();
   return json({ message: '对话已清空' });
 }
 
@@ -91,7 +95,7 @@ export async function handleAIMemoriesGet(env, user) {
   const r = await env.DB.prepare(
     'SELECT id, content, created_at FROM ai_memories WHERE user_id = ? ORDER BY id DESC LIMIT 50'
   )
-    .bind(user.id)
+    .bind(user.userId)
     .all();
   return json({ memories: r.results || [] });
 }
@@ -99,7 +103,7 @@ export async function handleAIMemoriesGet(env, user) {
 export async function handleAIMemoriesClear(env, user) {
   if (!user) return error('需要登录', 401);
   await ensureTables(env);
-  await env.DB.prepare('DELETE FROM ai_memories WHERE user_id = ?').bind(user.id).run();
+  await env.DB.prepare('DELETE FROM ai_memories WHERE user_id = ?').bind(user.userId).run();
   return json({ message: '记忆已清空' });
 }
 
@@ -199,14 +203,14 @@ async function toolSaveMemory(env, user, content) {
   if (!text) return '记忆内容为空';
   if (text.length > 200) return '记忆内容过长（≤200 字）';
   await ensureTables(env);
-  await env.DB.prepare('INSERT INTO ai_memories (user_id, content) VALUES (?, ?)').bind(user.id, text).run();
+  await env.DB.prepare('INSERT INTO ai_memories (user_id, content) VALUES (?, ?)').bind(user.userId, text).run();
   return '已记住';
 }
 
 /* ═════════════════════════════════════════════════════════
    对话（SSE 流式 + 工具循环）
    ═════════════════════════════════════════════════════════ */
-function buildSystemPrompt(user, memories, cfg) {
+function buildSystemPrompt(user, memories, cfg, useWeb) {
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}（星期${'日一二三四五六'[now.getDay()]}）`;
   const lines = [
@@ -219,7 +223,7 @@ function buildSystemPrompt(user, memories, cfg) {
     '- query_database：只读查询站点数据库。数据库表结构（SQLite）：',
     SCHEMA_HINT,
     '- save_memory：当用户表达长期偏好、或让你「记住」什么时，把要点存成一句独立、自包含的话（≤200 字）。',
-    cfg.webSearch ? '- web_search：联网搜索公开信息。' : '- web_search 当前未配置，不要调用。',
+    useWeb ? '- web_search：联网搜索公开信息。站点数据优先用 query_database，公开信息才联网。' : '- web_search 本次对话未启用，不要调用。',
     '',
     '回答规则：',
     '1. 涉及站点数据（活动/公告/值日/财务/报修等）时先用 query_database 查询，再口头总结；不要把大段 JSON 原样贴给用户。',
@@ -236,7 +240,7 @@ function buildSystemPrompt(user, memories, cfg) {
 }
 
 /** 上游（OpenAI 兼容）一次流式调用。返回 { content, toolCalls }；增量已转发给客户端 */
-async function streamUpstream(cfg, messages, useTools, send) {
+async function streamUpstream(cfg, messages, useTools, send, thinking) {
   const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: { authorization: `Bearer ${cfg.key}`, 'content-type': 'application/json' },
@@ -246,6 +250,10 @@ async function streamUpstream(cfg, messages, useTools, send) {
       stream: true,
       max_tokens: 1500,
       temperature: 0.6,
+      // DeepSeek 思考模式默认打开（effort=high）——默认显式关（快），
+      // 前端勾「深度思考」才开。参数仅 DeepSeek 认识（其它上游拒未知字段），
+      // 所以只在模型名以 deepseek 开头时携带
+      ...(String(cfg.model).startsWith('deepseek') ? { thinking: { type: thinking ? 'enabled' : 'disabled' } } : {}),
       ...(useTools ? { tools: cfg.toolDefs } : {})
     })
   });
@@ -258,6 +266,7 @@ async function streamUpstream(cfg, messages, useTools, send) {
   const dec = new TextDecoder();
   let buf = '';
   let content = '';
+  let reasoning = '';
   const toolCalls = []; // 按 index 聚合：{ id, type, function: { name, arguments } }
   let sawToolCall = false;
 
@@ -279,6 +288,10 @@ async function streamUpstream(cfg, messages, useTools, send) {
         continue;
       }
       const delta = chunk.choices?.[0]?.delta || {};
+      if (delta.reasoning_content) {
+        reasoning += delta.reasoning_content;
+        send({ reasoning: delta.reasoning_content }); // 思考过程实时转发（前端折叠展示）
+      }
       if (delta.content) {
         content += delta.content;
         // 若本轮回合里已经出现 tool_calls，就不再把零散 content 发给客户端（最终轮会重答）
@@ -296,7 +309,7 @@ async function streamUpstream(cfg, messages, useTools, send) {
   }
 
   if (sawToolCall) send({ reset: true }); // 客户端清掉本轮可能已流出的部分文本
-  return { content, toolCalls: sawToolCall ? toolCalls.filter(Boolean) : [] };
+  return { content, reasoning, toolCalls: sawToolCall ? toolCalls.filter(Boolean) : [] };
 }
 
 /** workers-ai（无工具）：一次性返回全文 */
@@ -315,6 +328,8 @@ export async function handleAIChat(request, env, user) {
   }
 
   const body = await parseBody(request);
+  const wantThink = body?.thinking === true; // 深度思考（仅 DeepSeek 生效）
+  const wantWeb = body?.webSearch === true && cfg.webSearch === true; // 联网（配置了才真正开）
   const message = String(body?.message || '').trim();
   if (!message) return error('消息不能为空', 400);
   if (message.length > 2000) return error('消息过长（最多 2000 字）', 400);
@@ -322,21 +337,26 @@ export async function handleAIChat(request, env, user) {
   await ensureTables(env);
 
   const hist = await env.DB.prepare(
-    'SELECT role, content FROM ai_messages WHERE user_id = ? ORDER BY id DESC LIMIT 16'
+    'SELECT role, content, reasoning FROM ai_messages WHERE user_id = ? ORDER BY id DESC LIMIT 16'
   )
-    .bind(user.id)
+    .bind(user.userId)
     .all();
   const memories = await env.DB.prepare(
     'SELECT content FROM ai_memories WHERE user_id = ? ORDER BY id DESC LIMIT 10'
   )
-    .bind(user.id)
+    .bind(user.userId)
     .all();
 
-  const system = buildSystemPrompt(user, memories.results || [], cfg);
+  const system = buildSystemPrompt(user, memories.results || [], cfg, wantWeb);
   // 传给模型的消息（本轮用户消息稍后追加）
   const convo = [
     { role: 'system', content: system },
-    ...hist.results.reverse().slice(-16).map((h) => ({ role: h.role === 'assistant' ? 'assistant' : 'user', content: h.content }))
+    ...hist.results.reverse().slice(-16).map((h) => ({
+      role: h.role === 'assistant' ? 'assistant' : 'user',
+      content: h.content,
+      // 思考模式下带 tools 的请求必须回传历史 reasoning_content（DeepSeek 400 陷阱）
+      ...(wantThink && h.role === 'assistant' && h.reasoning ? { reasoning_content: h.reasoning } : {})
+    }))
   ];
 
   // 工具清单按配置动态生成
@@ -367,7 +387,7 @@ export async function handleAIChat(request, env, user) {
         }
       }
     ];
-    if (cfg.webSearch) {
+    if (wantWeb) {
       cfg.toolDefs.push({
         type: 'function',
         function: {
@@ -385,7 +405,7 @@ export async function handleAIChat(request, env, user) {
 
   // 先落用户消息（失败不阻断对话）
   try {
-    await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content) VALUES (?, ?, ?)').bind(user.id, 'user', message).run();
+    await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content) VALUES (?, ?, ?)').bind(user.userId, 'user', message).run();
   } catch {}
 
   /* ── SSE 响应 ── */
@@ -396,6 +416,7 @@ export async function handleAIChat(request, env, user) {
 
   const run = async () => {
     let finalText = '';
+    let finalReasoning = '';
     try {
       convo.push({ role: 'user', content: message });
 
@@ -407,15 +428,21 @@ export async function handleAIChat(request, env, user) {
         let toolsUsed = [];
         for (let round = 0; round < 4; round += 1) {
           const isLast = round === 3;
-          const { content, toolCalls } = await streamUpstream(cfg, convo, cfg.tools && !isLast, send);
+          const { content, reasoning, toolCalls } = await streamUpstream(cfg, convo, cfg.tools && !isLast, send, wantThink);
 
           if (!toolCalls.length) {
             finalText = content;
+            finalReasoning = reasoning || '';
             break;
           }
 
           // 记录本轮 assistant 的 tool_calls 消息（OpenAI 格式要求回传）
-          convo.push({ role: 'assistant', content: content || null, tool_calls: toolCalls });
+          convo.push({
+            role: 'assistant',
+            content: content || null,
+            ...(reasoning ? { reasoning_content: reasoning } : {}), // 思考模式下必须回传（400 陷阱）
+            tool_calls: toolCalls
+          });
           for (const tc of toolCalls) {
             let result;
             const name = tc.function.name;
@@ -435,16 +462,17 @@ export async function handleAIChat(request, env, user) {
 
           if (isLast) {
             // 轮次用尽仍想调工具 → 最后一轮禁用工具让它收口
-            const last = await streamUpstream(cfg, convo, false, send);
+            const last = await streamUpstream(cfg, convo, false, send, wantThink);
             finalText = last.content;
+            finalReasoning = last.reasoning || '';
           }
         }
         if (toolsUsed.length) send({ toolsUsed });
       }
 
       if (finalText.trim()) {
-        await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content) VALUES (?, ?, ?)')
-          .bind(user.id, 'assistant', finalText)
+        await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content, reasoning) VALUES (?, ?, ?, ?)')
+          .bind(user.userId, 'assistant', finalText, finalReasoning || null)
           .run();
       }
       send({ done: true });

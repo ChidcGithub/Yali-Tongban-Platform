@@ -498,9 +498,10 @@ const stub = `
     if (url.indexOf('/api/ai/') === 0) {
       window.__aiChats = window.__aiChats || [];
       var __nocfg = __q.indexOf('ainocfg=1') >= 0;
+      var __aiWeb = __q.indexOf('aiweb=1') >= 0; /* 模拟已配 TAVILY_API_KEY */
 
       if (url.indexOf('/api/ai/status') === 0) {
-        return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'deepseek-flash', tools: true, webSearch: false }));
+        return Promise.resolve(__aiJson(__nocfg ? { configured: false } : { configured: true, provider: 'openai', model: 'deepseek-flash', tools: true, webSearch: __aiWeb }));
       }
       if (url.indexOf('/api/ai/messages') === 0) {
         if (method === 'DELETE') {
@@ -528,7 +529,9 @@ const stub = `
           start: function (c) {
             var push = function (o) { c.enqueue(__enc.encode('data: ' + JSON.stringify(o) + '\\n\\n')); };
             setTimeout(function () {
+              if (__aiBody.thinking) { push({ reasoning: '用户在问站点数据，' }); push({ reasoning: '我先查一下数据库再回答。' }); }
               push({ tool: { name: __reply.tool, args: '{}' } });
+              if (__aiBody.webSearch) push({ tool: { name: 'web_search', args: '{}' } });
               push({ delta: __reply.text.slice(0, 6) });
               push({ delta: __reply.text.slice(6) });
               push({ done: true });

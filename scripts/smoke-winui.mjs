@@ -1792,6 +1792,12 @@ async function smokeAiAssistant() {
         (await page.locator('.ai-quick button').count()) === 4,
         `${await page.locator('.ai-quick button').count()} 条`
       )
+      check(
+        'AI 助手：深度思考开关可见（deepseek 模型）',
+        (await page.locator('.ai-toggle', { hasText: '深度思考' }).count()) === 1
+      )
+      check('AI 助手：联网开关默认禁用（未配 TAVILY）', await page.locator('.ai-toggle', { hasText: '联网搜索' }).isDisabled())
+      check('AI 助手：联网未配置提示可见', (await page.evaluate(() => document.body.innerText)).includes('联网未配置'))
 
       /* ③ 快捷提问发送 → SSE 桩 → 工具 chip + 流式回答 */
       await page.locator('.ai-quick button').first().click()
@@ -1806,7 +1812,9 @@ async function smokeAiAssistant() {
       )
       check('AI 助手：发送后输入框已清空', (await page.locator('.ai-input input').inputValue()) === '')
 
-      /* ④ 输入框 Enter 发送（走原生 keydown 监听） */
+      /* ④ 输入框 Enter 发送（走原生 keydown 监听）；先开「深度思考」 */
+      await page.locator('.ai-toggle', { hasText: '深度思考' }).click()
+      check('AI 助手：思考开关落 localStorage', (await page.evaluate(() => localStorage.getItem('ai_think'))) === '1')
       const input = page.locator('.ai-input input')
       await input.fill('帮我记住：我偏好简洁回答')
       await input.press('Enter')
@@ -1816,10 +1824,12 @@ async function smokeAiAssistant() {
       check('AI 助手：第二轮回答呈现', text2.includes('已记住你的偏好'))
       const chats = await page.evaluate(() => window.__aiChats)
       check(
-        'AI 助手：请求体是 { message }（2 次）',
-        Array.isArray(chats) && chats.length === 2 && chats.every((c) => typeof c.message === 'string' && c.message.length > 0),
+        'AI 助手：请求体 { message, thinking, webSearch }（2 次）',
+        Array.isArray(chats) && chats.length === 2 && chats.every((c) => typeof c.message === 'string' && typeof c.thinking === 'boolean' && typeof c.webSearch === 'boolean'),
         JSON.stringify(chats)
       )
+      check('AI 助手：思考态请求带 thinking:true', chats[1] && chats[1].thinking === true, JSON.stringify(chats.map((c) => c.thinking)))
+      check('AI 助手：思考过程折叠块出现', (await page.locator('.ai-think').count()) >= 1)
 
       /* ⑤ 清空对话（确认框 → 确定） */
       await page.locator('button', { hasText: '清空对话' }).first().click()
@@ -1854,7 +1864,32 @@ async function smokeAiAssistant() {
     }
   }
 
-  /* ⑦ 未配置态 */
+  /* ⑦ 联网搜索（?aiweb=1 模拟已配 TAVILY） */
+  {
+    const { page, pageErrors } = await openPage('ai', '?aiweb=1')
+    try {
+      await page.waitForTimeout(900)
+      const webBtn = page.locator('.ai-toggle', { hasText: '联网搜索' })
+      check('AI 助手：已配 TAVILY 时联网开关可用', !(await webBtn.isDisabled()))
+      await webBtn.click()
+      check('AI 助手：联网开关落 localStorage', (await page.evaluate(() => localStorage.getItem('ai_web'))) === '1')
+      await page.locator('.ai-quick button').first().click()
+      await page.waitForTimeout(900)
+      const chats = await page.evaluate(() => window.__aiChats)
+      check(
+        'AI 助手：联网请求带 webSearch:true',
+        Array.isArray(chats) && chats.length === 1 && chats[0].webSearch === true,
+        JSON.stringify(chats)
+      )
+      const t = await page.evaluate(() => document.body.innerText)
+      check('AI 助手：联网搜索 chip 出现', t.includes('联网搜索'))
+      check('AI 助手：联网页无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    } finally {
+      await page.close()
+    }
+  }
+
+  /* ⑧ 未配置态 */
   {
     const { page, pageErrors } = await openPage('ai', '?ainocfg=1')
     try {
