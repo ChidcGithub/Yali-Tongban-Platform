@@ -91,6 +91,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { GLYPH } from '../shared/icons'
 import { apiGet } from '../shared/api'
 import { renderAiMarkdown as render } from '../shared/ai-markdown'
+import { streamChat, TOOL_LABELS, type ChatMsg } from '../shared/ai-chat'
 
 const props = defineProps<{
   /** 场景说明（透传给后端 system prompt，如「值日」） */
@@ -99,23 +100,10 @@ const props = defineProps<{
   quick?: string[]
 }>()
 
-interface ChatMsg {
-  id?: number
-  role: 'user' | 'assistant'
-  content: string
-  tools?: string[]
-  reasoning?: string
-}
 interface AIStatus {
   configured: boolean
   provider?: string
   model?: string
-}
-
-const TOOL_LABELS: Record<string, string> = {
-  query_database: '查询站点数据库',
-  web_search: '联网搜索',
-  save_memory: '保存记忆'
 }
 
 const DEFAULT_QUICK = ['本周有什么活动？', '查一下最近的公告', '我这周的值日安排', '帮我记住：我偏好简洁的回答']
@@ -208,56 +196,23 @@ async function send(text?: string) {
   scrollBottom()
 
   stopCtl = new AbortController()
-  let gotError = ''
   try {
-    const res = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: msg, ...prefs(), context: props.context || '' }),
-      signal: stopCtl.signal
-    })
-    if (!res.ok || !res.body) {
-      const j = (await res.json().catch(() => null)) as { error?: string } | null
-      throw new Error(j?.error || `HTTP ${res.status}`)
-    }
-    const reader = res.body.getReader()
-    const dec = new TextDecoder()
-    let buf = ''
-    let streaming = true
-    while (streaming) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += dec.decode(value, { stream: true })
-      let i: number
-      while ((i = buf.indexOf('\n\n')) >= 0) {
-        const raw = buf.slice(0, i).trim()
-        buf = buf.slice(i + 2)
-        if (!raw.startsWith('data:')) continue
-        const payload = JSON.parse(raw.slice(5).trim()) as {
-          delta?: string
-          reasoning?: string
-          reset?: boolean
-          tool?: { name: string }
-          error?: string
-          done?: boolean
-        }
-        if (payload.reset) streamText.value = ''
-        else if (payload.reasoning) {
-          thinkText.value += payload.reasoning
+    await streamChat(
+      { message: msg, ...prefs(), context: props.context || '' },
+      {
+        onReset: () => (streamText.value = ''),
+        onDelta: (t) => {
+          streamText.value += t
           scrollBottom()
-        } else if (payload.delta) {
-          streamText.value += payload.delta
+        },
+        onReasoning: (t) => {
+          thinkText.value += t
           scrollBottom()
-        } else if (payload.tool) {
-          toolChips.value.push(TOOL_LABELS[payload.tool.name] || payload.tool.name)
-        } else if (payload.error) {
-          gotError = payload.error
-        } else if (payload.done) {
-          streaming = false
-        }
-      }
-    }
-    if (gotError) throw new Error(gotError)
+        },
+        onTool: (name) => toolChips.value.push(TOOL_LABELS[name] || name)
+      },
+      stopCtl.signal
+    )
     if (streamText.value) {
       messages.value.push({ role: 'assistant', content: streamText.value, tools: toolChips.value.slice(), reasoning: thinkText.value || undefined })
     } else if (!toolChips.value.length) {
@@ -423,20 +378,6 @@ onBeforeUnmount(() => {
 }
 .aiw-msg.assistant .aiw-bubble {
   border-bottom-left-radius: 4px;
-}
-.aiw-bubble pre.ai-code {
-  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
-  border-radius: 8px;
-  padding: 8px 10px;
-  overflow-x: auto;
-  font-size: 12px;
-  margin: 6px 0;
-}
-.aiw-bubble code.ai-inline {
-  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 12px;
 }
 .aiw-msg.user .aiw-bubble code.ai-inline {
   background: rgba(255, 255, 255, 0.18);

@@ -164,14 +164,8 @@ import { apiDel, apiGet, toast } from '../../shared/api'
 import { confirmDialog } from '../../shared/confirm'
 import { requireAuth } from '../../shared/guard'
 import { renderAiMarkdown as render } from '../../shared/ai-markdown'
+import { streamChat, TOOL_LABELS, type ChatMsg } from '../../shared/ai-chat'
 
-interface ChatMsg {
-  id?: number
-  role: 'user' | 'assistant'
-  content: string
-  tools?: string[]
-  reasoning?: string
-}
 interface AIMemory {
   id: number
   content: string
@@ -186,12 +180,6 @@ interface AIStatus {
 }
 
 const QUICK = ['本周有什么活动？', '查一下最近的公告', '我这周的值日安排', '帮我记住：我偏好简洁的回答']
-
-const TOOL_LABELS: Record<string, string> = {
-  query_database: '查询站点数据库',
-  web_search: '联网搜索',
-  save_memory: '保存记忆'
-}
 
 const user = ref<{ id?: number } | null>(null)
 const status = ref<AIStatus | null>(null)
@@ -274,56 +262,23 @@ async function send(text?: string) {
   scrollBottom()
 
   stopCtl = new AbortController()
-  let gotError = ''
   try {
-    const res = await fetch('/api/ai/chat', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ message: msg, thinking: thinkOn.value, webSearch: webOn.value }),
-      signal: stopCtl.signal
-    })
-    if (!res.ok || !res.body) {
-      const j = (await res.json().catch(() => null)) as { error?: string } | null
-      throw new Error(j?.error || `HTTP ${res.status}`)
-    }
-    const reader = res.body.getReader()
-    const dec = new TextDecoder()
-    let buf = ''
-    let streaming = true
-    while (streaming) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buf += dec.decode(value, { stream: true })
-      let i: number
-      while ((i = buf.indexOf('\n\n')) >= 0) {
-        const raw = buf.slice(0, i).trim()
-        buf = buf.slice(i + 2)
-        if (!raw.startsWith('data:')) continue
-        const payload = JSON.parse(raw.slice(5).trim()) as {
-          delta?: string
-          reasoning?: string
-          reset?: boolean
-          tool?: { name: string }
-          error?: string
-          done?: boolean
-        }
-        if (payload.reset) streamText.value = ''
-        else if (payload.reasoning) {
-          thinkText.value += payload.reasoning
+    await streamChat(
+      { message: msg, thinking: thinkOn.value, webSearch: webOn.value },
+      {
+        onReset: () => (streamText.value = ''),
+        onDelta: (t) => {
+          streamText.value += t
           scrollBottom()
-        } else if (payload.delta) {
-          streamText.value += payload.delta
+        },
+        onReasoning: (t) => {
+          thinkText.value += t
           scrollBottom()
-        } else if (payload.tool) {
-          toolChips.value.push(TOOL_LABELS[payload.tool.name] || payload.tool.name)
-        } else if (payload.error) {
-          gotError = payload.error
-        } else if (payload.done) {
-          streaming = false
-        }
-      }
-    }
-    if (gotError) throw new Error(gotError)
+        },
+        onTool: (name) => toolChips.value.push(TOOL_LABELS[name] || name)
+      },
+      stopCtl.signal
+    )
     if (streamText.value) {
       // 工具调用记录随消息保留（原先流结束即清空，用户看不到 AI 用了什么工具）
       messages.value.push({ role: 'assistant', content: streamText.value, tools: toolChips.value.slice(), reasoning: thinkText.value || undefined })
@@ -473,23 +428,6 @@ onMounted(async () => {
 .ai-msg.user .ai-bubble {
   background: var(--md-primary);
   color: #fff;
-}
-.ai-bubble pre.ai-code {
-  margin: 6px 0;
-  padding: 9px 11px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
-  overflow-x: auto;
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12.5px;
-  line-height: 1.5;
-}
-.ai-bubble code.ai-inline {
-  font-family: Consolas, 'Courier New', monospace;
-  font-size: 12.5px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
 }
 .ai-msg.user .ai-bubble code.ai-inline {
   background: rgba(255, 255, 255, 0.16);

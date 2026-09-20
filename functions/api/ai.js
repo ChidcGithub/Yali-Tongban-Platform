@@ -2,10 +2,13 @@
  * AI 助手后端（仅登录用户可用）
  * ═════════════════════════════════════════════════════════
  * 能力：流式对话（SSE）+ 工具调用 ——
- *   ① query_database：只读查询站点数据库（SELECT 白名单，自动加 LIMIT）
- *   ② web_search：联网搜索（可选，需 TAVILY_API_KEY）
- *   ③ save_memory：记住用户的长期偏好（存 ai_memories，注入后续对话）
- * 记忆：每次对话自动把该用户最近的记忆注入 system prompt。
+ *   ① query_database：只读查询站点数据库（SELECT 白名单，LIMIT 规范化，截断提示）
+ *   ② web_search：联网搜索（可选，需 TAVILY_API_KEY，返回 answer 摘要 + 来源）
+ *   ③ save_memory / forget_memory：长期记忆的存与删（去重、按 id 引用）
+ *   ④ get_my_notifications：查当前用户自己的站内通知（固定绑定 user_id）
+ * 记忆：每次对话自动把该用户最近的记忆（带 #id）注入 system prompt。
+ * 引擎：同一轮的多个工具调用并行执行；同名同参数的重复调用熔断；
+ *       SSE 每 15s 发心跳，防长工具/长思考期间前端空闲超时误杀。
  *
  * 供应商配置（Cloudflare 环境变量，二选一）：
  *   AI_API_KEY (+ AI_BASE_URL / AI_MODEL)  → OpenAI 兼容接口
@@ -132,8 +135,13 @@ const AI_TABLES = new Set([
   'ai_memories'
 ]);
 
-/** 给模型看的表结构摘要（刻意不含 users / 密码列 / 其它用户的私信） */
+/** 给模型看的表结构摘要（刻意不含 users / notifications / 密码列）
+ *  前置「说明 / 时间 / 常用关联」三行比单列字段更省轮次：模型最常错的
+ *  就是 join 关系和时区，先讲清楚再列字段。 */
 const SCHEMA_HINT = [
+  '说明：users 与 notifications 表不可查（凭据与私信受保护；查自己的站内通知请用 get_my_notifications 工具）。',
+  '时间：created_at 等自动时间字段是 UTC（比北京时间晚 8 小时，比较「今天」时留意）；duty_schedule.date、finance 业务日期是本地日期字符串（YYYY-MM-DD）。',
+  '常用关联：duty_schedule.staff_a_id/staff_b_id → duty_staff.id（姓名只在 duty_staff）；duty_attendance.schedule_id → duty_schedule.id、duty_attendance.staff_id → duty_staff.id；duty_score_record.staff_id → duty_staff.id；activity_volunteers.activity_id → activities.id；poll_questions.poll_id → polls.id、poll_responses.poll_id → polls.id、poll_answers.response_id → poll_responses.id；comments.target_type（issue/announcement 等）+ target_id 指向对应表的 id。',
   'activities(id, name 名称, location 地点, time 时间, departments 面向部门, need_volunteers 是否需要志愿者, created_by 发布人, created_at)',
   'activity_volunteers(id, activity_id, member_name 报名者, department, created_at)',
   'announcements(id, title 标题, content 内容, status 状态, created_by 发布人, created_at)',
@@ -154,6 +162,9 @@ const SCHEMA_HINT = [
   'ai_memories(id, user_id, content 记忆内容, created_at)'
 ].join('\n');
 
+const QUERY_DEFAULT_ROWS = 20;
+const QUERY_MAX_ROWS = 50;
+
 async function toolQueryDatabase(env, sql) {
   const q = String(sql || '').trim().replace(/;+\s*$/, '');
   if (!/^select\b/i.test(q)) return '拒绝执行：只允许 SELECT 查询';
@@ -161,17 +172,33 @@ async function toolQueryDatabase(env, sql) {
   if (/\b(insert|update|delete|drop|alter|create|attach|pragma|vacuum|replace)\b/i.test(q)) {
     return '拒绝执行：包含写操作关键字';
   }
-  if (/password/i.test(q)) return '拒绝执行：不允许查询凭据字段';
+  if (/password|token|secret/i.test(q)) return '拒绝执行：包含凭据类关键字';
   const tables = [...q.matchAll(/(?:from|join)\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi)].map((m) => m[1].toLowerCase());
   if (!tables.length) return '拒绝执行：没有可识别的目标表';
   for (const t of tables) {
     if (!AI_TABLES.has(t)) return `拒绝执行：表 ${t} 不在允许范围内`;
   }
-  const finalSql = /\blimit\b/i.test(q) ? q : `${q} LIMIT 20`;
+  // LIMIT 规范化：缺省补 20；过大压到 50（一次拉太多既费 context 又没必要）
+  let finalSql = q;
+  let limit = QUERY_DEFAULT_ROWS;
+  const limMatch = /\blimit\s+(\d+)/i.exec(q);
+  if (limMatch) {
+    limit = Math.min(parseInt(limMatch[1], 10) || QUERY_DEFAULT_ROWS, QUERY_MAX_ROWS);
+    if (String(limit) !== limMatch[1]) finalSql = q.replace(limMatch[0], `LIMIT ${limit}`);
+  } else {
+    finalSql = `${q} LIMIT ${QUERY_DEFAULT_ROWS}`;
+  }
   try {
     const r = await env.DB.prepare(finalSql).all();
     const rows = r.results || [];
-    const out = JSON.stringify({ rows, rowCount: rows.length });
+    const out = JSON.stringify({
+      rows,
+      rowCount: rows.length,
+      // 顶到上限 → 大概率没查全，明确告诉模型怎么继续，别让它以为就这些
+      ...(limit > 0 && rows.length >= limit
+        ? { truncated: true, hint: `结果达到 ${limit} 行上限，可能未列全。可加 WHERE 收窄，或用 LIMIT ${limit} OFFSET ${limit} 翻页。` }
+        : {})
+    });
     return out.length > 4000 ? out.slice(0, 4000) + '…(已截断)' : out;
   } catch (e) {
     return `查询出错：${String(e.message || e).slice(0, 200)}`;
@@ -186,25 +213,61 @@ async function toolWebSearch(env, query) {
     const res = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ api_key: env.TAVILY_API_KEY, query: q, max_results: 5, search_depth: 'basic' })
+      // include_answer：Tavily 直接给一段综合摘要，比 5 条散装片段好用得多
+      body: JSON.stringify({ api_key: env.TAVILY_API_KEY, query: q, max_results: 5, search_depth: 'basic', include_answer: true })
     });
     if (!res.ok) return `搜索失败（HTTP ${res.status}）`;
     const data = await res.json();
-    const items = (data.results || []).map((x) => ({ title: x.title, url: x.url, snippet: x.content }));
-    const out = JSON.stringify(items);
+    const items = (data.results || []).map((x) => ({ title: x.title, url: x.url, snippet: String(x.content || '').slice(0, 280) }));
+    const out = JSON.stringify({ answer: data.answer || '', results: items });
     return out.length > 3000 ? out.slice(0, 3000) + '…(已截断)' : out;
   } catch (e) {
     return `搜索出错：${String(e.message || e).slice(0, 160)}`;
   }
 }
 
+/* ── 记忆：上限 50 条/人；保存前去重；删除只能删自己的 ── */
+const MEMORY_MAX = 50;
+
 async function toolSaveMemory(env, user, content) {
   const text = String(content || '').trim();
   if (!text) return '记忆内容为空';
   if (text.length > 200) return '记忆内容过长（≤200 字）';
   await ensureTables(env);
+  const dup = await env.DB.prepare('SELECT id FROM ai_memories WHERE user_id = ? AND content = ? LIMIT 1')
+    .bind(user.userId, text)
+    .first();
+  if (dup) return `已有相同记忆（#${dup.id}），无需重复保存`;
+  const cnt = await env.DB.prepare('SELECT COUNT(*) AS c FROM ai_memories WHERE user_id = ?').bind(user.userId).first();
+  if (Number(cnt?.c || 0) >= MEMORY_MAX) {
+    return `记忆已满（${MEMORY_MAX} 条上限）。先用 forget_memory 删掉过时记忆再保存。`;
+  }
   await env.DB.prepare('INSERT INTO ai_memories (user_id, content) VALUES (?, ?)').bind(user.userId, text).run();
   return '已记住';
+}
+
+async function toolForgetMemory(env, user, id) {
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n) || n <= 0) return '参数 id 无效（应为用户记忆前的 #数字）';
+  await ensureTables(env);
+  const r = await env.DB.prepare('DELETE FROM ai_memories WHERE id = ? AND user_id = ?').bind(n, user.userId).run();
+  return r.meta?.changes ? `已删除记忆 #${n}` : `记忆 #${n} 不存在或不属于当前用户`;
+}
+
+/** 站内通知：固定绑定当前 user_id —— 这就是它存在而不开放 notifications 表的原因 */
+async function toolGetMyNotifications(env, user, limit) {
+  const n = Math.min(Math.max(parseInt(limit, 10) || 10, 1), 20);
+  try {
+    const r = await env.DB.prepare(
+      'SELECT id, type, title, body, link, is_read, created_at FROM notifications WHERE user_id = ? ORDER BY id DESC LIMIT ?'
+    )
+      .bind(user.userId, n)
+      .all();
+    const rows = (r.results || []).map((x) => ({ ...x, body: String(x.body || '').slice(0, 160) }));
+    return JSON.stringify({ rows, rowCount: rows.length });
+  } catch (e) {
+    return `查询出错：${String(e.message || e).slice(0, 160)}`;
+  }
 }
 
 /* ═════════════════════════════════════════════════════════
@@ -222,41 +285,85 @@ function buildSystemPrompt(user, memories, cfg, useWeb) {
     '你可以调用工具：',
     '- query_database：只读查询站点数据库。数据库表结构（SQLite）：',
     SCHEMA_HINT,
-    '- save_memory：当用户表达长期偏好、或让你「记住」什么时，把要点存成一句独立、自包含的话（≤200 字）。',
-    useWeb ? '- web_search：联网搜索公开信息。站点数据优先用 query_database，公开信息才联网。' : '- web_search 本次对话未启用，不要调用。',
+    '- get_my_notifications：查看当前用户自己的站内通知（最近的，含未读状态）。',
+    '- save_memory：当用户表达长期偏好、或让你「记住」什么时，把要点存成一句独立、自包含的话（≤200 字）。保存前先对照下方记忆列表，别存重复内容。',
+    '- forget_memory：记忆过时或用户要求忘掉时，按下方列表里的 #id 删除。',
+    useWeb ? '- web_search：联网搜索公开信息（返回 answer 摘要 + 来源列表）。站点数据优先用 query_database，公开信息才联网。' : '- web_search 本次对话未启用，不要调用。',
     '',
     '回答规则：',
-    '1. 涉及站点数据（活动/公告/值日/财务/报修等）时先用 query_database 查询，再口头总结；不要把大段 JSON 原样贴给用户。',
-    '2. 值日排班表里只存 staff_id，姓名要 join duty_staff 才能拿到。',
-    '3. 财务金额汇总时注明是否只统计了部分记录（查询有 LIMIT）。',
-    '4. 不确定的信息就说不确定；不编造数据。',
-    '5. 回复保持简短，用短段落或列表，不要长篇大论。'
+    '1. 涉及站点数据（活动/公告/值日/财务/报修/通知等）时先用工具查询，再口头总结；不要把大段 JSON 原样贴给用户。',
+    '2. 相互独立的查询尽量在同一轮一次性发出（比如同时查活动和公告），减少往返等待。',
+    '3. 同名同参数的工具调用不要重复——结果就在上文，直接用它回答。',
+    '4. 查询结果带 truncated=true 时表示达到行数上限，总结时须注明「只统计了部分记录」，或加 WHERE / OFFSET 继续查。',
+    '5. 不确定的信息就说不确定；不编造数据。',
+    '6. 回复保持简短，用短段落或列表，不要长篇大论。'
   ];
   if (memories.length) {
-    lines.push('', '你记住的关于该用户的信息（按时间新→旧）：');
-    for (const m of memories) lines.push(`- ${m.content}`);
+    lines.push('', '你记住的关于该用户的信息（#id 可供 forget_memory 使用，按时间新→旧）：');
+    for (const m of memories) lines.push(`- [#${m.id}] ${m.content}`);
   }
   return lines.join('\n');
 }
 
+/**
+ * 上游调用封装：
+ * - 90s 超时（首包/读流整体；思考模式长回答也够用，超了就是该重试了）
+ * - 客户端断开（request.signal）联动取消上游 —— 用户点「停止」/关页面后
+ *   不再白烧上游 token
+ * - 429/5xx 自动重试 1 次（1.2s 退避）。只在本阶段重试：此刻还没向客户端
+ *   发出任何字节，重发安全；流开始后绝不重试（防重复扣费/重复消息）
+ */
+async function fetchUpstream(cfg, bodyObj, outerSignal) {
+  const doFetch = async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new Error('上游超时')), 90000);
+    const relay = () => ctrl.abort();
+    if (outerSignal) {
+      if (outerSignal.aborted) ctrl.abort();
+      else outerSignal.addEventListener('abort', relay, { once: true });
+    }
+    try {
+      return await fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${cfg.key}`, 'content-type': 'application/json' },
+        body: JSON.stringify(bodyObj),
+        signal: ctrl.signal
+      });
+    } finally {
+      clearTimeout(timer);
+      if (outerSignal) outerSignal.removeEventListener('abort', relay);
+    }
+  };
+  let res;
+  for (let attempt = 0; ; attempt++) {
+    res = await doFetch();
+    if (res.ok) break;
+    const retryable = attempt === 0 && [429, 500, 502, 503, 504].includes(res.status);
+    if (!retryable) break;
+    await res.text().catch(() => '');
+    await new Promise((r) => setTimeout(r, 1200));
+  }
+  return res;
+}
+
 /** 上游（OpenAI 兼容）一次流式调用。返回 { content, toolCalls }；增量已转发给客户端 */
-async function streamUpstream(cfg, messages, useTools, send, thinking) {
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: { authorization: `Bearer ${cfg.key}`, 'content-type': 'application/json' },
-    body: JSON.stringify({
+async function streamUpstream(cfg, messages, useTools, send, thinking, outerSignal) {
+  const res = await fetchUpstream(
+    cfg,
+    {
       model: cfg.model,
       messages,
       stream: true,
-      max_tokens: 1500,
+      max_tokens: thinking ? 4000 : 1500, // 思考模式的思维链也占输出预算
       temperature: 0.6,
       // DeepSeek 思考模式默认打开（effort=high）——默认显式关（快），
       // 前端勾「深度思考」才开。参数仅 DeepSeek 认识（其它上游拒未知字段），
       // 所以只在模型名以 deepseek 开头时携带
       ...(String(cfg.model).startsWith('deepseek') ? { thinking: { type: thinking ? 'enabled' : 'disabled' } } : {}),
       ...(useTools ? { tools: cfg.toolDefs } : {})
-    })
-  });
+    },
+    outerSignal
+  );
   if (!res.ok || !res.body) {
     const detail = await res.text().catch(() => '');
     throw new Error(`上游服务错误（HTTP ${res.status}）${detail ? '：' + detail.slice(0, 200) : ''}`);
@@ -344,7 +451,7 @@ export async function handleAIChat(request, env, user) {
     .bind(user.userId)
     .all();
   const memories = await env.DB.prepare(
-    'SELECT content FROM ai_memories WHERE user_id = ? ORDER BY id DESC LIMIT 10'
+    'SELECT id, content FROM ai_memories WHERE user_id = ? ORDER BY id DESC LIMIT 10'
   )
     .bind(user.userId)
     .all();
@@ -352,10 +459,22 @@ export async function handleAIChat(request, env, user) {
   const system =
     buildSystemPrompt(user, memories.results || [], cfg, wantWeb) +
     (pageCtx ? `\n\n用户当前正在站点的「${pageCtx}」相关页面，回答优先贴近这个场景。` : '');
+  // 历史按字符预算裁剪（而不再按条数）：近者优先，装不下就整条舍弃，
+  // 避免长对话把上下文撑爆。最近一条无论如何都带上。
+  const HISTORY_BUDGET = 6000;
+  const histRows = (hist.results || []).reverse(); // 旧 → 新
+  const pickedHist = [];
+  let histChars = 0;
+  for (let i = histRows.length - 1; i >= 0; i -= 1) {
+    const len = String(histRows[i].content || '').length;
+    if (pickedHist.length && histChars + len > HISTORY_BUDGET) break;
+    pickedHist.unshift(histRows[i]);
+    histChars += len;
+  }
   // 传给模型的消息（本轮用户消息稍后追加）
   const convo = [
     { role: 'system', content: system },
-    ...hist.results.reverse().slice(-16).map((h) => ({
+    ...pickedHist.map((h) => ({
       role: h.role === 'assistant' ? 'assistant' : 'user',
       content: h.content,
       // 思考模式下带 tools 的请求必须回传历史 reasoning_content（DeepSeek 400 陷阱）
@@ -373,7 +492,7 @@ export async function handleAIChat(request, env, user) {
           description: '只读查询站点数据库（SQLite）。用于回答活动/公告/值日/财务/报修等站点数据问题。',
           parameters: {
             type: 'object',
-            properties: { sql: { type: 'string', description: '单条 SELECT 语句，自动追加 LIMIT 20' } },
+            properties: { sql: { type: 'string', description: '单条 SELECT 语句；无 LIMIT 自动补 20，上限 50' } },
             required: ['sql']
           }
         }
@@ -381,12 +500,35 @@ export async function handleAIChat(request, env, user) {
       {
         type: 'function',
         function: {
+          name: 'get_my_notifications',
+          description: '查看当前用户自己的站内通知（最近的，含未读状态）。',
+          parameters: {
+            type: 'object',
+            properties: { limit: { type: 'number', description: '条数，默认 10，最多 20' } }
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
           name: 'save_memory',
-          description: '把用户的长期偏好或重要信息存为一条记忆（≤200 字），之后的对话都能看到。',
+          description: '把用户的长期偏好或重要信息存为一条记忆（≤200 字），之后的对话都能看到。保存前先确认没有重复。',
           parameters: {
             type: 'object',
             properties: { content: { type: 'string', description: '一句独立、自包含的记忆' } },
             required: ['content']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'forget_memory',
+          description: '删除一条关于当前用户的记忆（按系统提示里记忆前的 #id）。',
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'number', description: '记忆条目的 #id' } },
+            required: ['id']
           }
         }
       }
@@ -416,9 +558,19 @@ export async function handleAIChat(request, env, user) {
   const stream = new TransformStream();
   const writer = stream.writable.getWriter();
   const enc = new TextEncoder();
-  const send = (obj) => writer.write(enc.encode(`data: ${JSON.stringify(obj)}\n\n`));
+  // 客户端断开后 writer.write 会 reject —— 吞掉，别让后台流程报 unhandled rejection
+  const send = (obj) => {
+    writer.write(enc.encode(`data: ${JSON.stringify(obj)}\n\n`)).catch(() => {});
+  };
 
   const run = async () => {
+    if (request.signal?.aborted) {
+      try { await writer.close(); } catch {}
+      return;
+    }
+    // 心跳：工具执行/上游长思考期间若没有事件流出，前端 45s 空闲超时会误杀
+    // 这一轮其实还在正常推进的对话。15s 一个 ping，前端把它当流量处理、不展示。
+    const heartbeat = setInterval(() => send({ ping: true }), 15000);
     let finalText = '';
     let finalReasoning = '';
     try {
@@ -428,11 +580,12 @@ export async function handleAIChat(request, env, user) {
         finalText = await callWorkersAI(env, cfg, convo);
         send({ delta: finalText });
       } else {
-        // 工具循环：最多 4 轮；每轮流式转发增量，出现工具调用则执行后继续
+        // 工具循环：最多 4 轮；每轮流式转发增量，出现工具调用则并行执行后继续
         let toolsUsed = [];
+        const seenCalls = new Set(); // 重复调用熔断：同名+同参数在本轮对话里只执行一次
         for (let round = 0; round < 4; round += 1) {
           const isLast = round === 3;
-          const { content, reasoning, toolCalls } = await streamUpstream(cfg, convo, cfg.tools && !isLast, send, wantThink);
+          const { content, reasoning, toolCalls } = await streamUpstream(cfg, convo, cfg.tools && !isLast, send, wantThink, request.signal);
 
           if (!toolCalls.length) {
             finalText = content;
@@ -447,26 +600,46 @@ export async function handleAIChat(request, env, user) {
             ...(reasoning ? { reasoning_content: reasoning } : {}), // 思考模式下必须回传（400 陷阱）
             tool_calls: toolCalls
           });
-          for (const tc of toolCalls) {
-            let result;
+
+          const execOne = async (tc) => {
             const name = tc.function.name;
+            let args = {};
             try {
-              const args = JSON.parse(tc.function.arguments || '{}');
+              args = JSON.parse(tc.function.arguments || '{}');
+            } catch (e) {
+              return { name, result: `工具参数解析失败：${String(e.message || e).slice(0, 160)}` };
+            }
+            const callKey = `${name}\n${JSON.stringify(args)}`;
+            if (seenCalls.has(callKey)) {
+              return { name, result: '重复调用被拦截：相同的工具与参数刚才已经执行过，结果就在上文。请基于已有结果回答，或换一种查询思路。' };
+            }
+            seenCalls.add(callKey);
+            const t0 = Date.now();
+            let result;
+            try {
               if (name === 'query_database') result = await toolQueryDatabase(env, args.sql);
               else if (name === 'web_search') result = await toolWebSearch(env, args.query);
               else if (name === 'save_memory') result = await toolSaveMemory(env, user, args.content);
+              else if (name === 'forget_memory') result = await toolForgetMemory(env, user, args.id);
+              else if (name === 'get_my_notifications') result = await toolGetMyNotifications(env, user, args.limit);
               else result = `未知工具：${name}`;
-              toolsUsed.push(name);
             } catch (e) {
-              result = `工具参数解析失败：${String(e.message || e).slice(0, 160)}`;
+              result = `工具执行出错：${String(e.message || e).slice(0, 160)}`;
             }
-            send({ tool: { name, args: tc.function.arguments || '{}' } });
-            convo.push({ role: 'tool', tool_call_id: tc.id, content: String(result) });
+            return { name, result, ms: Date.now() - t0 };
+          };
+
+          // 同一轮里相互独立的工具调用并行执行，结果仍按原顺序回传给模型
+          const settled = await Promise.all(toolCalls.map(execOne));
+          for (let i = 0; i < toolCalls.length; i += 1) {
+            send({ tool: { name: settled[i].name, args: toolCalls[i].function.arguments || '{}', ms: settled[i].ms } });
+            convo.push({ role: 'tool', tool_call_id: toolCalls[i].id, content: String(settled[i].result) });
+            toolsUsed.push(settled[i].name);
           }
 
           if (isLast) {
             // 轮次用尽仍想调工具 → 最后一轮禁用工具让它收口
-            const last = await streamUpstream(cfg, convo, false, send, wantThink);
+            const last = await streamUpstream(cfg, convo, false, send, wantThink, request.signal);
             finalText = last.content;
             finalReasoning = last.reasoning || '';
           }
@@ -475,9 +648,14 @@ export async function handleAIChat(request, env, user) {
       }
 
       if (finalText.trim()) {
-        await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content, reasoning) VALUES (?, ?, ?, ?)')
-          .bind(user.userId, 'assistant', finalText, finalReasoning || null)
-          .run();
+        // 落库失败不该把已完整送达的回答再报成错误 —— 吞掉并记日志
+        try {
+          await env.DB.prepare('INSERT INTO ai_messages (user_id, role, content, reasoning) VALUES (?, ?, ?, ?)')
+            .bind(user.userId, 'assistant', finalText, finalReasoning || null)
+            .run();
+        } catch (e) {
+          console.error('[ai] 回答落库失败', String(e).slice(0, 200));
+        }
       }
       send({ done: true });
     } catch (e) {
@@ -485,6 +663,7 @@ export async function handleAIChat(request, env, user) {
         send({ error: String(e.message || e).slice(0, 300) });
       } catch {}
     } finally {
+      clearInterval(heartbeat);
       try {
         await writer.close();
       } catch {}

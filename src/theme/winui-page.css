@@ -62,6 +62,69 @@
   flex-wrap: wrap;
 }
 
+/* ── AI Markdown 渲染（AiApp 页与页内浮窗共用；输出来自 shared/ai-markdown.ts） ── */
+pre.ai-code {
+  margin: 6px 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
+  overflow-x: auto;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+code.ai-inline {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
+}
+.ai-md-h {
+  margin: 8px 0 2px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.ai-md-tablewrap {
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.ai-md-table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 60%;
+}
+.ai-md-table th,
+.ai-md-table td {
+  border: 1px solid var(--card-stroke);
+  padding: 5px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.ai-md-table th {
+  background: color-mix(in srgb, var(--md-primary) 8%, transparent);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.ai-md-quote {
+  margin: 6px 0;
+  padding: 5px 12px;
+  border-left: 3px solid var(--md-primary);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in srgb, var(--md-primary) 5%, transparent);
+  color: var(--text-secondary);
+}
+.ai-md-hr {
+  border: none;
+  border-top: 1px solid var(--card-stroke);
+  margin: 10px 0;
+}
+.ai-md-a {
+  color: var(--md-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 /* ── 加载 / 空状态 ── */
 .yali-loading {
   display: flex;
