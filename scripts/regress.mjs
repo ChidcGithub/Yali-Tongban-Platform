@@ -11,6 +11,8 @@
  * 用法：
  *   node scripts/regress.mjs                  # 跑 dist（生产构建）
  *   node scripts/regress.mjs --dev            # 跑 dist-dev（保留 Vue prop 校验）
+ *     ⚠️ 先跑 `npm run build:dev` —— dist-dev 不会自动重建，
+ *        忘了构建就是在验上一次的旧产物（这条 dev 路径曾经整条都是假绿）
  *   node scripts/regress.mjs --dist dist-dev
  */
 

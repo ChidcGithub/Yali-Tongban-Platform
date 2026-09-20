@@ -10,6 +10,8 @@
  * 用法：
  *   node scripts/smoke-winui.mjs            # 跑 dist
  *   node scripts/smoke-winui.mjs --dev      # 跑 dist-dev（保留 Vue prop 校验）
+ *     ⚠️ 先跑 `npm run build:dev`：dist-dev 不会自动重建，忘了就是验上一次的旧产物
+ *   node scripts/smoke-winui.mjs --only=关键字   # 只跑标题含关键字的用例（调单个用例时用）
  *
  * 每个用例的结构：
  *   1. 用 verify-page.mjs 生成打桩页（真实 HTML + 真实脚本，只替换 window.fetch）
@@ -19,7 +21,7 @@
  */
 
 import { execFile } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
@@ -94,6 +96,18 @@ async function openPage(entry, query = '', viewport = null) {
   if (viewport) await page.setViewportSize(viewport)
   const pageErrors = []
   page.on('pageerror', (e) => pageErrors.push(String(e.message || e)))
+  /* 另外收一路 console 警告。
+     ⚠️ 为什么需要：Vue 的 **prop 校验只走 console.warn**，不是 pageerror ——
+     「传了组件没声明的 prop」这类错在 prod 构建里根本不存在，
+     只有对着 dev 产物（NODE_ENV=development）跑，再把 warn 当失败，才拦得住。
+     regress 那边一直是这么要求的（零警告即通过），冒烟这边原本漏了。 */
+  const pageWarnings = []
+  page.on('console', (m) => {
+    if (m.type() !== 'warning') return
+    const text = m.text()
+    if (IGNORED_WARNINGS.some((re) => re.test(text))) return
+    pageWarnings.push(text)
+  })
   await page.goto(`${base}/__verify.html`, { waitUntil: 'load' })
   await page.waitForSelector('#__loaded', { timeout: 15000 })
   // 等挂载完成：WinUI 外壳的导航渲染出来才算页面真的起来了
@@ -101,12 +115,32 @@ async function openPage(entry, query = '', viewport = null) {
     timeout: 15000
   })
   await page.waitForTimeout(350)
-  return { page, pageErrors }
+  return { page, pageErrors, pageWarnings }
 }
 
 /** 断言「页内无 JS 错误」——渲染回归已经查过，这里再兜一次交互引入的 */
 function noErrors(pageErrors) {
   return pageErrors.length === 0
+}
+
+/**
+ * console 警告里**已知的上游噪音**，不计入失败。
+ *
+ * `Button` 的根节点是原生 `<button @click="onClick">`，而父级按站点的 XAML 风格
+ * 写 `@Click`（组件 `defineEmits(['Click'])` 声明的正是 `'Click'`）：
+ * `onClick` 落在 `$attrs` 里被 `v-bind` 绑到原生按钮上，于是组件自己再
+ * `emit('Click')` 时在 props 里找不到对应 handler → Vue 报这条警告。
+ * **全站 143 处 `@Click` 都会触发**，属上游组件的既有行为，与业务代码无关
+ * （实测功能正常：父级 handler 由原生监听器调用一次，不会重复触发）。
+ * 过滤掉它，剩下的警告才有信号。
+ */
+const IGNORED_WARNINGS = [/Event "click" is emitted in component Button but the handler is registered for "Click"/]
+
+/** 断言「无（非已知噪音的）console 警告」。
+    prod 产物里通常是空的（Vue 校验代码被剥离），所以这条断言的实际价值在
+    `npm run smoke:dev` —— 那才是保留 prop 校验的产物。 */
+function noWarnings(pageWarnings = []) {
+  return pageWarnings.length === 0
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -264,7 +298,7 @@ async function smokeDutyAdminTabs() {
   try {
     const tabs = page.locator(SEL.selectorItem)
     const n = await tabs.count()
-    check('duty-admin：4 个标签都渲染出来', n === 4, `实际 ${n}`)
+    check('duty-admin：5 个标签都渲染出来（排班/干事/评分/时段/导出）', n === 5, `实际 ${n}`)
 
     await tabs.nth(1).click()
     await page.waitForTimeout(500)
@@ -1705,7 +1739,8 @@ async function smokePageWidth() {
  * → ReferenceError → 路由兜底成 500。**登录用户走另一个分支，所以只有匿名会炸**
  * （用户报的正是「未登录报名失败」）。
  *
- * 后端那类问题由构建期守卫 `scripts/check-functions.mjs` 拦。
+ * 后端那类问题由构建期守卫 `scripts/check-identifiers.mjs` 拦
+ * （它同时覆盖 `functions/` 与自研 `src/`，见那个脚本的头部注释）。
  * 这里守的是**另一端**：前端发出的请求体字段名必须与后端读的一致
  * （后端读 `body.name` / `body.captcha_token` / `body.captcha_code`）。
  * 这类「两端字段名对不上」的错同样只会得到一个 4xx，也不会有人告诉你为什么。
@@ -1811,6 +1846,13 @@ async function smokeAiAssistant() {
         `${await page.locator('.ai-msg').count()} 个`
       )
       check('AI 助手：发送后输入框已清空', (await page.locator('.ai-input input').inputValue()) === '')
+
+      /* 完整 Markdown 渲染（桩回复含标题/粗体/表格/引用/链接） */
+      check('AI 助手：表格渲染', (await page.locator('.ai-bubble table.ai-md-table').count()) === 1)
+      check('AI 助手：表格 2 行数据', (await page.locator('.ai-bubble table.ai-md-table tbody tr').count()) === 2)
+      check('AI 助手：标题渲染', (await page.locator('.ai-bubble .ai-md-h').count()) >= 1)
+      check('AI 助手：引用 + 链接渲染', (await page.locator('.ai-bubble blockquote.ai-md-quote a.ai-md-a').count()) === 1)
+      check('AI 助手：粗体渲染', (await page.locator('.ai-bubble strong').count()) >= 1)
 
       /* ④ 输入框 Enter 发送（走原生 keydown 监听）；先开「深度思考」 */
       await page.locator('.ai-toggle', { hasText: '深度思考' }).click()
@@ -2032,6 +2074,7 @@ async function smokeDutyAiWidget() {
     const t = await page.evaluate(() => document.body.innerText)
     check('值日AI：流式回答呈现', t.includes('周五志愿者培训'))
     check('值日AI：工具 chip 呈现', t.includes('查询站点数据库'))
+    check('值日AI：浮窗内表格渲染', (await page.locator('.aiw-bubble table.ai-md-table').count()) === 1)
     const chats = await page.evaluate(() => window.__aiChats)
     check(
       '值日AI：请求带 context=值日',
@@ -2053,6 +2096,249 @@ async function smokeDutyAiWidget() {
     }
 
     check('值日AI：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
+/**
+ * 侧栏「消息」未读徽标。
+ *
+ * 这条用例的背景值得留个记号：`YaliShell.vue` 的 `loadUnread()` 一直用的
+ * 是**裸 `apiGet(...)`**（没 import），它能跑通纯粹是因为 api.js 是经典脚本、
+ * 顶层 `function apiGet` 挂到了 window，而 ESM 里的自由标识符会沿作用域链
+ * 回落到全局对象。也就是说这是一条**隐式**依赖：换掉 api.js 的加载方式、
+ * 或把它改成模块，徽标就会静默归零（外面裹着 try/catch，连报错都没有）。
+ *
+ * 所以这里断言的是「徽标真的显示后端给的数值」——
+ * 无论将来走 import 还是走全局，只要这条链路断了就会红。
+ */
+async function smokeSidebarUnread() {
+  const { page, pageErrors } = await openPage('services')
+  try {
+    /* 徽标是两跳异步来的：功能开关 → unread-count，必须显式等 */
+    const badge = page
+      .locator('.win-nav-left-panel .win-nav-infobadge .win-infobadge-value-text')
+      .first()
+    await badge.waitFor({ state: 'attached', timeout: 8000 }).catch(() => {})
+    const text = ((await badge.textContent().catch(() => '')) || '').trim()
+    check('侧栏未读徽标：显示 /api/messages/unread-count 的数值', text === '3', `实际「${text}」`)
+    check('侧栏未读徽标：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
+/** 点按钮 → 等下载事件 → 读出文件内容。
+    导出这类功能光断言「按钮点了不报错」等于没测：真正会坏的是**文件内容**
+    （少一段、字段名错、Excel 打开乱码）。所以这里把文件读回来逐项核。 */
+async function grabDownload(page, action) {
+  const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 15000 }), action()])
+  const p = await dl.path()
+  return { name: dl.suggestedFilename(), text: p ? readFileSync(p, 'utf8') : '' }
+}
+
+/**
+ * 值日管理「导出」标签：两张表格 + 三种导出 + 一键导出（含 AI 建议）
+ *
+ * 这条用例针对的是「屏幕上的数」与「导出文件里的数」是否同源 ——
+ * 页面用 /api/duty/report 渲染表格，导出也走它，所以两边必须一致。
+ * （历史教训：拿带 LIMIT 的列表接口去拼导出文件，记录多时会静默少人。）
+ */
+async function smokeDutyExport() {
+  const { page, pageErrors, pageWarnings } = await openPage('duty-admin')
+  try {
+    /* 从侧栏之外的入口切到第 5 个标签（验证它真的能点到，而不只是存在） */
+    await page.locator(SEL.selectorItem).nth(4).click()
+    await page.waitForTimeout(600)
+
+    check(
+      '导出标签：标题是「值日周报」',
+      (await page.locator('.yali-section-head', { hasText: '值日周报' }).count()) === 1
+    )
+
+    /* 表一：本周值日人员（fixture 2 天） */
+    const t1row = page.locator('.da-table').first().locator('tbody tr')
+    check('导出标签：表一渲染 2 天排班', (await t1row.count()) === 2, `${await t1row.count()} 行`)
+    const t1text = await page.locator('.da-table').first().innerText()
+    check(
+      '导出标签：表一显示干事姓名与部门班级',
+      t1text.includes('张三') && t1text.includes('李四') && t1text.includes('办公室2517'),
+      t1text.replace(/\s+/g, ' ').slice(0, 60)
+    )
+    check('导出标签：表一带了星期列（周日）', t1text.includes('周日'))
+
+    /* 表二：本周扣分人员（fixture 2 条，都是负分） */
+    const t2 = page.locator('.da-table').nth(1)
+    check('导出标签：表二渲染 2 条扣分', (await t2.locator('tbody tr').count()) === 2)
+    const t2text = await t2.innerText()
+    check(
+      '导出标签：表二显示负分与原因',
+      t2text.includes('-1') && t2text.includes('-0.5') && t2text.includes('迟到'),
+      t2text.replace(/\s+/g, ' ').slice(0, 70)
+    )
+    check('导出标签：扣分合计写对小计', (await page.locator('.da-h').nth(1).innerText()).includes('-1.5'))
+
+    /* 三个导出按钮 + 一键导出都在 */
+    const btnRow = page.locator('.da-export-bar')
+    for (const label of ['导出本周扣分', '导出全部扣分', '导出排班']) {
+      check(`导出标签：有「${label}」按钮`, (await btnRow.locator(`button:has-text("${label}")`).count()) === 1)
+    }
+
+    /* ① 导出本周扣分：文件内容要能被 Excel 认（BOM + 表头 + 数据） */
+    const week = await grabDownload(page, () => btnRow.locator('button:has-text("导出本周扣分")').click())
+    check('导出本周扣分：文件名带本周起始日', /^duty-deductions-\d{4}-\d{2}-\d{2}\.csv$/.test(week.name), week.name)
+    check('导出本周扣分：带 UTF-8 BOM（Excel 中文不乱码）', week.text.charCodeAt(0) === 0xfeff)
+    check(
+      '导出本周扣分：表头与数据齐全',
+      week.text.includes('日期,姓名,班级,部门,时段,分值,原因,记录人') &&
+        week.text.includes('李四') &&
+        week.text.includes('-0.5'),
+      week.text.split('\r\n')[5] ?? ''
+    )
+
+    /* ② 导出全部扣分（scope=all） */
+    const all = await grabDownload(page, () => btnRow.locator('button:has-text("导出全部扣分")').click())
+    check('导出全部扣分：文件名标明 all', all.name === 'duty-deductions-all.csv', all.name)
+    check('导出全部扣分：注明不限区间', all.text.includes('不限区间'))
+
+    /* ③ 一键导出：三段齐全，且 AI 建议段真的带上了模型回复 */
+    const weekly = await grabDownload(page, () =>
+      page.locator('button:has-text("一键导出")').click()
+    )
+    check('一键导出：文件名带本周起始日', /^duty-weekly-\d{4}-\d{2}-\d{2}\.csv$/.test(weekly.name), weekly.name)
+    for (const seg of ['一、本周值日人员', '二、本周扣分人员', '三、AI 建议']) {
+      check(`一键导出：含「${seg}」段`, weekly.text.includes(seg))
+    }
+    check('一键导出：值日人员段有数据', weekly.text.includes('办公室2517 张三'))
+    check(
+      '一键导出：没有落成「未配置 AI」占位（说明建议段真的生成了）',
+      !weekly.text.includes('未配置 AI 助手')
+    )
+    /* 建议段按「每行一条」写进 CSV，所以这里判「标题之后确实还有多行正文」，
+       而不是去比某句具体文案（桩的回复带 Markdown 粗体，字面比对极容易写错） */
+    const aiSeg = (weekly.text.split('三、AI 建议')[1] ?? '')
+      .split('\r\n')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    check('一键导出：AI 建议段是非空多行正文', aiSeg.length >= 2, `首行「${aiSeg[0] ?? ''}」`)
+    check('一键导出：建议段内容来自模型回复', weekly.text.includes('本周值日整体正常'))
+
+    /* ④ 建议区：一键导出已顺带生成过，按钮应变成「重新生成」，且再点一次不炸
+          （async handler 直接挂 @Click 会留下未捕获的 promise 异常，这里兜住） */
+    check(
+      '导出标签：生成后按钮变为「重新生成」',
+      (await page.locator('.da-ai-bar button:has-text("重新生成")').count()) === 1
+    )
+    check(
+      '导出标签：AI 建议已渲染到页面',
+      (await page.locator('.da-ai-text').innerText()).includes('本周值日整体正常')
+    )
+    await page.locator('.da-ai-bar button:has-text("重新生成")').click()
+    await page.waitForTimeout(900)
+    check(
+      '导出标签：「重新生成」能再次拿到建议',
+      (await page.locator('.da-ai-text').count()) === 1
+    )
+
+    check('导出标签：无 console 警告（dev 产物会查 Vue prop 校验）', noWarnings(pageWarnings), pageWarnings.join(' | ').slice(0, 120))
+    check('导出标签：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+
+  /* 站点没配 AI 时的降级：AI 建议是加分项，**不能让它把导出拖失败** */
+  {
+    const { page: p2, pageErrors: e2 } = await openPage('duty-admin', '?ainocfg=1')
+    try {
+      await p2.locator(SEL.selectorItem).nth(4).click()
+      await p2.waitForTimeout(700)
+      check(
+        'AI 未配置：建议区提示会跳过这一段',
+        (await p2.locator('.da-ai').innerText()).includes('尚未配置 AI 助手')
+      )
+      check(
+        'AI 未配置：生成按钮被禁用',
+        await p2.locator('.da-ai-bar button').first().isDisabled()
+      )
+      const csv = await grabDownload(p2, () => p2.locator('button:has-text("一键导出")').click())
+      check(
+        'AI 未配置：一键导出照常产出，第三段写明原因',
+        csv.text.includes('三、AI 建议') && csv.text.includes('未配置 AI 助手'),
+        csv.name
+      )
+      check('AI 未配置：无 JS 错误', noErrors(e2), e2.join(' | ').slice(0, 120))
+    } finally {
+      await p2.close()
+    }
+  }
+}
+
+/**
+ * 值日管理：批量导入干事（「姓名,班级,部门」粘贴导入）
+ *
+ * 断言的重点是**请求体字段名与后端读的一致** ——
+ * 后端 `handleDutyStaffUpload` 读的是 `body.staffList[].{class,name,department}`，
+ * 字段名对不上只会得到一个静默的空导入（0 人），不会有任何报错。
+ */
+async function smokeDutyStaffImport() {
+  const { page, pageErrors, pageWarnings } = await openPage('duty-admin')
+  try {
+    await page.locator(SEL.selectorItem).nth(1).click()
+    await page.waitForTimeout(500)
+
+    check(
+      '批量导入：干事标签有入口按钮',
+      (await page.locator('button:has-text("批量导入")').count()) === 1
+    )
+    await page.locator('button:has-text("批量导入")').click()
+    await page.waitForTimeout(400)
+
+    const ta = page.locator('.content-dialog-content textarea').first()
+    check('批量导入：对话框里是多行输入框（textarea）', (await ta.count()) === 1)
+
+    /* 故意混入一行表头（从 Excel 连表头复制是常事）和一行字段不足的坏行 */
+    await ta.fill(
+      [
+        '姓名,班级,部门',
+        '张三,2412,宣传部',
+        '李四,2413,组织部',
+        '这行只有两列'
+      ].join('\n')
+    )
+    await page.waitForTimeout(250)
+
+    const hint = await page.locator('.content-dialog-content').first().innerText()
+    check('批量导入：表头行被识别并跳过（只解析 2 条）', hint.includes('已解析 2 条'), hint.replace(/\s+/g, ' ').slice(0, 80))
+    check('批量导入：坏行被计数提示', hint.includes('1 行格式不对已忽略'))
+    check('批量导入：预览显示解析结果', hint.includes('张三（2412·宣传部）'))
+
+    await page.locator('button:has-text("导入 2 条")').click()
+    await page.waitForTimeout(600)
+
+    const body = await page.evaluate(() => (window.__dutyUploads || [])[0] || null)
+    check('批量导入：请求发到了 /api/duty/staff/upload', !!body)
+    check(
+      '批量导入：请求体是 { staffList: [{name,class,department}] }',
+      !!body &&
+        Array.isArray(body.staffList) &&
+        body.staffList.length === 2 &&
+        body.staffList[0].name === '张三' &&
+        body.staffList[0].class === '2412' &&
+        body.staffList[0].department === '宣传部',
+      JSON.stringify(body).slice(0, 100)
+    )
+
+    const after = await page.locator('.content-dialog-content').first().innerText()
+    check('批量导入：回显导入人数', after.includes('已导入 2 人'), after.replace(/\s+/g, ' ').slice(0, 80))
+    check(
+      '批量导入：提示未注册账号的人（未映射 / 收不到通知）',
+      after.includes('未在平台注册'),
+      after.replace(/\s+/g, ' ').slice(0, 80)
+    )
+
+    check('批量导入：无 console 警告（dev 产物会查 Vue prop 校验）', noWarnings(pageWarnings), pageWarnings.join(' | ').slice(0, 120))
+    check('批量导入：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
   } finally {
     await page.close()
   }
@@ -2081,10 +2367,13 @@ const CASES = [
   ['班级补填：未填班级强制补填', smokeClassPrompt],
   ['破图兜底：不显示破图框', smokeBrokenImage],
   ['值日管理：排班翻页步长 14 天', smokeDutyAdminPaging],
+  ['值日管理：导出标签（表格 + 三种导出 + 一键导出）', smokeDutyExport],
+  ['值日管理：批量导入干事', smokeDutyStaffImport],
   ['值日页：签到计时精确到秒', smokeDutyCountdown],
   ['报修备注：提交者与解决者都能添加', smokeIssueNotes],
   ['密码框：清除与显示密码图标可渲染', smokePasswordBoxIcons],
   ['侧栏收起：账户区只显示图标', smokePaneAccountIcons],
+  ['侧栏未读徽标：显示后端数值', smokeSidebarUnread],
   ['登出：清 cookie 且等响应后再跳转', smokeLogout],
   ['鸣谢：开源库署名与源码地址', smokeCredits],
   ['页面宽度：卡片跟随可用宽度', smokePageWidth],
@@ -2096,7 +2385,11 @@ const CASES = [
 
 console.log(`产物目录：${distName}   地址：${base}`)
 console.log('─'.repeat(78))
-for (const [title, fn] of CASES) {
+/* --only=<关键字>：只跑标题匹配的用例（调单个用例时不用等全套） */
+const only = (argv.find((a) => a.startsWith('--only=')) || '').slice('--only='.length)
+const selected = only ? CASES.filter(([t]) => t.includes(only)) : CASES
+if (only) console.log(`只跑 ${selected.length} 个用例（匹配「${only}」）`)
+for (const [title, fn] of selected) {
   try {
     await fn()
   } catch (err) {

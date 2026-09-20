@@ -81,7 +81,7 @@ import {
   type NavEntry
 } from '../shared/nav'
 import { attachTabScrollHints } from '../shared/tabscroll'
-import { alertDialog, logoutUser } from '../shared/api'
+import { alertDialog, apiGet, logoutUser } from '../shared/api'
 
 const props = defineProps<{
   /** 当前页面的 id，与 nav.js 的 currentPage 一致 */

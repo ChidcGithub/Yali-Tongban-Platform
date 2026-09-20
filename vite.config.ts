@@ -9,8 +9,15 @@ const root = fileURLToPath(new URL('.', import.meta.url))
 // 多页应用：根目录下每个 .html 都是一个入口
 const htmlEntries = readdirSync(root).filter((f) => f.endsWith('.html'))
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [vue()],
+  /* `npm run build:dev` 用 `--mode development` 产出 dist-dev：那份产物保留
+     Vue 的 prop 校验，`regress:dev` / `smoke:dev` 靠它把「传了组件没声明的 prop」
+     这类只在开发期报出的错拦下来。
+     ⚠️ 光给 `--mode development` 不够：Vite 在 build 阶段仍会把
+     `process.env.NODE_ENV` 固定成 'production'，Vue 的校验代码会被整段剥掉 ——
+     表现就是 dist-dev 与 dist 体积一模一样、`--dev` 白跑。必须显式 define。 */
+  define: mode === 'development' ? { 'process.env.NODE_ENV': JSON.stringify('development') } : {},
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -34,4 +41,4 @@ export default defineConfig({
   server: {
     port: 5173
   }
-})
+}))

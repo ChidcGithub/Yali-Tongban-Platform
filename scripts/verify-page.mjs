@@ -207,7 +207,26 @@ const FIXTURES = {
       { id: 1, label: '大课间', slot_type: 'big_break', sort_order: 1, start_time: '09:10', auto_absent_min: 10 },
       { id: 2, label: '午自习', slot_type: 'small_break', sort_order: 2, start_time: '12:40', auto_absent_min: 10 },
       { id: 3, label: '晚自习', slot_type: 'no_duty', sort_order: 3, start_time: '19:00', auto_absent_min: 10 }
-    ]
+    ],
+    /* 「导出」标签：形状照抄后端 handleDutyReport 的两段
+       （值日人员带 a_/b_ 前缀的展平列名，扣分记录带 join 出来的姓名/班级/部门） */
+    report: {
+      scope: 'week',
+      start: '2026-09-20',
+      end: '2026-09-26',
+      schedule: [
+        { date: '2026-09-20', a_dept: '办公室', a_class: '2517', a_name: '张三', b_dept: '组织部', b_class: '2518', b_name: '李四' },
+        { date: '2026-09-21', a_dept: '宣传部', a_class: '2519', a_name: '王五', b_dept: '青志协', b_class: '2520', b_name: '赵六' }
+      ],
+      deductions: [
+        { id: 71, date: '2026-09-20', period: '大课间', score: -1, reason: '迟到', recorder: '团委老师', department: '组织部', class: '2518', name: '李四' },
+        { id: 73, date: '2026-09-21', period: '午自习', score: -0.5, reason: '在岗不足', recorder: 'system', department: '办公室', class: '2517', name: '张三' }
+      ]
+    },
+    staffUpload: {
+      inserted: 2,
+      warnings: [{ row: '新同学甲 2601', reason: '未在平台注册，已分配初始密码' }]
+    }
   },
   admin: {
     // 管理面板的「公告审核」标签也调 /api/announcements，需要同一份列表
@@ -428,6 +447,8 @@ const stub = `
     if (fx.staff && url.indexOf('/api/duty/department-stats') === 0) return [];
     if (fx.dutyToday && url.indexOf('/api/duty/department-stats') === 0) return fx.deptStats;
     if (fx.dutyToday && url.indexOf('/api/duty/attendance/today') === 0) return fx.dutyToday;
+    /* 「导出」标签的表格与四种导出共用（形状照抄后端 handleDutyReport） */
+    if (fx.report && url.indexOf('/api/duty/report') === 0) return fx.report;
     if (fx.finance && url.indexOf('/api/finance/images') === 0) return {};
     if (fx.finance && url.indexOf('/api/finance') === 0) return fx.finance;
     // 公告列表：fixture 键名是 list（fx 即当前页的 fixture）
@@ -530,7 +551,17 @@ const stub = `
         window.__aiChats.push(__aiBody);
         var __reply = __aiBody.message && __aiBody.message.indexOf('记住') >= 0
           ? { tool: 'save_memory', text: '好的，已记住你的偏好。' }
-          : { tool: 'query_database', text: '本周共有 2 场活动：周三篮球赛、周五志愿者培训。' };
+          /* 值日周报的 AI 建议（值日管理「导出」标签）：
+             按「提示词特征」分流，而不是给站点加参数 —— 那条提示词以
+             「你是雅礼中学团委的值日管理助手」开头，只有导出路径会发。
+             ⚠️ 这里的 \\n 必须双写：桩本身是外层模板字符串，
+             单写会被提前解成真换行，生成的桩里字符串就跨行、整个桩语法错。 */
+          : __aiBody.message && __aiBody.message.indexOf('值日管理助手') >= 0
+            ? { tool: 'query_database', text: '- 本周值日整体正常，2 人次扣分，合计 -1.5 分。\\n- 李四 大课间 迟到一次，建议提前提醒到岗。\\n- 排班两天均为双人搭档，分配均衡，无需调整。' }
+            : {
+                tool: 'query_database',
+                text: '### 本周活动\\n本周共有 **2 场**活动：周三篮球赛、周五志愿者培训。\\n\\n| 活动 | 时间 |\\n| --- | --- |\\n| 篮球赛 | 周三大课间 |\\n| 志愿者培训 | 周五下午 |\\n\\n> 详情见 [公告页](/announcements.html)'
+              };
         var __enc = new TextEncoder();
         var __stream = new ReadableStream({
           start: function (c) {
@@ -551,6 +582,16 @@ const stub = `
         });
         return Promise.resolve(new Response(__stream, { headers: { 'content-type': 'text/event-stream' } }));
       }
+    }
+
+    /* 批量导入干事：记录请求体，供冒烟断言「前端发出的字段名与后端读的一致」，
+       并复刻后端返回形状（inserted + warnings）。 */
+    if (url.indexOf('/api/duty/staff/upload') === 0) {
+      var __upBody = {};
+      try { __upBody = JSON.parse(init.body); } catch (e) {}
+      window.__dutyUploads = window.__dutyUploads || [];
+      window.__dutyUploads.push(__upBody);
+      return Promise.resolve(__aiJson(window._fx.staffUpload || { inserted: 0, warnings: [] }));
     }
 
     if (url.indexOf('/api/auth/logout') === 0) {
@@ -612,8 +653,9 @@ try {
   // eslint-disable-next-line no-new-func
   new Function(stub)
 } catch (err) {
+  writeFileSync('.check-winui/stub-dump.js', stub) // 语法挂时 dump 出来定位行号
   console.error('❌ 注入的验证脚本存在语法错误，会导致静默失效：')
-  console.error('   ' + err.message)
+  console.error('   ' + err.message + ' | ' + String(err.stack || '').split(String.fromCharCode(10)).slice(0, 4).join(' | '))
   const bad = stub.split('\n').filter((l) => /^\s*if \(.*&&\s*\/\//.test(l))
   if (bad.length) {
     console.error('   可疑行（正则转义丢失，// 被当成注释）：')
