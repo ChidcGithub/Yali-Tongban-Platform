@@ -15,7 +15,7 @@ import { handleGetMembers, handleGetRegistrations, handleApproveRegistration, ha
 import { handleSync } from './sync.js';
 import { handleGetBanner } from './banner.js';
 import { handleGetPublicSettings } from './settings.js';
-import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats } from './duty.js';
+import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
 import { handleAdminGetFeatures, handleAdminToggleFeature, handleAdminInvite, handleAdminResetUser, handleAdminGetInvitations, handleGetPendingFeatures, handleRespondFeature, handleGetEnabledFeatures } from './features.js';
 import { handleGetMessages, handleGetUnreadCount, handleMarkRead, handleMarkAllRead, handleDeleteMessage, handleClearRead } from './messages.js';
 import { handleAIStatus, handleAIMessagesGet, handleAIMessagesClear, handleAIMemoriesGet, handleAIMemoriesClear, handleAIChat } from './ai.js';
@@ -177,6 +177,8 @@ const routes = [
   { p: '/api/duty/scores/modify', m: 'POST', h: c => handleDutyScoreModify(c.request, c.env, c.user) },
   { p: '/api/duty/scores/cancel', m: 'POST', h: c => handleDutyScoreCancel(c.request, c.env) },
   { p: '/api/duty/scores/batch-cancel', m: 'POST', h: c => handleDutyScoreBatchCancel(c.request, c.env, c.user) },
+  // 周报：导出标签的两张表格与全部导出按钮共用（管理员，无行数上限）
+  { p: '/api/duty/report', m: 'GET', h: c => handleDutyReport(c.env, c.url, c.user) },
   { p: '/api/duty/department-stats', m: 'GET', h: c => handleDutyDepartmentStats(c.env, c.url) },
   { p: '/api/duty/schedule/manual', m: 'POST', h: c => handleDutyScheduleManual(c.request, c.env, c.user) },
   { p: '/api/duty/schedule/manual', m: 'DELETE', h: c => handleDutyScheduleManualDelete(c.request, c.env, c.user) },

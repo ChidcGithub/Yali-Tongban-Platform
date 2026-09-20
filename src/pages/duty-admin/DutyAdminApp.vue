@@ -30,11 +30,6 @@
                   <FontIcon :Glyph="GLYPH.calendar" :FontSize="13" /><span>自动生成 60 天</span>
                 </span>
               </Button>
-              <Button @Click="exportSchedule">
-                <span class="yali-btn-inner">
-                  <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出排班</span>
-                </span>
-              </Button>
               <Button @Click="clearAll">
                 <span class="yali-btn-inner">
                   <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>清空排班</span>
@@ -42,6 +37,9 @@
               </Button>
             </div>
           </div>
+          <!-- 四种导出统一收在「导出」标签里（原先「导出排班」孤零零挂在日历旁，
+               导出类操作混在编辑操作中间既容易误点、也找不到其他导出入口） -->
+          <p class="yali-muted da-gap">导出与批量导入都在「导出」标签页</p>
 
           <div v-if="scheduleLoading" class="yali-muted da-gap">加载中…</div>
           <div v-else class="da-cal">
@@ -67,11 +65,18 @@
         <section class="yali-section">
           <div class="yali-section-head">
             <TextBlock :Text="'干事名单（' + staff.length + ' 人）'" :FontSize="15" :FontWeight="500" />
-            <Button @Click="staffDialog = true">
-              <span class="yali-btn-inner">
-                <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>添加干事</span>
-              </span>
-            </Button>
+            <div class="yali-head-tools">
+              <Button @Click="openImport">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.people" :FontSize="13" /><span>批量导入</span>
+                </span>
+              </Button>
+              <Button @Click="staffDialog = true">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>添加干事</span>
+                </span>
+              </Button>
+            </div>
           </div>
           <p v-if="!staff.length" class="yali-muted da-gap">暂无干事</p>
           <div v-for="s in staff" :key="s.id" class="da-row">
@@ -136,7 +141,7 @@
       </template>
 
       <!-- ── 时段 ── -->
-      <template v-else>
+      <template v-else-if="tabIndex === 3">
         <section class="yali-section">
           <div class="yali-section-head">
             <TextBlock Text="时段配置" :FontSize="15" :FontWeight="500" />
@@ -175,7 +180,151 @@
           </p>
         </section>
       </template>
+
+      <!-- ── 导出 ──
+           四种导出集中在这里：一键导出（含 AI 建议）/ 本周扣分 / 全部扣分 / 排班。
+           两张表格与该标签的导出走**同一个接口**（/api/duty/report），
+           保证「屏幕上看到的」和「导出文件里的」不会是两份数据。 -->
+      <template v-else>
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'值日周报 · ' + reportRangeText" :FontSize="15" :FontWeight="500" />
+            <div class="yali-head-tools">
+              <Button :IsEnabled="!buildBusy" :Style="'{StaticResource AccentButtonStyle}'" @Click="exportWeeklyReport">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.download" :FontSize="13" />
+                  <span>{{ buildBusy ? '生成中…' : '一键导出（含 AI 建议）' }}</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+
+          <div class="da-export-bar">
+            <Button :IsEnabled="!buildBusy && reportDeductions.length > 0" @Click="exportScores('week')">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出本周扣分</span>
+              </span>
+            </Button>
+            <Button :IsEnabled="!buildBusy" @Click="exportScores('all')">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出全部扣分</span>
+              </span>
+            </Button>
+            <Button :IsEnabled="!buildBusy" @Click="exportSchedule">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出排班（当前两周）</span>
+              </span>
+            </Button>
+            <span class="yali-muted da-export-hint">导出为 CSV，Excel 可直接打开（含 UTF-8 BOM，中文不乱码）</span>
+          </div>
+
+          <div v-if="reportLoading" class="yali-muted da-gap">加载中…</div>
+          <template v-else>
+            <!-- 表一：本周值日人员 -->
+            <h3 class="da-h">一、本周值日人员（{{ reportSchedule.length }} 天）</h3>
+            <div class="da-tablewrap">
+              <table class="da-table">
+                <thead>
+                  <tr><th>日期</th><th>星期</th><th>干事 A</th><th>干事 B</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in reportSchedule" :key="r.date">
+                    <td>{{ r.date }}</td>
+                    <td>{{ weekdayLabel(r.date) }}</td>
+                    <td>{{ staffLabel(r.a_dept, r.a_class, r.a_name) }}</td>
+                    <td>{{ staffLabel(r.b_dept, r.b_class, r.b_name) }}</td>
+                  </tr>
+                  <tr v-if="!reportSchedule.length">
+                    <td colspan="4" class="yali-muted">本周暂无排班</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 表二：本周扣分人员 -->
+            <h3 class="da-h">
+              二、本周扣分人员（{{ reportDeductions.length }} 条 · 合计 {{ reportDeductTotal }} 分）
+            </h3>
+            <div class="da-tablewrap">
+              <table class="da-table">
+                <thead>
+                  <tr><th>日期</th><th>姓名</th><th>班级</th><th>部门</th>
+                      <th>时段</th><th>分值</th><th>原因</th><th>记录人</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in reportDeductions" :key="r.id">
+                    <td>{{ r.date }}</td>
+                    <td>{{ r.name || '—' }}</td>
+                    <td>{{ r.class || '—' }}</td>
+                    <td>{{ r.department || '—' }}</td>
+                    <td>{{ r.period || '—' }}</td>
+                    <td class="da-minus">{{ r.score }}</td>
+                    <td class="da-cell-wrap">{{ r.reason || '—' }}</td>
+                    <td>{{ r.recorder || '—' }}</td>
+                  </tr>
+                  <tr v-if="!reportDeductions.length">
+                    <td colspan="8" class="yali-muted">本周没有扣分记录</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="yali-muted da-gap">
+              口径：只统计负分记录，<strong>已销分的不计入</strong>（销分表示该扣分已作废）。
+            </p>
+
+            <!-- AI 建议 -->
+            <h3 class="da-h">三、AI 建议</h3>
+            <div class="da-ai">
+              <div class="da-ai-bar">
+                <Button :IsEnabled="!aiLoading && aiConfigured !== false" @Click="onGenerateAdvice">
+                  <span class="yali-btn-inner">
+                    <FontIcon :Glyph="GLYPH.ai" :FontSize="13" />
+                    <span>{{ aiLoading ? '生成中…' : (aiText ? '重新生成' : '生成 AI 建议') }}</span>
+                  </span>
+                </Button>
+                <span class="yali-muted">{{ aiHint }}</span>
+              </div>
+              <pre v-if="aiText" class="da-ai-text">{{ aiText }}</pre>
+              <p v-else class="yali-muted">
+                {{ aiConfigured === false
+                  ? '本站尚未配置 AI 助手，「一键导出」会跳过这一段（报表其余内容照常导出）。'
+                  : '尚未生成。「一键导出」会自动生成并写入 CSV 的第三段。' }}
+              </p>
+            </div>
+          </template>
+        </section>
+      </template>
     </div>
+
+    <!-- 批量导入干事（走既有的 /api/duty/staff/upload） -->
+    <ContentDialog :IsOpen="importDialog" Title="批量导入干事"
+                   @update:IsOpen="importDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">
+          每行一条，用逗号分隔：<strong>姓名,班级,部门</strong>（中英文逗号、制表符都认）。
+          也可以直接从 Excel 复制两列粘进来。
+        </p>
+        <!-- ⚠️ TextBox 没有 Height 属性（只有 MinHeight/MaxHeight）；
+             而且 AcceptsReturn 时它会跟着内容自动增高，本来也不需要固定高度 -->
+        <TextBox v-model:Text="importText" :AcceptsReturn="true" TextWrapping="Wrap" :MinHeight="120"
+                 PlaceholderText="张三,2412,宣传部&#10;李四,2413,组织部" />
+        <p class="yali-muted">
+          已解析 <strong>{{ importRows.length }}</strong> 条
+          <template v-if="importSkipped">，{{ importSkipped }} 行格式不对已忽略</template>
+          <template v-if="importRows.length">：{{ importPreview }}</template>
+        </p>
+        <p v-if="importResult" class="yali-muted">{{ importResult }}</p>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="importDialog = false">
+            <span class="yali-btn-inner"><span>关闭</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy && importRows.length > 0"
+                  @Click="doImport">
+            <span class="yali-btn-inner"><span>{{ busy ? '导入中…' : `导入 ${importRows.length} 条` }}</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
 
     <!-- 添加干事 -->
     <ContentDialog :IsOpen="staffDialog" Title="添加干事"
@@ -346,8 +495,9 @@ import { GLYPH } from '../../shared/icons'
 import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog
 } from '../../shared/api'
 import { requireAdmin } from '../../shared/guard'
+import { streamChat } from '../../shared/ai-chat'
 
-const TABS = ['排班', '干事', '评分', '时段']
+const TABS = ['排班', '干事', '评分', '时段', '导出']
 const tabItems = TABS.map((Text) => ({ Text }))
 
 /** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
@@ -545,7 +695,9 @@ async function generate() {
   }
 }
 
-/** 导出当前可见的两周排班（后端 /api/duty/schedule/export 直接回 CSV） */
+/** 导出当前可见的两周排班（后端 /api/duty/schedule/export 直接回 CSV）
+    走 downloadCsv 而不是自己 createObjectURL：那里会补 UTF-8 BOM，
+    否则 Excel 打开中文是乱码（后端直出的 CSV 没有 BOM）。 */
 async function exportSchedule() {
   const s = weekStart.value
   const e = new Date(s)
@@ -560,13 +712,7 @@ async function exportSchedule() {
       } catch { /* 非 JSON */ }
       throw new Error(msg)
     }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `duty-schedule-${fmt(s)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadCsv(`duty-schedule-${fmt(s)}.csv`, await res.text())
   } catch (err) {
     toast((err as Error).message, 'error')
   }
@@ -914,13 +1060,376 @@ async function loadPeriods() {
   }
 }
 
+/* ══════════════════════════════════════════════════════════
+   批量导入干事
+   ──────────────────────────────────────────────────────────
+   后端 `/api/duty/staff/upload` 是老接口，一直没人在 WinUI 版页面上接。
+   格式取「姓名,班级,部门」一行一条：这也是从 Excel 复制两列粘进来的形态
+   （Excel 复制出来是制表符分隔，所以分隔符要把 \t 和中文逗号都认掉）。
+   ══════════════════════════════════════════════════════════ */
+interface ImportRow { name: string; class: string; department: string }
+
+/** 解析粘贴的文本。分隔符认 英文逗号 / 中文逗号 / 制表符；字段不足 3 个的整行忽略 */
+function parseImportRows(text: string): { rows: ImportRow[]; skipped: number } {
+  const rows: ImportRow[] = []
+  let skipped = 0
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const parts = line.split(/[,\t，]+/).map((s) => s.trim()).filter(Boolean)
+    // 表头行（从 Excel 连表头一起复制是常事）不算错误，也不导入
+    if (/^(姓名|名字|name)$/i.test(parts[0] ?? '')) continue
+    if (parts.length < 3) {
+      skipped += 1
+      continue
+    }
+    rows.push({ name: parts[0], class: parts[1], department: parts.slice(2).join(' ') })
+  }
+  return { rows, skipped }
+}
+
+const importDialog = ref(false)
+const importText = ref('')
+const importResult = ref('')
+const importParsed = computed(() => parseImportRows(importText.value))
+const importRows = computed(() => importParsed.value.rows)
+const importSkipped = computed(() => importParsed.value.skipped)
+const importPreview = computed(() => {
+  const list = importRows.value
+  const head = list.slice(0, 3).map((r) => `${r.name}（${r.class}·${r.department}）`).join('、')
+  return list.length > 3 ? `${head} 等 ${list.length} 人` : head
+})
+
+function openImport() {
+  importDialog.value = true
+  importText.value = ''
+  importResult.value = ''
+}
+
+async function doImport() {
+  if (!importRows.value.length || busy.value) return
+  busy.value = true
+  try {
+    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string }[] }>(
+      '/api/duty/staff/upload',
+      { staffList: importRows.value }
+    )
+    const n = Number(r?.inserted) || 0
+    const w = r?.warnings ?? []
+    /* 未在平台注册的人 user_id=0 → 进不了站内通知，名单上的「未映射」徽标就是这么来的。
+       （历史上这里会「分配初始密码」，但那个密码**全站没有任何地方会去校验**，
+       所以提示里不提它 —— 说了反而让人以为可以拿它登录。） */
+    importResult.value =
+      `已导入 ${n} 人` +
+      (w.length ? `；其中 ${w.length} 人未在平台注册，名单里会标「未映射」，收不到站内通知。` : '')
+    toast(`已导入 ${n} 人`, 'success')
+    importText.value = ''
+    await loadStaff()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   导出
+   ──────────────────────────────────────────────────────────
+   本标签的两张表格与四种导出**共用 /api/duty/report 一份数据**，
+   避免「表格是一个数、导出文件里又是另一个数」。
+
+   ⚠️ 为什么不复用 `/api/duty/scores` 去拼 CSV：那个接口带 `LIMIT 200`，
+   记录多起来会**静默截断**，导出的报表少了人也没人看得出来。
+   ══════════════════════════════════════════════════════════ */
+interface ReportScheduleRow {
+  date: string
+  a_dept?: string; a_class?: string; a_name?: string
+  b_dept?: string; b_class?: string; b_name?: string
+}
+interface ReportDeduction {
+  id: number; date: string; period?: string; score: number
+  reason?: string; recorder?: string
+  department?: string; class?: string; name?: string
+}
+interface ReportData {
+  scope: string; start: string; end: string
+  schedule: ReportScheduleRow[]
+  deductions: ReportDeduction[]
+}
+
+const reportSchedule = ref<ReportScheduleRow[]>([])
+const reportDeductions = ref<ReportDeduction[]>([])
+const reportLoading = ref(false)
+const buildBusy = ref(false)
+const aiText = ref('')
+const aiHint = ref('')
+const aiLoading = ref(false)
+/** null = 还没问过；false = 站点没配 AI（导出时跳过建议段，不当失败） */
+const aiConfigured = ref<boolean | null>(null)
+
+/** 「本周」= 排班页日历的第一周（周日~周六），与页面既有的周起始定义保持一致 */
+function reportWeek() {
+  const s = startOfWeek(new Date())
+  const e = new Date(s)
+  e.setDate(e.getDate() + 6)
+  return { start: fmt(s), end: fmt(e) }
+}
+const reportRangeText = computed(() => {
+  const { start, end } = reportWeek()
+  return `${start} ~ ${end}`
+})
+
+function deductTotalOf(list: ReportDeduction[]): number {
+  return Math.round(list.reduce((n, r) => n + Number(r.score || 0), 0) * 10) / 10
+}
+const reportDeductTotal = computed(() => deductTotalOf(reportDeductions.value))
+
+function weekdayLabel(date: string): string {
+  const d = new Date(date + 'T00:00:00')
+  return Number.isNaN(d.getTime()) ? '' : '周' + WEEKDAYS[d.getDay()]
+}
+function staffLabel(dept?: string, cls?: string, name?: string): string {
+  return `${dept ?? ''}${cls ?? ''} ${name ?? ''}`.trim() || '—'
+}
+
+async function fetchReport(scope: 'week' | 'all'): Promise<ReportData> {
+  const { start, end } = reportWeek()
+  return await apiGet<ReportData>(`/api/duty/report?scope=${scope}&start=${start}&end=${end}`)
+}
+
+async function loadReport() {
+  reportLoading.value = true
+  try {
+    const d = await fetchReport('week')
+    reportSchedule.value = d?.schedule ?? []
+    reportDeductions.value = d?.deductions ?? []
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+async function loadAiStatus() {
+  try {
+    const s = await apiGet<{ configured?: boolean }>('/api/ai/status')
+    aiConfigured.value = !!s?.configured
+  } catch {
+    aiConfigured.value = false
+  }
+}
+
+/* ── CSV ── */
+
+/** CSV 单元格：含逗号 / 引号 / 换行就整体包引号，内部引号翻倍。
+    AI 建议里逗号和换行都很常见，这一步不能省（否则整张表错列）。 */
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? '' : String(v)
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+function csvRows(rows: unknown[][]): string {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
+}
+
+/**
+ * 下载 CSV。
+ * ⚠️ **必须带 UTF-8 BOM**：不带的话 Excel 按系统 ANSI 解（简体中文 Windows 是 GBK），
+ * 整份报表的中文全乱码。后端 `/duty/schedule/export` 直出的 CSV 原本就是这样 ——
+ * 所以这里统一在下载这一层补 BOM，而不是改后端（改后端只治那一个接口）。
+ */
+function downloadCsv(filename: string, body: string) {
+  const blob = new Blob(['\uFEFF' + body], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 报表文件头（把口径写进文件本身，免得看报表的人误解数据） */
+function reportMeta(scopeLabel: string): unknown[][] {
+  return [
+    ['雅礼团委 · 通办　值日报表'],
+    [scopeLabel],
+    ['导出时间', new Date().toLocaleString('zh-CN')],
+    ['统计口径', '扣分只统计负分记录；已销分的不计入'],
+    [],
+  ]
+}
+
+const DEDUCTION_HEAD = ['日期', '姓名', '班级', '部门', '时段', '分值', '原因', '记录人']
+const deductionRow = (r: ReportDeduction): unknown[] => [
+  r.date, r.name ?? '', r.class ?? '', r.department ?? '', r.period ?? '',
+  r.score, r.reason ?? '', r.recorder ?? ''
+]
+
+/** 一键导出：本周值日人员 + 本周扣分人员 + AI 建议（一份 CSV 三段） */
+async function exportWeeklyReport() {
+  if (buildBusy.value) return
+  buildBusy.value = true
+  try {
+    const d = await fetchReport('week')
+    const { start, end } = reportWeek()
+
+    /* AI 建议是**加分项，不能让它把导出拖失败**：站点没配 AI 或上游报错时，
+       前两段照常导出，第三段写明原因。 */
+    let advice = aiText.value
+    if (!advice && aiConfigured.value !== false) {
+      aiHint.value = '正在生成 AI 建议…'
+      try {
+        advice = await generateAdvice(d)
+      } catch (err) {
+        aiHint.value = `AI 建议生成失败：${(err as Error).message}`
+      }
+    }
+
+    const rows: unknown[][] = [
+      ...reportMeta(`统计区间 ${start} ~ ${end}`),
+      ['一、本周值日人员'],
+      ['日期', '星期', '干事A', '干事B'],
+      ...d.schedule.map((r) => [
+        r.date, weekdayLabel(r.date),
+        staffLabel(r.a_dept, r.a_class, r.a_name),
+        staffLabel(r.b_dept, r.b_class, r.b_name)
+      ]),
+      d.schedule.length ? ['合计', `${d.schedule.length} 天`] : ['（本周暂无排班）'],
+      [],
+      ['二、本周扣分人员'],
+      DEDUCTION_HEAD,
+      ...d.deductions.map(deductionRow),
+      ['合计', `${d.deductions.length} 条`, '', '', '', deductTotalOf(d.deductions), '', ''],
+      [],
+      ['三、AI 建议'],
+      ...(advice
+        ? advice.split('\n').map((l) => [l])
+        : [['（本站未配置 AI 助手，或本次生成失败，未包含建议）']])
+    ]
+    downloadCsv(`duty-weekly-${start}.csv`, csvRows(rows))
+    toast('已导出周报', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    buildBusy.value = false
+    aiHint.value = ''
+  }
+}
+
+/** 导出扣分明细：scope=week 本周 / scope=all 全部 */
+async function exportScores(scope: 'week' | 'all') {
+  if (buildBusy.value) return
+  buildBusy.value = true
+  try {
+    const d = await fetchReport(scope)
+    const { start, end } = reportWeek()
+    const rows: unknown[][] = [
+      ...reportMeta(scope === 'week' ? `统计区间 ${start} ~ ${end}` : '统计范围 全部记录（不限区间）'),
+      DEDUCTION_HEAD,
+      ...d.deductions.map(deductionRow),
+      ['合计', `${d.deductions.length} 条`, '', '', '', deductTotalOf(d.deductions), '', '']
+    ]
+    downloadCsv(`duty-deductions-${scope === 'week' ? start : 'all'}.csv`, csvRows(rows))
+    toast(scope === 'week' ? '已导出本周扣分' : '已导出全部扣分', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    buildBusy.value = false
+  }
+}
+
+/**
+ * 让 AI 基于本周数据给管理员建议。返回建议文本，同时写进 aiText 供页面预览。
+ * 用共享的 `streamChat` 消费 SSE（与 AI 页/AI 浮窗同一套解析），这里只做累加。
+ */
+async function generateAdvice(data?: ReportData): Promise<string> {
+  if (aiLoading.value) return aiText.value
+  aiLoading.value = true
+  try {
+    const d = data ?? (await fetchReport('week'))
+    const { start, end } = reportWeek()
+
+    /* 把数据压成「人话」再交给模型：直接塞 JSON 又费 token 又容易让它胡算 */
+    const byPerson = new Map<string, { n: number; total: number }>()
+    for (const r of d.deductions) {
+      const key = `${r.name ?? '未知'}（${r.department ?? '未分配'} ${r.class ?? ''}）`.trim()
+      const cur = byPerson.get(key) ?? { n: 0, total: 0 }
+      cur.n += 1
+      cur.total += Number(r.score || 0)
+      byPerson.set(key, cur)
+    }
+    const summary = [
+      `区间：${start} ~ ${end}`,
+      `排班天数：${d.schedule.length} 天`,
+      `扣分记录：${d.deductions.length} 条，合计 ${deductTotalOf(d.deductions)} 分`,
+      '按人汇总（从重到轻）：',
+      ...[...byPerson.entries()]
+        .sort((a, b) => a[1].total - b[1].total)
+        .map(([k, v]) => `- ${k}：${v.n} 次，合计 ${v.total} 分`),
+      '排班明细：',
+      ...d.schedule.map(
+        (r) => `- ${r.date} ${weekdayLabel(r.date)}：${staffLabel(r.a_dept, r.a_class, r.a_name)} / ${staffLabel(r.b_dept, r.b_class, r.b_name)}`
+      )
+    ].join('\n')
+
+    const prompt = [
+      '你是雅礼中学团委的值日管理助手。下面是本周值日排班与扣分统计：',
+      '',
+      summary,
+      '',
+      '请面向团委管理员给出简明建议，要求：',
+      '1. 先用一句话概括本周总体情况；',
+      '2. 再给 3~5 条具体建议，每条单独一行、以「- 」开头，要针对上面数据里真实存在的问题（如个别干事反复缺岗、某时段集中出问题、排班是否均衡）；',
+      '3. 不要客套话、不要复述全部数据、不要用 Markdown 标题；',
+      '4. 直接输出结论，不要调用任何工具查询。'
+    ].join('\n')
+
+    let out = ''
+    await streamChat(
+      { message: prompt, thinking: false, webSearch: false, context: '值日管理' },
+      {
+        onReset: () => {
+          out = ''
+        },
+        onDelta: (t) => {
+          out += t
+        }
+      },
+      new AbortController().signal
+    )
+    const text = out.trim()
+    if (!text) throw new Error('AI 没有返回内容')
+    aiText.value = text
+    return text
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+/**
+ * 「生成 AI 建议」按钮的处理器。
+ * ⚠️ 不能把 async 函数直接挂到 @Click 上：AI 没配置（503）或上游报错时
+ * Promise 会 reject，Vue 事件处理器不兜这个 → 变成「未捕获的 promise 异常」，
+ * 页面上却什么提示都没有。这里统一转成 toast。
+ */
+async function onGenerateAdvice() {
+  try {
+    await generateAdvice()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
 function loadForTab(i: number) {
   if (i === 0) loadSchedule()
   else if (i === 1) loadStaff()
   else if (i === 2) {
     loadScores()
     loadStaff()
-  } else loadPeriods()
+  } else if (i === 3) loadPeriods()
+  else {
+    loadReport()
+    loadAiStatus()
+  }
 }
 
 watch(tabIndex, loadForTab)
@@ -1070,6 +1579,70 @@ html.theme-dark .da-minus {
   margin-left: auto;
 }
 
+/* ── 导出标签 ──
+   表格与按钮都沿用页面既有的 token（--stroke-divider / --card-bg-secondary /
+   --text-*），跟排班、评分那两个标签视觉一致。 */
+.da-export-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.da-export-hint {
+  font-size: 12px;
+}
+.da-h {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.da-tablewrap {
+  overflow-x: auto;
+}
+.da-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.da-table th,
+.da-table td {
+  border: 1px solid var(--stroke-divider);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.da-table th {
+  background: var(--card-bg-secondary);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+/* 原因那一列可能很长，允许换行（其余列保持 nowrap 以免错位） */
+.da-table .da-cell-wrap {
+  white-space: normal;
+  min-width: 160px;
+}
+.da-ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.da-ai-text {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 8px;
+  background: var(--card-bg-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 640px) {
   .da-period {
     flex-wrap: wrap;
@@ -1090,6 +1663,11 @@ html.theme-dark .da-minus {
   .da-row {
     flex-wrap: wrap;
     gap: 6px;
+  }
+  /* 导出按钮在窄屏竖排铺满，避免四个按钮挤成一行各自半截 */
+  .da-export-bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>
