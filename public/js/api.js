@@ -669,6 +669,11 @@ document.addEventListener('securitypolicyviolation', e => {
 // ─── Cookie consent ───
 function initCookieConsent() {
   if (localStorage.getItem('cookieConsent')) return;
+  // WinUI 页面自己渲染 cookie 横幅（src/components/CookieBanner.vue），
+  // 那份用的是站点 WinUI 控件与令牌；这里的实现会往 body 注入旧设计系统的
+  // `.cookie-banner` + `.btn`，两者叠在一起就会出现两条横幅。
+  // 组件挂载时会置上这个标记（DOMContentLoaded 时已可读到）。
+  if (window.__winuiCookieBanner) return;
   const banner = document.createElement('div');
   banner.className = 'cookie-banner';
   banner.innerHTML = `<span class="cookie-banner-icon">${icon('cookie')}</span><span>本站使用 Cookie 维持登录。继续使用即表示同意。</span><button class="btn btn-sm btn-primary" data-action="acceptCookieConsent">知道了</button>`;

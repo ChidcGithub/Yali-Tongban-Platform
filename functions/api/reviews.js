@@ -2,8 +2,32 @@ import { rateLimit, json, error, parseBody, isValidImageUrl, isAdmin, insertChat
 
 export async function handleGetReviews(env, user) {
   if (!user) return error('需要登录', 401);
-  const rows = await env.DB.prepare('SELECT * FROM reviews ORDER BY created_at DESC LIMIT 200').all();
+  // 列表瘦身：不返回 image_url 全文（每条都是一整张 base64 图，最多 200 条），
+  // 只给 has_image 标记，图片走 /api/reviews/images?ids= 批量按需取。
+  // 与 announcements / finance / issues 的做法保持一致。
+  const rows = await env.DB.prepare(
+    "SELECT id, status, reject_reason, created_by, reviewed_by, created_at, reviewed_at, " +
+    "CASE WHEN image_url IS NOT NULL AND image_url != '' THEN 1 ELSE 0 END AS has_image " +
+    "FROM reviews ORDER BY created_at DESC LIMIT 200"
+  ).all();
   return json(rows.results);
+}
+
+/** 批量取审核图片（与列表同可见性：登录即可） */
+export async function handleGetReviewImages(env, idsStr, user) {
+  if (!user) return error('需要登录', 401);
+  try {
+    const ids = [...new Set(String(idsStr || '').split(',').map(s => Number(String(s).trim())).filter(n => Number.isInteger(n) && n > 0))];
+    if (ids.length === 0) return error('缺少审核记录 id');
+    if (ids.length > 50) return error('一次最多查询 50 条审核记录的图片');
+    const ph = ids.map(() => '?').join(',');
+    const rows = await env.DB.prepare(`SELECT id, image_url FROM reviews WHERE id IN (${ph})`).bind(...ids).all();
+    const map = {};
+    for (const r of rows.results) if (r.image_url) map[r.id] = r.image_url;
+    return json(map);
+  } catch {
+    return error('获取图片失败', 500);
+  }
 }
 
 export async function handleCreateReview(request, env, user) {

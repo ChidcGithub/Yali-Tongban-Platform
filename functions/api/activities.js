@@ -1,4 +1,4 @@
-import { rateLimit, json, error, parseBody, getClientIP, verifyCaptcha, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS } from './_utils.js';
+import { rateLimit, json, error, parseBody, getClientIP, verifyCaptcha, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS, checkRateLimit } from './_utils.js';
 
 export async function handleGetActivities(env, user) {
   let sql = "SELECT a.*, (SELECT COUNT(*) FROM activity_volunteers WHERE activity_id = a.id) AS volunteer_count";

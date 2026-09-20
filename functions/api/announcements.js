@@ -3,9 +3,13 @@ import { rateLimit, json, error, parseBody, isValidImageUrl, isAdmin, safeParse,
 export async function handleGetAnnouncements(env, id) {
   try {
     if (id) {
-      const row = await env.DB.prepare("SELECT a.*, COALESCE(c.cnt, 0) AS comment_count FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.id = ?").bind(id).first();
+      // 详情接口瘦身：不返回 base64 图片全文（attachAnnounceImages 曾把图片拼进响应拖慢文字首屏），
+      // 仅标记 has_image；图片由 GET /api/announcements/images?ids= 获取，前端先渲染文字 + 扫光占位
+      const row = await env.DB.prepare(`SELECT a.id, a.title, a.content, a.created_by, a.created_at, a.status, a.reject_reason, a.reviewed_by,
+        COALESCE(c.cnt, 0) AS comment_count,
+        CASE WHEN EXISTS(SELECT 1 FROM announcement_images ai WHERE ai.announcement_id = a.id) OR (a.image_url != '' AND a.image_url != '[]') THEN 1 ELSE 0 END AS has_image
+        FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.id = ?`).bind(id).first();
       if (!row) return error('公告不存在', 404);
-      await attachAnnounceImages(env, [row]);
       return json(row);
     }
     // 列表接口瘦身：不返回 base64 图片全文（曾导致响应体 2.4MB），仅标记 has_image；

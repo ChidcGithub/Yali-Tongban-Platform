@@ -1,10 +1,10 @@
 import { json, error, setCleanupCount, checkSiteClosed, requireMember, autoCleanup, initDB, isAdmin, isOwner, generateCaptcha } from './_utils.js';
 import { handleLogin, handleRegister, handleMe, handleCheckName, handleChangePassword, handleChangeName, handleChangeClass, handleChangeOwnDepartment } from './auth.js';
-import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDeleteIssue } from './issues.js';
+import { handleGetIssues, handleCreateIssue, handleUpdateIssueStatus, handleDeleteIssue, handleGetIssueImages } from './issues.js';
 import { handleCreateFeedback, handleGetFeedback, handleDeleteFeedback } from './feedback.js';
 import { handleGetAnnouncements, handleGetAnnouncementImages, handleCreateAnnouncement, handleDeleteAnnouncement, handleUpdateAnnouncement, handleReviewAnnouncement, handleAddAnnouncementImage } from './announcements.js';
 import { handleGetFinance, handleGetFinanceImages, handleCreateFinance, handleCompleteFinance, handleReimburseFinance, handleUnreimburseFinance, handleDeleteFinance } from './finance.js';
-import { handleGetReviews, handleCreateReview, handleReviewItem, handleDeleteReview } from './reviews.js';
+import { handleGetReviews, handleGetReviewImages, handleCreateReview, handleReviewItem, handleDeleteReview } from './reviews.js';
 import { handleGetActivities, handleCreateActivity, handleDeleteActivity, handleSignupVolunteer, handleUnsignupVolunteer, handleGetActivityVolunteers } from './activities.js';
 import { handleGetHallBookings, handleCreateHallBooking, handleWithdrawHallBooking, handleDeleteHallBooking, handleReviewHallBooking, handleGetHallPendingWithConflicts } from './halls.js';
 import { handleUnlockAchievement, handleCheckCounts } from './achievements.js';
@@ -15,9 +15,10 @@ import { handleGetMembers, handleGetRegistrations, handleApproveRegistration, ha
 import { handleSync } from './sync.js';
 import { handleGetBanner } from './banner.js';
 import { handleGetPublicSettings } from './settings.js';
-import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats } from './duty.js';
+import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
 import { handleAdminGetFeatures, handleAdminToggleFeature, handleAdminInvite, handleAdminResetUser, handleAdminGetInvitations, handleGetPendingFeatures, handleRespondFeature, handleGetEnabledFeatures } from './features.js';
 import { handleGetMessages, handleGetUnreadCount, handleMarkRead, handleMarkAllRead, handleDeleteMessage, handleClearRead } from './messages.js';
+import { handleAIStatus, handleAIMessagesGet, handleAIMessagesClear, handleAIMemoriesGet, handleAIMemoriesClear, handleAIChat } from './ai.js';
 
 /* ═══════════════════════════════════════════════════════
    声明式路由表（原 292 行 if/else 重构而来）
@@ -43,7 +44,8 @@ const routes = [
   { p: '/api/auth/change-class', m: 'POST', h: c => handleChangeClass(c.request, c.env, c.user) },
   { p: '/api/auth/change-department', m: 'POST', h: c => handleChangeOwnDepartment(c.request, c.env, c.user) },
   // Issues
-  { p: '/api/issues', m: 'GET', h: c => handleGetIssues(c.env) },
+  { p: '/api/issues/images', m: 'GET', h: c => handleGetIssueImages(c.env, c.url.searchParams.get('ids')) },
+  { p: '/api/issues', m: 'GET', h: c => handleGetIssues(c.env, c.user) },
   { p: '/api/issues', m: 'POST', h: c => handleCreateIssue(c.request, c.env) },
   { p: /^\/api\/issues\/(\d+)\/status$/, m: 'PUT', h: c => handleUpdateIssueStatus(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/issues\/(\d+)$/, m: 'DELETE', h: c => handleDeleteIssue(c.request, c.env, c.m[1], c.user) },
@@ -67,12 +69,13 @@ const routes = [
   { p: /^\/api\/finance\/(\d+)\/unreimburse$/, m: 'PUT', h: c => handleUnreimburseFinance(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/finance\/(\d+)$/, m: 'DELETE', h: c => handleDeleteFinance(c.request, c.env, c.m[1], c.user) },
   // Reviews
+  { p: '/api/reviews/images', m: 'GET', h: c => handleGetReviewImages(c.env, c.url.searchParams.get('ids'), c.user) },
   { p: '/api/reviews', m: 'GET', h: c => handleGetReviews(c.env, c.user) },
   { p: '/api/reviews', m: 'POST', h: c => handleCreateReview(c.request, c.env, c.user) },
   { p: /^\/api\/reviews\/(\d+)\/review$/, m: 'PUT', h: c => handleReviewItem(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/reviews\/(\d+)$/, m: 'DELETE', h: c => handleDeleteReview(c.request, c.env, c.m[1], c.user) },
   // Banner
-  { p: '/api/banner', m: 'GET', h: c => handleGetBanner(c.env) },
+  { p: '/api/banner', m: 'GET', h: c => handleGetBanner(c.env, c.url) },
   // Activities
   { p: '/api/activities', m: 'GET', h: c => handleGetActivities(c.env, c.user) },
   { p: '/api/activities', m: 'POST', h: c => handleCreateActivity(c.request, c.env, c.user) },
@@ -128,8 +131,16 @@ const routes = [
   { p: '/api/messages', m: 'DELETE', h: c => handleClearRead(c.env, c.user) },
   { p: /^\/api\/messages\/(\d+)$/, m: 'POST', h: c => handleMarkRead(c.env, c.user, c.m[1]) },
   { p: /^\/api\/messages\/(\d+)$/, m: 'DELETE', h: c => handleDeleteMessage(c.env, c.user, c.m[1]) },
+
+  // AI 助手（仅登录用户；配置见 functions/api/ai.js 头部注释）
+  { p: '/api/ai/status', m: 'GET', h: c => handleAIStatus(c.env) },
+  { p: '/api/ai/messages', m: 'GET', h: c => handleAIMessagesGet(c.env, c.user) },
+  { p: '/api/ai/messages', m: 'DELETE', h: c => handleAIMessagesClear(c.env, c.user) },
+  { p: '/api/ai/memories', m: 'GET', h: c => handleAIMemoriesGet(c.env, c.user) },
+  { p: '/api/ai/memories', m: 'DELETE', h: c => handleAIMemoriesClear(c.env, c.user) },
+  { p: '/api/ai/chat', m: 'POST', h: c => handleAIChat(c.request, c.env, c.user) },
   // Comments
-  { p: /^\/api\/comments\/(announcement|issue)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
+  { p: /^\/api\/comments\/(announcement|issue|issue_note)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
   { p: '/api/comments', m: 'POST', h: c => handleCreateComment(c.request, c.env, c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'PUT', h: c => handleUpdateComment(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'DELETE', h: c => handleDeleteComment(c.request, c.env, c.m[1], c.user) },
@@ -166,6 +177,8 @@ const routes = [
   { p: '/api/duty/scores/modify', m: 'POST', h: c => handleDutyScoreModify(c.request, c.env, c.user) },
   { p: '/api/duty/scores/cancel', m: 'POST', h: c => handleDutyScoreCancel(c.request, c.env) },
   { p: '/api/duty/scores/batch-cancel', m: 'POST', h: c => handleDutyScoreBatchCancel(c.request, c.env, c.user) },
+  // 周报：导出标签的两张表格与全部导出按钮共用（管理员，无行数上限）
+  { p: '/api/duty/report', m: 'GET', h: c => handleDutyReport(c.env, c.url, c.user) },
   { p: '/api/duty/department-stats', m: 'GET', h: c => handleDutyDepartmentStats(c.env, c.url) },
   { p: '/api/duty/schedule/manual', m: 'POST', h: c => handleDutyScheduleManual(c.request, c.env, c.user) },
   { p: '/api/duty/schedule/manual', m: 'DELETE', h: c => handleDutyScheduleManualDelete(c.request, c.env, c.user) },

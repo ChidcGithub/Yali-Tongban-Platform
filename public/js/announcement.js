@@ -1,6 +1,7 @@
 let user = null;
 let currentId = null;
 let comments = [];
+let detailImgCache = {}; // 公告 id → 图片 url 数组（详情接口瘦身后异步拉取）
 
 async function init() {
   user = await checkAuth();
@@ -19,20 +20,22 @@ async function init() {
 async function loadAnnouncement(id) {
   try {
     let found = null;
-    // 详情接口（保留完整图片字段，列表接口瘦身后不再返回 image_url）
+    // 详情接口（瘦身后仅含文字字段 + has_image 标记，图片由 loadDetailImagesLazy 异步拉取）
     await fetchWithCache(`/api/announcements/${id}`,
       () => apiGet(`/api/announcements/${id}`),
-      data => { renderAnnouncement(data); setTimeout(() => checkTimeTraveler(data.created_at), 200); }
+      data => { renderAnnouncement(data); setTimeout(() => checkTimeTraveler(data.created_at), 200); },
+      2 // 详情结构 v2（has_image 标记、无 image_url 全文）；版本不符自动作废旧缓存
     );
   } catch (err) {
-    // fallback: 列表缓存兜底
+    // fallback: 列表缓存兜底（列表同为 v2 瘦身结构）
     try {
       await fetchWithCache('/api/announcements',
         () => apiGet('/api/announcements'),
         data => {
           found = data.find(a => a.id === Number(id));
           if (found) { renderAnnouncement(found); setTimeout(() => checkTimeTraveler(found.created_at), 200); }
-        }
+        },
+        2
       );
     } catch (e) {
       const el = document.getElementById('announceDetail');
@@ -46,13 +49,11 @@ async function loadAnnouncement(id) {
 }
 
 function renderAnnouncement(a) {
-  const imgs = parseImages(a.image_url);
   const canEdit = user && (user.name === a.created_by || user.role === 'admin' || user.role === 'owner');
   const el = document.getElementById('announceDetail');
   if (!el) return;
 
   const statusBadge = a.status && a.status !== '已通过' ? Badge(a.status + (a.reject_reason ? `：${escapeHtml(a.reject_reason)}` : ''), a.status === '待审核' ? 'pending' : 'reject') : '';
-  const imgsList = JSON.stringify(imgs.map(s => ({ src: dataUrlToBlobUrl(s) })));
   const headerHtml = `<strong style="font-size:1.2rem">${escapeHtml(a.title)}</strong>
     <div style="display:flex;gap:6px">
       ${canEdit ? `<button class="btn btn-sm btn-outline" style="color:var(--md-primary)" data-action="editAnnouncement" data-id="${a.id}">编辑</button>` : ''}
@@ -64,10 +65,51 @@ function renderAnnouncement(a) {
     ${statusBadge}
   </div>
   <div class="announce-article-text" style="white-space:pre-wrap;font-size:1rem;line-height:1.8">${escapeHtml(a.content)}</div>
-  ${imgs.length > 0 ? `<div class="np-article-images" style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${imgs.map(url => `<img class="img-clickable" src="${attrEscape(url)}" alt="公告图片" style="max-width:100%;max-height:500px;border-radius:var(--md-shape-xs);cursor:pointer" data-action="openLightbox" data-url="${attrEscape(dataUrlToBlobUrl(url))}" data-images='${imgsList.replace(/'/g, '&#39;')}' onerror="this.style.display='none'">`).join('')}</div>` : ''}`;
+  ${renderDetailImageArea(a)}`;
   el.innerHTML = Card(headerHtml, bodyHtml) + '\n    <div id="commentSection" style="margin-top:24px"></div>';
 
   if (comments.length) renderComments();
+  loadDetailImagesLazy(a);
+}
+
+function renderDetailImages(imgs) {
+  const imgsList = JSON.stringify(imgs.map(s => ({ src: dataUrlToBlobUrl(s) })));
+  return `<div class="np-article-images" style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center">${imgs.map(url => `<img class="img-clickable" src="${attrEscape(url)}" alt="公告图片" style="max-width:100%;max-height:500px;border-radius:var(--md-shape-xs);cursor:pointer" data-action="openLightbox" data-url="${attrEscape(dataUrlToBlobUrl(url))}" data-images='${imgsList.replace(/'/g, '&#39;')}' onerror="this.style.display='none'">`).join('')}</div>`;
+}
+
+// 详情接口瘦身后：有缓存图 → 直接渲染图片；有图但未加载 → 扫光骨架占位，图片到达后替换；无图不渲染
+function renderDetailImageArea(a) {
+  const imgs = detailImgCache[a.id];
+  if (imgs && imgs.length > 0) return renderDetailImages(imgs);
+  if (a.has_image) return `<div class="np-article-images announce-detail-img-skeleton" style="margin-top:16px"><div class="g-skeleton" style="height:300px;width:100%;max-width:640px;margin:0 auto;border-radius:var(--md-shape-sm)"></div></div>`;
+  return '';
+}
+
+// 图片就绪后原位替换扫光占位（与列表页同款逻辑，避免文字闪烁）
+async function loadDetailImagesLazy(a) {
+  if (!a.has_image || detailImgCache[a.id]) return;
+  let urls = [];
+  try {
+    const map = await apiGet(`/api/announcements/images?ids=${a.id}`);
+    if (map && Array.isArray(map[a.id])) urls = map[a.id];
+  } catch {}
+  detailImgCache[a.id] = urls;
+  const holder = document.querySelector('.announce-detail-img-skeleton');
+  if (!holder) return;
+  if (urls.length === 0) { holder.remove(); return; }
+  const html = renderDetailImages(urls);
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  const imgs = tmp.querySelectorAll('img');
+  let loaded = 0;
+  const finish = () => {
+    loaded++;
+    if (loaded >= imgs.length) holder.outerHTML = html;
+  };
+  imgs.forEach(img => {
+    if (img.complete) finish();
+    else { img.onload = finish; img.onerror = finish; }
+  });
 }
 
 async function loadComments(type, id) {

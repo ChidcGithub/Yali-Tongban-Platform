@@ -1,18 +1,41 @@
 {
   "name": "yali-tongban",
-  "version": "3.0.0",
+  "version": "4.0.1.823-0918",
   "private": true,
   "description": "雅礼团委-通办 工作管理平台",
   "scripts": {
-    "dev": "wrangler pages dev public/",
-    "deploy": "wrangler pages deploy public/ --project-name=yali-tongban",
-    "db:init": "wrangler d1 execute yali-tongban-db --file=schema.sql"
+    "dev": "vite",
+    "build": "node scripts/check-glyphs.mjs && node scripts/icon-refs.mjs && node scripts/check-components.mjs && node scripts/check-classnames.mjs && node scripts/check-identifiers.mjs && node scripts/check-dialogs.mjs && vite build",
+    "build:dev": "vite build --mode development --outDir dist-dev",
+    "preview": "vite preview",
+    "dev:pages": "wrangler pages dev dist/",
+    "deploy": "npm run build && wrangler pages deploy dist/ --project-name=yali-tongban",
+    "db:init": "wrangler d1 execute yali-tongban-db --file=schema.sql",
+    "check:glyphs": "node scripts/check-glyphs.mjs",
+    "gen:page": "node scripts/gen-winui-page.mjs",
+    "verify": "node scripts/verify-page.mjs",
+    "check:components": "node scripts/check-components.mjs",
+    "regress": "node scripts/regress.mjs",
+    "regress:dev": "node scripts/regress.mjs --dev",
+    "smoke": "node scripts/smoke-winui.mjs",
+    "smoke:dev": "node scripts/smoke-winui.mjs --dev",
+    "check:icons": "node scripts/check-icon-render.mjs",
+    "subset:icons": "node scripts/subset-icons.mjs",
+    "icons:sheet": "node scripts/icon-sheet.mjs && node scripts/icon-usage.mjs && node scripts/icon-refs.mjs",
+    "check:icons:fast": "node scripts/check-icon-render.mjs --fast",
+    "check:classnames": "node scripts/check-classnames.mjs",
+    "check:identifiers": "node scripts/check-identifiers.mjs",
+    "check:dialogs": "node scripts/check-dialogs.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "jose": "^5.9.6"
+    "jose": "^5.9.6",
+    "vue": "^3.5.42"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.8",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^7.3.6",
     "wrangler": "^4.101.0"
   }
 }

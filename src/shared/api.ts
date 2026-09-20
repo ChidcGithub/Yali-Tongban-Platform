@@ -1,0 +1,207 @@
+/**
+ * 站点既有能力的类型化封装
+ *
+ * 网络层、鉴权、缓存、提示这些都在 public/js/*.js 里已经实现好了
+ * （api.js / utils.js / auth.js），WinUI 页面直接复用，不重复实现。
+ * 这里只做一层薄封装，把 window 上的全局函数变成带类型的模块接口。
+ */
+
+interface LegacyWindow {
+  apiGet?: (url: string) => Promise<unknown>
+  apiPost?: (url: string, body?: unknown) => Promise<unknown>
+  apiPut?: (url: string, body?: unknown) => Promise<unknown>
+  apiDel?: (url: string) => Promise<unknown>
+  toast?: (msg: string, type?: string) => void
+  getUser?: () => { name?: string; role?: string } | null
+  isAdmin?: (user: unknown) => boolean
+  cacheGet?: (key: string) => { data?: unknown } | null
+  fetchWithCache?: (
+    key: string,
+    fetcher: () => Promise<unknown>,
+    onData: (data: unknown) => void,
+    version?: number
+  ) => Promise<unknown>
+  formatTime?: (value: unknown) => string
+  escapeHtml?: (value: unknown) => string
+  attrEscape?: (value: unknown) => string
+  dataUrlToBlobUrl?: (value: string) => string
+  openModal?: (config: Record<string, unknown>) => void
+  closeModal?: (el: Element | null) => void
+  openLightbox?: (src: string) => void
+  confirmAction?: (message: string, cb: (ok: boolean) => void) => void
+  logout?: () => void
+  checkCountAchievements?: () => void
+  checkNovice?: () => void
+  CaptchaWidget?: new (containerId: string) => {
+    getData: () => Record<string, string>
+    refresh: () => void
+  }
+}
+
+const w = window as unknown as LegacyWindow
+
+function need<T>(fn: T | undefined, name: string): T {
+  if (!fn) throw new Error(`[winui] 站点脚本未加载：${name}`)
+  return fn
+}
+
+export const apiGet = <T = unknown>(url: string): Promise<T> =>
+  need(w.apiGet, 'apiGet')(url) as Promise<T>
+
+export const apiPost = <T = unknown>(url: string, body?: unknown): Promise<T> =>
+  need(w.apiPost, 'apiPost')(url, body) as Promise<T>
+
+export const apiPut = <T = unknown>(url: string, body?: unknown): Promise<T> =>
+  need(w.apiPut, 'apiPut')(url, body) as Promise<T>
+
+export const apiDel = <T = unknown>(url: string): Promise<T> =>
+  need(w.apiDel, 'apiDel')(url) as Promise<T>
+
+/** 统一提示（沿用站点既有的 toast，属「缺失控件」，按约定保留原实现） */
+export const toast = (msg: string, type: 'success' | 'error' = 'success'): void => {
+  w.toast?.(msg, type)
+}
+
+export const getUser = () => w.getUser?.() ?? null
+export const isAdmin = () => !!w.isAdmin?.(getUser())
+
+export const formatTime = (v: unknown): string => w.formatTime?.(v) ?? ''
+export const openLightbox = (src: string): void => w.openLightbox?.(src)
+export const confirmAction = (msg: string, cb: (ok: boolean) => void): void =>
+  w.confirmAction?.(msg, cb)
+
+/** 图片：站点把 base64 存 D1，这里转成 blob URL 供灯箱使用 */
+export const toBlobUrl = (dataUrl: string): string =>
+  w.dataUrlToBlobUrl?.(dataUrl) ?? dataUrl
+
+export type CaptchaInstance = {
+  getData: () => Record<string, string>
+  refresh: () => void
+}
+
+/**
+ * 挂载站点自研验证码组件（`public/js/captcha.js` 的 `CaptchaWidget`）。
+ *
+ * ⚠️ 为什么必须走这个函数而不是直接 `new Ctor(id)`：
+ * `CaptchaWidget` 的构造函数在**拿不到容器时静默 return**（不 render、不 load），
+ * 于是 `getData()` 永远返回空 token，提交必然被后端判「人机验证失败」——
+ * 而且不报任何错。实测踩过两次：注册表单用 `v-if` 隐藏（容器不在 DOM 里），
+ * 以及投票页在 `loading` 分支还开着的时候就去实例化。
+ *
+ * 这里把「容器不存在 / 没渲染出来」变成显式 `console.warn`，
+ * 回归脚本会把生产构建里出现的任何 warn 判为失败 —— 让它不可能再静默。
+ */
+export function mountCaptcha(containerId: string): CaptchaInstance | null {
+  const Ctor = w.CaptchaWidget
+  if (!Ctor) {
+    // 页面没加载 /js/captcha.js —— 同样要可见，别静默
+    console.warn(`[winui] CAPTCHA_WIDGET_NOT_MOUNTED：页面未加载 captcha.js（#${containerId}）`)
+    return null
+  }
+
+  const container = document.getElementById(containerId)
+  if (!container) {
+    console.warn(
+      `[winui] CAPTCHA_WIDGET_NOT_MOUNTED：容器 #${containerId} 不在 DOM 里 ` +
+        `（多半被 v-if 挡在条件分支后，或实例化早于渲染完成）`
+    )
+    return null
+  }
+
+  const instance = new Ctor(containerId) as CaptchaInstance
+  if (!container.querySelector('.captcha-wrap')) {
+    console.warn(
+      `[winui] CAPTCHA_WIDGET_NOT_MOUNTED：容器 #${containerId} 存在但未被渲染`
+    )
+    return null
+  }
+  return instance
+}
+
+export const legacy = {
+  get openModal() {
+    return w.openModal
+  },
+  get closeModal() {
+    return w.closeModal
+  },
+  /** utils.js 里的全局关闭函数，模态框自定义 footer 按钮会用到 */
+  get closeActiveModal() {
+    return (w as unknown as { closeActiveModal?: () => void }).closeActiveModal
+  },
+  get CaptchaWidget() {
+    return w.CaptchaWidget
+  },
+  get checkCountAchievements() {
+    return w.checkCountAchievements
+  },
+  get checkNovice() {
+    return w.checkNovice
+  },
+  get fetchWithCache() {
+    return w.fetchWithCache
+  },
+  get cacheGet() {
+    return w.cacheGet
+  }
+}
+
+/**
+ * 站点统一对话框（站点风格），替换全站的 window.confirm / prompt / alert
+ * 与遗留 openModal 弹窗：
+ *   confirmDialog({ message, danger?, countdown? }) → Promise<boolean>
+ *   promptDialog({ message, defaultValue?, validate? }) → Promise<string | null>
+ *   alertDialog({ message }) → Promise<boolean>
+ * 实现见 `shared/confirm.ts`，宿主是挂在 body 的 `ConfirmDialog.vue`。
+ * 从 api 里再导一次，是为了让各页面只改调用本身、不用额外加一行 import。
+ */
+export { confirmDialog, promptDialog, alertDialog } from './confirm'
+
+/* ── 会话 ── */
+
+/** 清掉本地残留的登录信息（localStorage 里的 user / token） */
+function clearLocalSession() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('user')
+}
+
+/**
+ * 真正登出。返回「后端是否确认会话已失效」。
+ *
+ * ⚠️ **只清 localStorage 是不够的**：会话凭据是后端种的 **HttpOnly cookie**，
+ * 前端读不到也删不掉，只有 `POST /api/auth/logout` 能让它失效
+ * （后端回 `Set-Cookie: token=; Max-Age=0`）。
+ *
+ * 旧版这段逻辑写在 `nav.js` 的 `logout()` 里，而 WinUI 页面**刻意不加载 nav.js**
+ * —— 于是 `window.logout` 是 undefined，调用方只能退化成「只清 localStorage」：
+ * 表面上登出了，cookie 还在，下次进管理页（或刷新）时 `/api/auth/me`
+ * 一请求就又把用户「恢复」成登录态。
+ *
+ * ⚠️ 另外必须**等响应回来再跳转**：请求还在飞就 `location.href`，
+ * 浏览器会把请求一起中断，cookie 清不掉 —— 这就是「有时候登出没效果」的来源。
+ */
+export async function logoutUser(): Promise<boolean> {
+  let cleared = false
+
+  // 最多两次：一次不成功就再试一次（网络抖动 / Set-Cookie 丢了）
+  for (let attempt = 0; attempt < 2 && !cleared; attempt += 1) {
+    try {
+      await apiPost('/api/auth/logout')
+    } catch {
+      /* 后端返回体不带 success 字段时 api() 会抛错，但 **Set-Cookie 已经生效**，
+         所以这里不能当失败 —— 真实结果由下面的探针判定 */
+    }
+
+    try {
+      // 直接用 fetch 探针：401/403 才等于「cookie 真的没了」，
+      // 这样能把「请求失败/断网」和「确实还登录着」区分开
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      cleared = res.status === 401 || res.status === 403
+    } catch {
+      // 网络异常 → 本轮无法确认，留给下一次循环；两次都不行则如实返回 false
+    }
+  }
+
+  clearLocalSession()
+  return cleared
+}

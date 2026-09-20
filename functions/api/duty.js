@@ -405,6 +405,68 @@ export async function handleDutyScoreBatchCancel(request, env, user) {
   return json({ message: `已销分 ${validRecs.length} 条`, cancelled: validRecs.length });
 }
 
+// ========== Report（值日周报数据） ==========
+
+/**
+ * 「导出」标签的数据源：本周值日人员 + 扣分记录。
+ * 页面上的两张表格、一键导出、导出本周/全部扣分**共用这一个接口** ——
+ * 保证「屏幕上看到的」和「导出文件里的」永远是同一份数据。
+ *
+ * 两个刻意的设计：
+ *  1. **必须校验管理员**。`GET /api/duty/scores` 是公开的（值日签到面板无需登录），
+ *     但「某人被扣了多少分」属于管理数据，不能顺着公开接口随手导走。
+ *  2. **不受 `/api/duty/scores` 的 `LIMIT 200` 约束**。导出要的是全量，
+ *     拿那个列表接口去拼 CSV 会在记录多时**静默截断**（而且没人看得出来）。
+ *
+ * 口径说明（写进导出文件的表头，避免看报表的人误解）：
+ *  - 「扣分」只取 `score < 0`，手动加分的记录不算
+ *  - **已销分的不计入** —— 销分意味着这条扣分不成立
+ *
+ * @param scope 'week'（默认，值日安排 + 区间内扣分）| 'all'（只要扣分，且不限区间）
+ */
+export async function handleDutyReport(env, url, user) {
+  if (!isAdmin(user)) return error('需要管理员权限', 403);
+
+  const scope = url.searchParams.get('scope') === 'all' ? 'all' : 'week';
+  const start = url.searchParams.get('start') || new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+  let end = url.searchParams.get('end');
+  if (!end) {
+    const d = new Date(start + 'T00:00:00');
+    d.setDate(d.getDate() + 6);
+    end = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  let schedule = [];
+  if (scope === 'week') {
+    const rows = await env.DB.prepare(
+      `SELECT ds.date, ds.staff_a_id, ds.staff_b_id,
+              a.department a_dept, a.class a_class, a.name a_name,
+              b.department b_dept, b.class b_class, b.name b_name
+       FROM duty_schedule ds
+       LEFT JOIN duty_staff a ON ds.staff_a_id = a.id
+       LEFT JOIN duty_staff b ON ds.staff_b_id = b.id
+       WHERE ds.date >= ? AND ds.date <= ?
+       ORDER BY ds.date`
+    ).bind(start, end).all();
+    schedule = rows.results || [];
+  }
+
+  let q = `SELECT dsr.id, dsr.date, dsr.period, dsr.score, dsr.reason, dsr.recorder,
+                  ds.department, ds.class, ds.name
+           FROM duty_score_record dsr
+           LEFT JOIN duty_staff ds ON dsr.staff_id = ds.id
+           WHERE dsr.is_cancelled = 0 AND dsr.score < 0`;
+  const p = [];
+  if (scope === 'week') {
+    q += ' AND dsr.date >= ? AND dsr.date <= ?';
+    p.push(start, end);
+  }
+  q += ' ORDER BY dsr.date, ds.name';
+  const ded = await env.DB.prepare(q).bind(...p).all();
+
+  return json({ scope, start, end, schedule, deductions: ded.results || [] });
+}
+
 // ========== Admin Users ==========
 
 export async function handleDutyAdminsList(env) {

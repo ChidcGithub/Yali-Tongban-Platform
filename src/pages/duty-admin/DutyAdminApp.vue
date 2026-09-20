@@ -1,0 +1,1673 @@
+<template>
+  <YaliShell current="duty-admin" title="值日管理">
+    <div class="yali-page">
+      <!-- SelectorBar 的 SelectionChanged 首参是 sender，只暴露 Items / SelectedItem，
+           没有 SelectedIndex —— 必须自己 indexOf，否则 tabIndex 恒被写回 0 -->
+      <SelectorBar :Items="tabItems" :SelectedItem="tabItems[tabIndex]" class="da-pivot"
+                   @SelectionChanged="(a) => (tabIndex = a?.Items?.indexOf(a.SelectedItem) ?? 0)" />
+
+      <!-- ── 排班 ── -->
+      <template v-if="tabIndex === 0">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="scheduleRangeText" :FontSize="15" :FontWeight="500" />
+            <div class="yali-head-tools">
+              <!-- 日历是**两周**一屏（14 天），所以翻页也必须以 14 天为单位。
+                   早先按钮叫「上周/下周」却只传了 ±2 —— 参数被当成「天」用，
+                   于是每次只挪 2 天，看到的还是同一屏的绝大部分。 -->
+              <Button @Click="shiftPage(-1)">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.back" :FontSize="13" /><span>上一页</span>
+                </span>
+              </Button>
+              <Button @Click="shiftPage(1)">
+                <span class="yali-btn-inner">
+                  <span>下一页</span><FontIcon :Glyph="GLYPH.forward" :FontSize="13" />
+                </span>
+              </Button>
+              <Button @Click="generate">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.calendar" :FontSize="13" /><span>自动生成 60 天</span>
+                </span>
+              </Button>
+              <Button @Click="clearAll">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>清空排班</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+          <!-- 四种导出统一收在「导出」标签里（原先「导出排班」孤零零挂在日历旁，
+               导出类操作混在编辑操作中间既容易误点、也找不到其他导出入口） -->
+          <p class="yali-muted da-gap">导出与批量导入都在「导出」标签页</p>
+
+          <div v-if="scheduleLoading" class="yali-muted da-gap">加载中…</div>
+          <div v-else class="da-cal">
+            <div v-for="w in WEEKDAYS" :key="w" class="da-cal-head">{{ w }}</div>
+            <!-- 点日期单元格手动排 / 删当天的班（旧版 openScheduleModal → /schedule/manual） -->
+            <button v-for="(cell, i) in calendar" :key="i" type="button" class="da-cal-cell"
+                    :class="{ 'is-empty': !cell, 'is-today': cell?.isToday, 'is-set': !!cell?.a_id }"
+                    @click="cell && openManual(cell)">
+              <template v-if="cell">
+                <span class="da-cal-date">{{ cell.day }}</span>
+                <span v-if="cell.a" class="da-cal-name">{{ cell.a }}</span>
+                <span v-else class="da-cal-name yali-muted">未排班</span>
+                <span v-if="cell.b" class="da-cal-name yali-muted">{{ cell.b }}</span>
+              </template>
+            </button>
+          </div>
+          <p class="yali-muted da-gap">点日期可手动指定当天的两名干事</p>
+        </section>
+      </template>
+
+      <!-- ── 干事 ── -->
+      <template v-else-if="tabIndex === 1">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'干事名单（' + staff.length + ' 人）'" :FontSize="15" :FontWeight="500" />
+            <div class="yali-head-tools">
+              <Button @Click="openImport">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.people" :FontSize="13" /><span>批量导入</span>
+                </span>
+              </Button>
+              <Button @Click="staffDialog = true">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>添加干事</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+          <p v-if="!staff.length" class="yali-muted da-gap">暂无干事</p>
+          <div v-for="s in staff" :key="s.id" class="da-row">
+            <span class="da-name">{{ s.name }}</span>
+            <span class="yali-muted">{{ s.class || '—' }}</span>
+            <span class="yali-chip">{{ s.department || '未分配' }}</span>
+            <span v-if="!s.user_id" class="yali-chip yali-chip-warn" title="还未绑定平台账号">未映射</span>
+            <button class="da-del" type="button" title="删除" @click="removeStaff(s)">
+              <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <!-- ── 评分 ── -->
+      <template v-else-if="tabIndex === 2">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'评分记录（' + filteredScores.length + ' 条）'" :FontSize="15" :FontWeight="500" />
+            <div class="da-head-btns">
+              <Button :IsEnabled="selectedScoreIds.length > 0" @Click="openBatchCancel">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.close" :FontSize="13" />
+                  <span>批量销分{{ selectedScoreIds.length ? ' (' + selectedScoreIds.length + ')' : '' }}</span>
+                </span>
+              </Button>
+              <Button @Click="openScoreDialog">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>手动加减分</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+
+          <!-- 筛选（旧版 admin.js 的部门 / 状态 / 姓名三重筛选） -->
+          <div class="da-filters">
+            <ComboBox :ItemsSource="scoreDeptItems" v-model:SelectedIndex="scoreDeptIndex" class="da-filter-dept" />
+            <ToggleSwitch v-model:IsOn="scoreOnlyActive" OnContent="仅未销分" OffContent="全部" />
+            <TextBox v-model:Text="scoreKeyword" PlaceholderText="按姓名搜索" :MaxLength="20" class="da-filter-kw" />
+            <Button v-if="scores.length" @Click="toggleSelectAll">
+              <span class="yali-btn-inner"><span>{{ allSelected ? '取消全选' : '全选' }}</span></span>
+            </Button>
+          </div>
+
+          <p v-if="!filteredScores.length" class="yali-muted da-gap">暂无评分记录</p>
+          <div v-for="r in filteredScores" :key="r.id" class="da-row" :class="{ 'is-cancelled': r.is_cancelled }">
+            <CheckBox v-if="!r.is_cancelled" :IsChecked="selectedScoreIds.includes(r.id)"
+                      @update:IsChecked="(v) => toggleScoreSelection(r.id, v)" />
+            <span class="da-name">{{ r.name }}</span>
+            <span class="yali-muted">{{ r.date }} {{ r.period || '' }}</span>
+            <span class="da-score" :class="Number(r.score) >= 0 ? 'da-plus' : 'da-minus'">
+              {{ Number(r.score) > 0 ? '+' + r.score : r.score }}
+            </span>
+            <span class="yali-muted da-reason">{{ r.reason || '' }}</span>
+            <button v-if="!r.is_cancelled" class="da-del" type="button" title="取消该记录"
+                    @click="cancelScore(r)">
+              <FontIcon :Glyph="GLYPH.close" :FontSize="13" />
+            </button>
+            <span v-else class="yali-chip">已取消</span>
+          </div>
+        </section>
+      </template>
+
+      <!-- ── 时段 ── -->
+      <template v-else-if="tabIndex === 3">
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock Text="时段配置" :FontSize="15" :FontWeight="500" />
+            <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!savingPeriods" @Click="savePeriods">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.check" :FontSize="13" />
+                <span>{{ savingPeriods ? '保存中…' : '保存时段' }}</span>
+              </span>
+            </Button>
+          </div>
+          <p v-if="!periods.length" class="yali-muted da-gap">暂无配置</p>
+          <div v-for="(p, i) in periods" :key="p.id ?? p.label" class="da-period">
+            <span class="da-name">{{ p.label }}</span>
+            <!-- ComboBox 的 SelectionChanged 只带 {AddedItems,RemovedItems}，没有 SelectedIndex；
+                 索引只从 update:SelectedIndex 出来 -->
+            <ComboBox :ItemsSource="SLOT_TYPES" :SelectedIndex="slotIndex(p)"
+                      @update:SelectedIndex="(i) => (p.slot_type = SLOT_VALUES[i] ?? SLOT_VALUES[0])"
+                      class="da-period-slot" />
+            <TextBox v-model:Text="p.start_time" PlaceholderText="09:00" :MaxLength="5" class="da-period-time" />
+            <NumberBox v-model:Value="p.auto_absent_min" :Minimum="0" :Maximum="120"
+                       class="da-period-min" />
+            <span class="yali-muted da-period-hint">缺岗判定（分钟）</span>
+            <button class="da-del" type="button" title="删除该时段" @click="removePeriod(i)">
+              <FontIcon :Glyph="GLYPH.delete" :FontSize="14" />
+            </button>
+          </div>
+          <div class="yali-form-actions da-gap">
+            <Button @Click="addPeriod">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.add" :FontSize="13" /><span>新增时段</span>
+              </span>
+            </Button>
+          </div>
+          <p class="yali-muted da-gap">
+            时段名称是签到记录的键，改动只影响展示与判定时间；标记为「不考勤」的时段不会出现在评分选择里。
+          </p>
+        </section>
+      </template>
+
+      <!-- ── 导出 ──
+           四种导出集中在这里：一键导出（含 AI 建议）/ 本周扣分 / 全部扣分 / 排班。
+           两张表格与该标签的导出走**同一个接口**（/api/duty/report），
+           保证「屏幕上看到的」和「导出文件里的」不会是两份数据。 -->
+      <template v-else>
+        <section class="yali-section">
+          <div class="yali-section-head">
+            <TextBlock :Text="'值日周报 · ' + reportRangeText" :FontSize="15" :FontWeight="500" />
+            <div class="yali-head-tools">
+              <Button :IsEnabled="!buildBusy" :Style="'{StaticResource AccentButtonStyle}'" @Click="exportWeeklyReport">
+                <span class="yali-btn-inner">
+                  <FontIcon :Glyph="GLYPH.download" :FontSize="13" />
+                  <span>{{ buildBusy ? '生成中…' : '一键导出（含 AI 建议）' }}</span>
+                </span>
+              </Button>
+            </div>
+          </div>
+
+          <div class="da-export-bar">
+            <Button :IsEnabled="!buildBusy && reportDeductions.length > 0" @Click="exportScores('week')">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出本周扣分</span>
+              </span>
+            </Button>
+            <Button :IsEnabled="!buildBusy" @Click="exportScores('all')">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出全部扣分</span>
+              </span>
+            </Button>
+            <Button :IsEnabled="!buildBusy" @Click="exportSchedule">
+              <span class="yali-btn-inner">
+                <FontIcon :Glyph="GLYPH.download" :FontSize="13" /><span>导出排班（当前两周）</span>
+              </span>
+            </Button>
+            <span class="yali-muted da-export-hint">导出为 CSV，Excel 可直接打开（含 UTF-8 BOM，中文不乱码）</span>
+          </div>
+
+          <div v-if="reportLoading" class="yali-muted da-gap">加载中…</div>
+          <template v-else>
+            <!-- 表一：本周值日人员 -->
+            <h3 class="da-h">一、本周值日人员（{{ reportSchedule.length }} 天）</h3>
+            <div class="da-tablewrap">
+              <table class="da-table">
+                <thead>
+                  <tr><th>日期</th><th>星期</th><th>干事 A</th><th>干事 B</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in reportSchedule" :key="r.date">
+                    <td>{{ r.date }}</td>
+                    <td>{{ weekdayLabel(r.date) }}</td>
+                    <td>{{ staffLabel(r.a_dept, r.a_class, r.a_name) }}</td>
+                    <td>{{ staffLabel(r.b_dept, r.b_class, r.b_name) }}</td>
+                  </tr>
+                  <tr v-if="!reportSchedule.length">
+                    <td colspan="4" class="yali-muted">本周暂无排班</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 表二：本周扣分人员 -->
+            <h3 class="da-h">
+              二、本周扣分人员（{{ reportDeductions.length }} 条 · 合计 {{ reportDeductTotal }} 分）
+            </h3>
+            <div class="da-tablewrap">
+              <table class="da-table">
+                <thead>
+                  <tr><th>日期</th><th>姓名</th><th>班级</th><th>部门</th>
+                      <th>时段</th><th>分值</th><th>原因</th><th>记录人</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in reportDeductions" :key="r.id">
+                    <td>{{ r.date }}</td>
+                    <td>{{ r.name || '—' }}</td>
+                    <td>{{ r.class || '—' }}</td>
+                    <td>{{ r.department || '—' }}</td>
+                    <td>{{ r.period || '—' }}</td>
+                    <td class="da-minus">{{ r.score }}</td>
+                    <td class="da-cell-wrap">{{ r.reason || '—' }}</td>
+                    <td>{{ r.recorder || '—' }}</td>
+                  </tr>
+                  <tr v-if="!reportDeductions.length">
+                    <td colspan="8" class="yali-muted">本周没有扣分记录</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="yali-muted da-gap">
+              口径：只统计负分记录，<strong>已销分的不计入</strong>（销分表示该扣分已作废）。
+            </p>
+
+            <!-- AI 建议 -->
+            <h3 class="da-h">三、AI 建议</h3>
+            <div class="da-ai">
+              <div class="da-ai-bar">
+                <Button :IsEnabled="!aiLoading && aiConfigured !== false" @Click="onGenerateAdvice">
+                  <span class="yali-btn-inner">
+                    <FontIcon :Glyph="GLYPH.ai" :FontSize="13" />
+                    <span>{{ aiLoading ? '生成中…' : (aiText ? '重新生成' : '生成 AI 建议') }}</span>
+                  </span>
+                </Button>
+                <span class="yali-muted">{{ aiHint }}</span>
+              </div>
+              <pre v-if="aiText" class="da-ai-text">{{ aiText }}</pre>
+              <p v-else class="yali-muted">
+                {{ aiConfigured === false
+                  ? '本站尚未配置 AI 助手，「一键导出」会跳过这一段（报表其余内容照常导出）。'
+                  : '尚未生成。「一键导出」会自动生成并写入 CSV 的第三段。' }}
+              </p>
+            </div>
+          </template>
+        </section>
+      </template>
+    </div>
+
+    <!-- 批量导入干事（走既有的 /api/duty/staff/upload） -->
+    <ContentDialog :IsOpen="importDialog" Title="批量导入干事"
+                   @update:IsOpen="importDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">
+          每行一条，用逗号分隔：<strong>姓名,班级,部门</strong>（中英文逗号、制表符都认）。
+          也可以直接从 Excel 复制两列粘进来。
+        </p>
+        <!-- ⚠️ TextBox 没有 Height 属性（只有 MinHeight/MaxHeight）；
+             而且 AcceptsReturn 时它会跟着内容自动增高，本来也不需要固定高度 -->
+        <TextBox v-model:Text="importText" :AcceptsReturn="true" TextWrapping="Wrap" :MinHeight="120"
+                 PlaceholderText="张三,2412,宣传部&#10;李四,2413,组织部" />
+        <p class="yali-muted">
+          已解析 <strong>{{ importRows.length }}</strong> 条
+          <template v-if="importSkipped">，{{ importSkipped }} 行格式不对已忽略</template>
+          <template v-if="importRows.length">：{{ importPreview }}</template>
+        </p>
+        <p v-if="importResult" class="yali-muted">{{ importResult }}</p>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="importDialog = false">
+            <span class="yali-btn-inner"><span>关闭</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy && importRows.length > 0"
+                  @Click="doImport">
+            <span class="yali-btn-inner"><span>{{ busy ? '导入中…' : `导入 ${importRows.length} 条` }}</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 添加干事 -->
+    <ContentDialog :IsOpen="staffDialog" Title="添加干事"
+                   @update:IsOpen="staffDialog = $event">
+      <div class="yali-form">
+        <label class="yali-field">
+          <span class="yali-field-label">姓名 <em>*</em></span>
+          <TextBox v-model:Text="staffDraft.name" PlaceholderText="干事姓名" :MaxLength="50" />
+        </label>
+        <div class="yali-form-row">
+          <label class="yali-field">
+            <span class="yali-field-label">班级</span>
+            <TextBox v-model:Text="staffDraft.class" PlaceholderText="如 2501" :MaxLength="4" />
+          </label>
+          <label class="yali-field">
+            <span class="yali-field-label">部门</span>
+            <ComboBox :ItemsSource="DEPARTMENTS" v-model:SelectedIndex="staffDeptIndex" />
+          </label>
+        </div>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="staffDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="addStaff">
+            <span class="yali-btn-inner"><span>添加</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 销分（后端要 score_record_id + reason + admin_id + password 四项，
+         其中 reason 是必填、admin_id 必须是一个真实管理员账号用于验密） -->
+    <ContentDialog :IsOpen="cancelDialog" Title="取消评分记录"
+                   @update:IsOpen="cancelDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">
+          将取消 {{ cancelTarget?.name }} 在 {{ cancelTarget?.date }} {{ cancelTarget?.period }} 的记录
+          （{{ Number(cancelTarget?.score ?? 0) > 0 ? '+' : '' }}{{ cancelTarget?.score }} 分）
+        </p>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人 <em>*</em></span>
+          <ComboBox :ItemsSource="adminNames" :SelectedIndex="cancelAdminIndex"
+                    @update:SelectedIndex="(i) => (cancelAdminIndex = i ?? -1)"
+                    PlaceholderText="选择管理员" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">取消原因 <em>*</em></span>
+          <TextBox v-model:Text="cancelReason" PlaceholderText="如：录入有误" :MaxLength="200" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">密码 <em>*</em></span>
+          <PasswordBox v-model:Password="cancelPassword" PlaceholderText="销分人账号密码" />
+        </label>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="cancelDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="confirmCancelScore">
+            <span class="yali-btn-inner"><span>{{ busy ? '处理中…' : '确认取消' }}</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 手动加减分 -->
+    <ContentDialog :IsOpen="scoreDialog" Title="手动加减分"
+                   @update:IsOpen="scoreDialog = $event">
+      <div class="yali-form">
+        <label class="yali-field">
+          <span class="yali-field-label">干事 <em>*</em></span>
+          <ComboBox :ItemsSource="staffNames" :SelectedIndex="scoreStaffIndex"
+                    @update:SelectedIndex="(i) => (scoreStaffIndex = i ?? -1)"
+                    PlaceholderText="选择干事" />
+        </label>
+        <div class="yali-form-row">
+          <label class="yali-field">
+            <span class="yali-field-label">时段 <em>*</em></span>
+            <ComboBox :ItemsSource="scorePeriodNames" :SelectedIndex="scorePeriodIndex"
+                      @update:SelectedIndex="(i) => (scorePeriodIndex = i ?? -1)"
+                      PlaceholderText="选择时段" />
+          </label>
+          <label class="yali-field">
+            <span class="yali-field-label">分值（正数加分 / 负数扣分）</span>
+            <NumberBox v-model:Value="scoreDraft.score" PlaceholderText="如 2 或 -1" />
+          </label>
+          <label class="yali-field">
+            <span class="yali-field-label">日期</span>
+            <TextBox v-model:Text="scoreDraft.date" PlaceholderText="YYYY-MM-DD" />
+          </label>
+        </div>
+        <label class="yali-field">
+          <span class="yali-field-label">原因</span>
+          <TextBox v-model:Text="scoreDraft.reason" PlaceholderText="选填" :MaxLength="200" />
+        </label>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="scoreDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="addScore">
+            <span class="yali-btn-inner"><span>提交</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 批量销分（旧版 duty-admin.js 的复选框 + 全选 + 批量销分） -->
+    <ContentDialog :IsOpen="batchDialog" :Title="'批量销分 · ' + selectedScoreIds.length + ' 条'" @update:IsOpen="batchDialog = $event">
+      <div class="yali-form">
+        <p class="yali-muted">将对所选的 {{ selectedScoreIds.length }} 条记录执行销分并回滚对应考勤得分。</p>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人 <em>*</em></span>
+          <ComboBox :ItemsSource="adminNames" v-model:SelectedIndex="batchAdminIndex"
+                    PlaceholderText="选择管理员" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">销分理由 <em>*</em></span>
+          <TextBox v-model:Text="batchReason" PlaceholderText="如：排班调整，原扣分作废" :MaxLength="200" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">销分人密码 <em>*</em></span>
+          <PasswordBox v-model:Password="batchPassword" PlaceholderText="输入销分人密码以确认" />
+        </label>
+        <div class="yali-form-actions">
+          <Button :IsEnabled="!busy" @Click="batchDialog = false">
+            <span class="yali-btn-inner"><span>取消</span></span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="confirmBatchCancel">
+            <span class="yali-btn-inner"><span>确认销分</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+
+    <!-- 手动排班（点日历某一天打开；旧版 openScheduleModal） -->
+    <ContentDialog :IsOpen="manualOpen" :Title="'手动排班 · ' + manualDate" CloseButtonText="取消"
+                   @update:IsOpen="manualOpen = $event">
+      <div class="yali-form">
+        <label class="yali-field">
+          <span class="yali-field-label">干事 A <em>*</em></span>
+          <ComboBox :ItemsSource="staffOptions" v-model:SelectedIndex="manualAIndex"
+                    PlaceholderText="选择干事" />
+        </label>
+        <label class="yali-field">
+          <span class="yali-field-label">干事 B <em>*</em></span>
+          <ComboBox :ItemsSource="staffOptions" v-model:SelectedIndex="manualBIndex"
+                    PlaceholderText="选择干事" />
+        </label>
+        <p class="yali-muted">当前：{{ manualHasRecord ? manualA + ' / ' + manualB : '未排班' }}</p>
+        <div class="yali-form-actions">
+          <Button v-if="manualHasRecord" :IsEnabled="!busy" @Click="deleteManual">
+            <span class="yali-btn-inner">
+              <FontIcon :Glyph="GLYPH.delete" :FontSize="13" /><span>删除当天排班</span>
+            </span>
+          </Button>
+          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!busy" @Click="saveManual">
+            <span class="yali-btn-inner"><span>保存</span></span>
+          </Button>
+        </div>
+      </div>
+    </ContentDialog>
+  </YaliShell>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import YaliShell from '../../components/YaliShell.vue'
+import { GLYPH } from '../../shared/icons'
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog
+} from '../../shared/api'
+import { requireAdmin } from '../../shared/guard'
+import { streamChat } from '../../shared/ai-chat'
+
+const TABS = ['排班', '干事', '评分', '时段', '导出']
+const tabItems = TABS.map((Text) => ({ Text }))
+
+/** 标签页可由 ?tab=<序号或名称> 指定，便于分享链接与刷新后保持 */
+const initialTab = (() => {
+  const raw = new URLSearchParams(window.location.search).get('tab')
+  if (!raw) return 0
+  const byName = TABS.indexOf(raw)
+  if (byName >= 0) return byName
+  const n = Number(raw)
+  return Number.isInteger(n) && n >= 0 && n < TABS.length ? n : 0
+})()
+const tabIndex = ref(initialTab)
+
+watch(tabIndex, (i) => {
+  const url = new URL(window.location.href)
+  if (i === 0) url.searchParams.delete('tab')
+  else url.searchParams.set('tab', String(i))
+  window.history.replaceState(null, '', url)
+})
+const busy = ref(false)
+
+const DEPARTMENTS = ['书记处', '团总支', '社团部', '记者站', '宣传部', '组织部', '青志协', '办公室']
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
+/* ── 排班 ── */
+interface ScheduleRow {
+  date: string
+  staff_a_id?: number
+  staff_b_id?: number
+  a_name?: string
+  b_name?: string
+  cancelled?: boolean
+}
+const schedule = ref<ScheduleRow[]>([])
+const scheduleLoading = ref(false)
+const weekStart = ref(startOfWeek(new Date()))
+
+function startOfWeek(d: Date) {
+  const x = new Date(d)
+  x.setDate(x.getDate() - x.getDay())
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+const scheduleRangeText = computed(() => {
+  const s = weekStart.value
+  const e = new Date(s)
+  e.setDate(e.getDate() + 13)
+  return `${fmt(s)} 起两周排班`
+})
+
+function fmt(d: Date) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/**
+ * 翻页：一页 = 两周 = 14 天（与日历视图一致）。
+ *
+ * 早先这个函数收的是「天数」，按钮却按「上周/下周」的语义传 ±2，
+ * 结果每次只挪 2 天 —— 看起来就像翻页失效。
+ */
+const DAYS_PER_PAGE = 14
+
+function shiftPage(delta: number) {
+  const d = new Date(weekStart.value)
+  d.setDate(d.getDate() + delta * DAYS_PER_PAGE)
+  weekStart.value = d
+  loadSchedule()
+}
+
+/** 两周日历（周日为一周之首） */
+const calendar = computed(() => {
+  const map: Record<string, ScheduleRow> = {}
+  for (const r of schedule.value) map[(r.date || '').slice(0, 10)] = r
+
+  const today = fmt(new Date())
+  const cells: Array<null | {
+    day: number
+    date: string
+    a?: string
+    b?: string
+    a_id?: number
+    b_id?: number
+    isToday: boolean
+  }> = []
+  const start = new Date(weekStart.value)
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start)
+    d.setDate(d.getDate() + i)
+    const key = fmt(d)
+    const row = map[key]
+    cells.push({
+      day: d.getDate(),
+      date: key,
+      a: row?.a_name,
+      b: row?.b_name,
+      a_id: row?.staff_a_id,
+      b_id: row?.staff_b_id,
+      isToday: key === today
+    })
+  }
+  return cells
+})
+
+/* ── 手动排班（旧版 openScheduleModal / saveManualSchedule / deleteManualSchedule） ── */
+const manualOpen = ref(false)
+const manualDate = ref('')
+const manualHasRecord = ref(false)
+const manualA = ref('')
+const manualB = ref('')
+const manualAIndex = ref(-1)
+const manualBIndex = ref(-1)
+/** 下拉里带部门+班级，避免同名干事选错 */
+const staffOptions = computed(() =>
+  staff.value.map((s) => `${s.department || ''}${s.class || ''} ${s.name}`.trim())
+)
+
+async function openManual(cell: { date: string; a_id?: number; b_id?: number }) {
+  manualDate.value = cell.date
+  manualHasRecord.value = !!cell.a_id
+  // 干事列表可能还没加载过（用户没进过「干事」标签）
+  if (!staff.value.length) await loadStaff()
+  const ai = staff.value.findIndex((s) => s.id === cell.a_id)
+  const bi = staff.value.findIndex((s) => s.id === cell.b_id)
+  manualAIndex.value = ai
+  manualBIndex.value = bi
+  manualA.value = ai >= 0 ? staff.value[ai].name : ''
+  manualB.value = bi >= 0 ? staff.value[bi].name : ''
+  manualOpen.value = true
+}
+
+async function saveManual() {
+  const a = manualAIndex.value >= 0 ? staff.value[manualAIndex.value] : null
+  const b = manualBIndex.value >= 0 ? staff.value[manualBIndex.value] : null
+  if (!a || !b) return toast('请选择两名干事', 'error')
+  if (a.id === b.id) return toast('两名干事不能相同', 'error')
+  busy.value = true
+  try {
+    await apiPost('/api/duty/schedule/manual', {
+      date: manualDate.value,
+      staff_a_id: a.id,
+      staff_b_id: b.id
+    })
+    toast('排班已保存', 'success')
+    manualOpen.value = false
+    await loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function deleteManual() {
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除 ${manualDate.value} 的排班吗？`, danger: true }))) return
+  busy.value = true
+  try {
+    await apiDel(`/api/duty/schedule/manual?date=${encodeURIComponent(manualDate.value)}`)
+    toast('排班已删除', 'success')
+    manualOpen.value = false
+    await loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function loadSchedule() {
+  scheduleLoading.value = true
+  try {
+    const s = weekStart.value
+    const e = new Date(s)
+    e.setDate(e.getDate() + 13)
+    schedule.value = (await apiGet<ScheduleRow[]>(
+      `/api/duty/schedule?start=${fmt(s)}&end=${fmt(e)}`
+    )) ?? []
+  } catch (err) {
+    toast((err as Error).message, 'error')
+    schedule.value = []
+  } finally {
+    scheduleLoading.value = false
+  }
+}
+
+async function generate() {
+  if (!(await confirmDialog({ title: '确认生成', message: '将自动生成未来 60 个工作日的排班（跳过周末），继续？' }))) return
+  try {
+    await apiPost('/api/duty/schedule/generate')
+    toast('排班已生成', 'success')
+    loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/** 导出当前可见的两周排班（后端 /api/duty/schedule/export 直接回 CSV）
+    走 downloadCsv 而不是自己 createObjectURL：那里会补 UTF-8 BOM，
+    否则 Excel 打开中文是乱码（后端直出的 CSV 没有 BOM）。 */
+async function exportSchedule() {
+  const s = weekStart.value
+  const e = new Date(s)
+  e.setDate(e.getDate() + 13)
+  try {
+    const res = await fetch(`/api/duty/schedule/export?start=${fmt(s)}&end=${fmt(e)}`)
+    if (!res.ok) {
+      let msg = '导出失败'
+      try {
+        const d = await res.json()
+        if (d?.error) msg = d.error
+      } catch { /* 非 JSON */ }
+      throw new Error(msg)
+    }
+    downloadCsv(`duty-schedule-${fmt(s)}.csv`, await res.text())
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+async function clearAll() {
+  if (!(await confirmDialog({ title: '确认清空', message: '确定清空所有排班、考勤与评分记录吗？此操作不可撤销。', danger: true, countdown: 5 }))) return
+  if (!(await confirmDialog({ title: '确认清空', message: '再次确认：清空后无法恢复，是否继续？', danger: true, countdown: 5 }))) return
+  try {
+    await apiPost('/api/duty/schedule/clear-all')
+    toast('已清空', 'success')
+    loadSchedule()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* ── 干事 ── */
+interface Staff {
+  id: number
+  name: string
+  class?: string
+  department?: string
+  /** 0 表示还没绑定平台账号（旧版会打「未映射」徽标） */
+  user_id?: number
+}
+const staff = ref<Staff[]>([])
+const staffNames = computed(() => staff.value.map((s) => s.name))
+
+const staffDialog = ref(false)
+const staffDeptIndex = ref(-1)
+const staffDraft = reactive({ name: '', class: '' })
+
+async function loadStaff() {
+  try {
+    staff.value = (await apiGet<Staff[]>('/api/duty/staff')) ?? []
+  } catch {
+    staff.value = []
+  }
+}
+
+async function addStaff() {
+  if (!staffDraft.name.trim()) return toast('请填写姓名', 'error')
+  busy.value = true
+  try {
+    await apiPost('/api/duty/staff', {
+      name: staffDraft.name.trim(),
+      class: staffDraft.class.trim(),
+      department: staffDeptIndex.value >= 0 ? DEPARTMENTS[staffDeptIndex.value] : ''
+    })
+    toast('已添加', 'success')
+    staffDialog.value = false
+    staffDraft.name = ''
+    staffDraft.class = ''
+    staffDeptIndex.value = -1
+    loadStaff()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function removeStaff(s: Staff) {
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除干事「${s.name}」吗？`, danger: true }))) return
+  try {
+    await apiDel(`/api/duty/staff/${s.id}`)
+    staff.value = staff.value.filter((x) => x.id !== s.id)
+    toast('已删除', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+/* ── 评分 ── */
+interface ScoreRow {
+  id: number
+  date: string
+  name: string
+  department?: string
+  period?: string
+  score: number
+  reason?: string
+  is_cancelled?: boolean
+}
+const scores = ref<ScoreRow[]>([])
+const scoreDialog = ref(false)
+const scoreStaffIndex = ref(-1)
+const scorePeriodIndex = ref(-1)
+const scoreDraft = reactive({ score: 0, date: fmt(new Date()), reason: '' })
+
+/** 评分可选时段：排除标记为「不考勤」的时段（与原页面一致） */
+const scorePeriods = computed(() => periods.value.filter((p) => p.slot_type !== 'no_duty'))
+const scorePeriodNames = computed(() => scorePeriods.value.map((p) => p.label))
+
+/** 打开评分对话框前确保时段已加载（时段只在切到第 4 个标签时才拉取） */
+async function openScoreDialog() {
+  if (!periods.value.length) await loadPeriods()
+  scorePeriodIndex.value = scorePeriods.value.length ? 0 : -1
+  scoreDialog.value = true
+}
+
+async function loadScores() {
+  try {
+    const from = fmt(new Date(Date.now() - 30 * 86400000))
+    scores.value = (await apiGet<ScoreRow[]>(`/api/duty/scores?date_from=${from}`)) ?? []
+    selectedScoreIds.value = []
+  } catch {
+    scores.value = []
+  }
+}
+
+/* ── 评分筛选：部门 / 是否已销分 / 姓名（旧版三重筛选） ── */
+const scoreDeptIndex = ref(0)
+const scoreOnlyActive = ref(false)
+const scoreKeyword = ref('')
+const scoreDeptItems = computed(() => {
+  const depts: string[] = []
+  for (const r of scores.value) {
+    if (r.department && !depts.includes(r.department)) depts.push(r.department)
+  }
+  return ['全部部门', ...depts]
+})
+const filteredScores = computed(() => {
+  const dept = scoreDeptIndex.value > 0 ? scoreDeptItems.value[scoreDeptIndex.value] : ''
+  const kw = scoreKeyword.value.trim()
+  return scores.value.filter((r) => {
+    if (dept && r.department !== dept) return false
+    if (scoreOnlyActive.value && r.is_cancelled) return false
+    if (kw && !r.name.includes(kw)) return false
+    return true
+  })
+})
+
+/* ── 批量销分 ── */
+const selectedScoreIds = ref<number[]>([])
+const batchDialog = ref(false)
+const batchAdminIndex = ref(-1)
+const batchReason = ref('')
+const batchPassword = ref('')
+
+const allSelected = computed(
+  () =>
+    filteredScores.value.length > 0 &&
+    filteredScores.value.every((r) => r.is_cancelled || selectedScoreIds.value.includes(r.id))
+)
+
+function toggleScoreSelection(id: number, checked: boolean) {
+  const set = new Set(selectedScoreIds.value)
+  if (checked) set.add(id)
+  else set.delete(id)
+  selectedScoreIds.value = [...set]
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) selectedScoreIds.value = []
+  else selectedScoreIds.value = filteredScores.value.filter((r) => !r.is_cancelled).map((r) => r.id)
+}
+
+async function openBatchCancel() {
+  if (!selectedScoreIds.value.length) return toast('请先选择记录', 'error')
+  batchReason.value = ''
+  batchPassword.value = ''
+  batchAdminIndex.value = -1
+  if (!admins.value.length) await loadAdmins()
+  batchDialog.value = true
+}
+
+async function confirmBatchCancel() {
+  if (batchAdminIndex.value < 0) return toast('请选择销分人', 'error')
+  if (!batchReason.value.trim()) return toast('请填写销分理由', 'error')
+  if (!batchPassword.value) return toast('请输入密码', 'error')
+  busy.value = true
+  try {
+    const res = await apiPost<{ cancelled?: number }>('/api/duty/scores/batch-cancel', {
+      score_record_ids: selectedScoreIds.value,
+      reason: batchReason.value.trim(),
+      admin_id: admins.value[batchAdminIndex.value]?.id,
+      password: batchPassword.value
+    })
+    toast(`已销分 ${res?.cancelled ?? selectedScoreIds.value.length} 条`, 'success')
+    batchDialog.value = false
+    await loadScores()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function addScore() {
+  if (scoreStaffIndex.value < 0) return toast('请选择干事', 'error')
+  if (scorePeriodIndex.value < 0) return toast('请选择时段', 'error')
+  if (!scoreDraft.score) return toast('请填写分值', 'error')
+  busy.value = true
+  try {
+    // 后端要的是 staff_id + period，不是姓名；此前传 name 会以「缺少必填字段」失败
+    const target = staff.value[scoreStaffIndex.value]
+    await apiPost('/api/duty/scores/add', {
+      staff_id: target?.id,
+      period: scorePeriods.value[scorePeriodIndex.value]?.label,
+      score: Number(scoreDraft.score),
+      date: scoreDraft.date,
+      reason: scoreDraft.reason
+    })
+    toast('已记录', 'success')
+    scoreDialog.value = false
+    scoreDraft.score = 0
+    scoreDraft.reason = ''
+    loadScores()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+/* ── 销分 ── */
+interface AdminUser { id: number; name: string; role: string }
+
+const cancelDialog = ref(false)
+const cancelTarget = ref<ScoreRow | null>(null)
+const cancelReason = ref('')
+const cancelPassword = ref('')
+const cancelAdminIndex = ref(-1)
+const admins = ref<AdminUser[]>([])
+const adminNames = computed(() => admins.value.map((a) => `${a.name}（${a.role}）`))
+
+async function loadAdmins() {
+  try {
+    const data = await apiGet<AdminUser[]>('/api/duty/admins')
+    // 显式判数组：非数组会被下面的 adminNames.map 直接抛异常，
+    // 而调用方（销分/批量销分）是在「打开对话框」的路径上 —— 会连带把对话框也打不开
+    admins.value = Array.isArray(data) ? data : []
+  } catch {
+    admins.value = []
+  }
+}
+
+async function cancelScore(r: ScoreRow) {
+  cancelTarget.value = r
+  cancelReason.value = ''
+  cancelPassword.value = ''
+  cancelAdminIndex.value = -1
+  if (!admins.value.length) await loadAdmins()
+  cancelDialog.value = true
+}
+
+async function confirmCancelScore() {
+  const r = cancelTarget.value
+  if (!r) return
+  if (cancelAdminIndex.value < 0) return toast('请选择销分人', 'error')
+  if (!cancelReason.value.trim()) return toast('请填写取消原因', 'error')
+  if (!cancelPassword.value) return toast('请输入密码', 'error')
+  busy.value = true
+  try {
+    // 后端字段：score_record_id / reason / admin_id / password（不是 record_id）
+    await apiPost('/api/duty/scores/cancel', {
+      score_record_id: r.id,
+      reason: cancelReason.value.trim(),
+      admin_id: admins.value[cancelAdminIndex.value]?.id,
+      password: cancelPassword.value
+    })
+    r.is_cancelled = true
+    cancelDialog.value = false
+    toast('已取消该评分记录', 'success')
+    loadScores()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+/* ── 时段（后端 /api/duty/periods 支持 PUT，字段：label / slot_type / sort_order / start_time / auto_absent_min） ── */
+interface PeriodConfig {
+  label: string
+  id?: number
+  slot_type?: string
+  sort_order?: number
+  start_time?: string
+  auto_absent_min?: number
+}
+
+const SLOT_VALUES = ['small_break', 'big_break', 'no_duty']
+const SLOT_TYPES = ['小课间', '大课间', '不考勤']
+
+const periods = ref<PeriodConfig[]>([])
+const savingPeriods = ref(false)
+
+function slotIndex(p: PeriodConfig) {
+  const i = SLOT_VALUES.indexOf(p.slot_type ?? '')
+  return i >= 0 ? i : 0
+}
+
+function addPeriod() {
+  periods.value.push({
+    label: '',
+    slot_type: 'small_break',
+    sort_order: periods.value.length + 1,
+    start_time: '08:00',
+    auto_absent_min: 10
+  })
+}
+
+async function removePeriod(i: number) {
+  if (!(await confirmDialog({ title: '确认删除', message: `确定删除时段「${periods.value[i]?.label || '（未命名）'}」吗？`, danger: true }))) return
+  periods.value.splice(i, 1)
+}
+
+async function savePeriods() {
+  const payload = periods.value.map((p, i) => ({
+    id: p.id,
+    label: (p.label || '').trim(),
+    slot_type: p.slot_type || 'small_break',
+    sort_order: p.sort_order ?? i + 1,
+    start_time: p.start_time || '08:00',
+    auto_absent_min: Number(p.auto_absent_min ?? 10)
+  }))
+  if (payload.some((p) => !p.label)) {
+    toast('时段名称不能为空', 'error')
+    return
+  }
+  if (payload.some((p) => !/^\d{1,2}:\d{2}$/.test(p.start_time))) {
+    toast('开始时间格式应为 HH:MM', 'error')
+    return
+  }
+  savingPeriods.value = true
+  try {
+    await apiPut('/api/duty/periods', { periods: payload })
+    toast('时段配置已保存', 'success')
+    await loadPeriods()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    savingPeriods.value = false
+  }
+}
+
+async function loadPeriods() {
+  try {
+    periods.value = (await apiGet<PeriodConfig[]>('/api/duty/periods')) ?? []
+  } catch {
+    periods.value = []
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   批量导入干事
+   ──────────────────────────────────────────────────────────
+   后端 `/api/duty/staff/upload` 是老接口，一直没人在 WinUI 版页面上接。
+   格式取「姓名,班级,部门」一行一条：这也是从 Excel 复制两列粘进来的形态
+   （Excel 复制出来是制表符分隔，所以分隔符要把 \t 和中文逗号都认掉）。
+   ══════════════════════════════════════════════════════════ */
+interface ImportRow { name: string; class: string; department: string }
+
+/** 解析粘贴的文本。分隔符认 英文逗号 / 中文逗号 / 制表符；字段不足 3 个的整行忽略 */
+function parseImportRows(text: string): { rows: ImportRow[]; skipped: number } {
+  const rows: ImportRow[] = []
+  let skipped = 0
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const parts = line.split(/[,\t，]+/).map((s) => s.trim()).filter(Boolean)
+    // 表头行（从 Excel 连表头一起复制是常事）不算错误，也不导入
+    if (/^(姓名|名字|name)$/i.test(parts[0] ?? '')) continue
+    if (parts.length < 3) {
+      skipped += 1
+      continue
+    }
+    rows.push({ name: parts[0], class: parts[1], department: parts.slice(2).join(' ') })
+  }
+  return { rows, skipped }
+}
+
+const importDialog = ref(false)
+const importText = ref('')
+const importResult = ref('')
+const importParsed = computed(() => parseImportRows(importText.value))
+const importRows = computed(() => importParsed.value.rows)
+const importSkipped = computed(() => importParsed.value.skipped)
+const importPreview = computed(() => {
+  const list = importRows.value
+  const head = list.slice(0, 3).map((r) => `${r.name}（${r.class}·${r.department}）`).join('、')
+  return list.length > 3 ? `${head} 等 ${list.length} 人` : head
+})
+
+function openImport() {
+  importDialog.value = true
+  importText.value = ''
+  importResult.value = ''
+}
+
+async function doImport() {
+  if (!importRows.value.length || busy.value) return
+  busy.value = true
+  try {
+    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string }[] }>(
+      '/api/duty/staff/upload',
+      { staffList: importRows.value }
+    )
+    const n = Number(r?.inserted) || 0
+    const w = r?.warnings ?? []
+    /* 未在平台注册的人 user_id=0 → 进不了站内通知，名单上的「未映射」徽标就是这么来的。
+       （历史上这里会「分配初始密码」，但那个密码**全站没有任何地方会去校验**，
+       所以提示里不提它 —— 说了反而让人以为可以拿它登录。） */
+    importResult.value =
+      `已导入 ${n} 人` +
+      (w.length ? `；其中 ${w.length} 人未在平台注册，名单里会标「未映射」，收不到站内通知。` : '')
+    toast(`已导入 ${n} 人`, 'success')
+    importText.value = ''
+    await loadStaff()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    busy.value = false
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
+   导出
+   ──────────────────────────────────────────────────────────
+   本标签的两张表格与四种导出**共用 /api/duty/report 一份数据**，
+   避免「表格是一个数、导出文件里又是另一个数」。
+
+   ⚠️ 为什么不复用 `/api/duty/scores` 去拼 CSV：那个接口带 `LIMIT 200`，
+   记录多起来会**静默截断**，导出的报表少了人也没人看得出来。
+   ══════════════════════════════════════════════════════════ */
+interface ReportScheduleRow {
+  date: string
+  a_dept?: string; a_class?: string; a_name?: string
+  b_dept?: string; b_class?: string; b_name?: string
+}
+interface ReportDeduction {
+  id: number; date: string; period?: string; score: number
+  reason?: string; recorder?: string
+  department?: string; class?: string; name?: string
+}
+interface ReportData {
+  scope: string; start: string; end: string
+  schedule: ReportScheduleRow[]
+  deductions: ReportDeduction[]
+}
+
+const reportSchedule = ref<ReportScheduleRow[]>([])
+const reportDeductions = ref<ReportDeduction[]>([])
+const reportLoading = ref(false)
+const buildBusy = ref(false)
+const aiText = ref('')
+const aiHint = ref('')
+const aiLoading = ref(false)
+/** null = 还没问过；false = 站点没配 AI（导出时跳过建议段，不当失败） */
+const aiConfigured = ref<boolean | null>(null)
+
+/** 「本周」= 排班页日历的第一周（周日~周六），与页面既有的周起始定义保持一致 */
+function reportWeek() {
+  const s = startOfWeek(new Date())
+  const e = new Date(s)
+  e.setDate(e.getDate() + 6)
+  return { start: fmt(s), end: fmt(e) }
+}
+const reportRangeText = computed(() => {
+  const { start, end } = reportWeek()
+  return `${start} ~ ${end}`
+})
+
+function deductTotalOf(list: ReportDeduction[]): number {
+  return Math.round(list.reduce((n, r) => n + Number(r.score || 0), 0) * 10) / 10
+}
+const reportDeductTotal = computed(() => deductTotalOf(reportDeductions.value))
+
+function weekdayLabel(date: string): string {
+  const d = new Date(date + 'T00:00:00')
+  return Number.isNaN(d.getTime()) ? '' : '周' + WEEKDAYS[d.getDay()]
+}
+function staffLabel(dept?: string, cls?: string, name?: string): string {
+  return `${dept ?? ''}${cls ?? ''} ${name ?? ''}`.trim() || '—'
+}
+
+async function fetchReport(scope: 'week' | 'all'): Promise<ReportData> {
+  const { start, end } = reportWeek()
+  return await apiGet<ReportData>(`/api/duty/report?scope=${scope}&start=${start}&end=${end}`)
+}
+
+async function loadReport() {
+  reportLoading.value = true
+  try {
+    const d = await fetchReport('week')
+    reportSchedule.value = d?.schedule ?? []
+    reportDeductions.value = d?.deductions ?? []
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    reportLoading.value = false
+  }
+}
+
+async function loadAiStatus() {
+  try {
+    const s = await apiGet<{ configured?: boolean }>('/api/ai/status')
+    aiConfigured.value = !!s?.configured
+  } catch {
+    aiConfigured.value = false
+  }
+}
+
+/* ── CSV ── */
+
+/** CSV 单元格：含逗号 / 引号 / 换行就整体包引号，内部引号翻倍。
+    AI 建议里逗号和换行都很常见，这一步不能省（否则整张表错列）。 */
+function csvCell(v: unknown): string {
+  const s = v === null || v === undefined ? '' : String(v)
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+function csvRows(rows: unknown[][]): string {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n'
+}
+
+/**
+ * 下载 CSV。
+ * ⚠️ **必须带 UTF-8 BOM**：不带的话 Excel 按系统 ANSI 解（简体中文 Windows 是 GBK），
+ * 整份报表的中文全乱码。后端 `/duty/schedule/export` 直出的 CSV 原本就是这样 ——
+ * 所以这里统一在下载这一层补 BOM，而不是改后端（改后端只治那一个接口）。
+ */
+function downloadCsv(filename: string, body: string) {
+  const blob = new Blob(['\uFEFF' + body], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 报表文件头（把口径写进文件本身，免得看报表的人误解数据） */
+function reportMeta(scopeLabel: string): unknown[][] {
+  return [
+    ['雅礼团委 · 通办　值日报表'],
+    [scopeLabel],
+    ['导出时间', new Date().toLocaleString('zh-CN')],
+    ['统计口径', '扣分只统计负分记录；已销分的不计入'],
+    [],
+  ]
+}
+
+const DEDUCTION_HEAD = ['日期', '姓名', '班级', '部门', '时段', '分值', '原因', '记录人']
+const deductionRow = (r: ReportDeduction): unknown[] => [
+  r.date, r.name ?? '', r.class ?? '', r.department ?? '', r.period ?? '',
+  r.score, r.reason ?? '', r.recorder ?? ''
+]
+
+/** 一键导出：本周值日人员 + 本周扣分人员 + AI 建议（一份 CSV 三段） */
+async function exportWeeklyReport() {
+  if (buildBusy.value) return
+  buildBusy.value = true
+  try {
+    const d = await fetchReport('week')
+    const { start, end } = reportWeek()
+
+    /* AI 建议是**加分项，不能让它把导出拖失败**：站点没配 AI 或上游报错时，
+       前两段照常导出，第三段写明原因。 */
+    let advice = aiText.value
+    if (!advice && aiConfigured.value !== false) {
+      aiHint.value = '正在生成 AI 建议…'
+      try {
+        advice = await generateAdvice(d)
+      } catch (err) {
+        aiHint.value = `AI 建议生成失败：${(err as Error).message}`
+      }
+    }
+
+    const rows: unknown[][] = [
+      ...reportMeta(`统计区间 ${start} ~ ${end}`),
+      ['一、本周值日人员'],
+      ['日期', '星期', '干事A', '干事B'],
+      ...d.schedule.map((r) => [
+        r.date, weekdayLabel(r.date),
+        staffLabel(r.a_dept, r.a_class, r.a_name),
+        staffLabel(r.b_dept, r.b_class, r.b_name)
+      ]),
+      d.schedule.length ? ['合计', `${d.schedule.length} 天`] : ['（本周暂无排班）'],
+      [],
+      ['二、本周扣分人员'],
+      DEDUCTION_HEAD,
+      ...d.deductions.map(deductionRow),
+      ['合计', `${d.deductions.length} 条`, '', '', '', deductTotalOf(d.deductions), '', ''],
+      [],
+      ['三、AI 建议'],
+      ...(advice
+        ? advice.split('\n').map((l) => [l])
+        : [['（本站未配置 AI 助手，或本次生成失败，未包含建议）']])
+    ]
+    downloadCsv(`duty-weekly-${start}.csv`, csvRows(rows))
+    toast('已导出周报', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    buildBusy.value = false
+    aiHint.value = ''
+  }
+}
+
+/** 导出扣分明细：scope=week 本周 / scope=all 全部 */
+async function exportScores(scope: 'week' | 'all') {
+  if (buildBusy.value) return
+  buildBusy.value = true
+  try {
+    const d = await fetchReport(scope)
+    const { start, end } = reportWeek()
+    const rows: unknown[][] = [
+      ...reportMeta(scope === 'week' ? `统计区间 ${start} ~ ${end}` : '统计范围 全部记录（不限区间）'),
+      DEDUCTION_HEAD,
+      ...d.deductions.map(deductionRow),
+      ['合计', `${d.deductions.length} 条`, '', '', '', deductTotalOf(d.deductions), '', '']
+    ]
+    downloadCsv(`duty-deductions-${scope === 'week' ? start : 'all'}.csv`, csvRows(rows))
+    toast(scope === 'week' ? '已导出本周扣分' : '已导出全部扣分', 'success')
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  } finally {
+    buildBusy.value = false
+  }
+}
+
+/**
+ * 让 AI 基于本周数据给管理员建议。返回建议文本，同时写进 aiText 供页面预览。
+ * 用共享的 `streamChat` 消费 SSE（与 AI 页/AI 浮窗同一套解析），这里只做累加。
+ */
+async function generateAdvice(data?: ReportData): Promise<string> {
+  if (aiLoading.value) return aiText.value
+  aiLoading.value = true
+  try {
+    const d = data ?? (await fetchReport('week'))
+    const { start, end } = reportWeek()
+
+    /* 把数据压成「人话」再交给模型：直接塞 JSON 又费 token 又容易让它胡算 */
+    const byPerson = new Map<string, { n: number; total: number }>()
+    for (const r of d.deductions) {
+      const key = `${r.name ?? '未知'}（${r.department ?? '未分配'} ${r.class ?? ''}）`.trim()
+      const cur = byPerson.get(key) ?? { n: 0, total: 0 }
+      cur.n += 1
+      cur.total += Number(r.score || 0)
+      byPerson.set(key, cur)
+    }
+    const summary = [
+      `区间：${start} ~ ${end}`,
+      `排班天数：${d.schedule.length} 天`,
+      `扣分记录：${d.deductions.length} 条，合计 ${deductTotalOf(d.deductions)} 分`,
+      '按人汇总（从重到轻）：',
+      ...[...byPerson.entries()]
+        .sort((a, b) => a[1].total - b[1].total)
+        .map(([k, v]) => `- ${k}：${v.n} 次，合计 ${v.total} 分`),
+      '排班明细：',
+      ...d.schedule.map(
+        (r) => `- ${r.date} ${weekdayLabel(r.date)}：${staffLabel(r.a_dept, r.a_class, r.a_name)} / ${staffLabel(r.b_dept, r.b_class, r.b_name)}`
+      )
+    ].join('\n')
+
+    const prompt = [
+      '你是雅礼中学团委的值日管理助手。下面是本周值日排班与扣分统计：',
+      '',
+      summary,
+      '',
+      '请面向团委管理员给出简明建议，要求：',
+      '1. 先用一句话概括本周总体情况；',
+      '2. 再给 3~5 条具体建议，每条单独一行、以「- 」开头，要针对上面数据里真实存在的问题（如个别干事反复缺岗、某时段集中出问题、排班是否均衡）；',
+      '3. 不要客套话、不要复述全部数据、不要用 Markdown 标题；',
+      '4. 直接输出结论，不要调用任何工具查询。'
+    ].join('\n')
+
+    let out = ''
+    await streamChat(
+      { message: prompt, thinking: false, webSearch: false, context: '值日管理' },
+      {
+        onReset: () => {
+          out = ''
+        },
+        onDelta: (t) => {
+          out += t
+        }
+      },
+      new AbortController().signal
+    )
+    const text = out.trim()
+    if (!text) throw new Error('AI 没有返回内容')
+    aiText.value = text
+    return text
+  } finally {
+    aiLoading.value = false
+  }
+}
+
+/**
+ * 「生成 AI 建议」按钮的处理器。
+ * ⚠️ 不能把 async 函数直接挂到 @Click 上：AI 没配置（503）或上游报错时
+ * Promise 会 reject，Vue 事件处理器不兜这个 → 变成「未捕获的 promise 异常」，
+ * 页面上却什么提示都没有。这里统一转成 toast。
+ */
+async function onGenerateAdvice() {
+  try {
+    await generateAdvice()
+  } catch (err) {
+    toast((err as Error).message, 'error')
+  }
+}
+
+function loadForTab(i: number) {
+  if (i === 0) loadSchedule()
+  else if (i === 1) loadStaff()
+  else if (i === 2) {
+    loadScores()
+    loadStaff()
+  } else if (i === 3) loadPeriods()
+  else {
+    loadReport()
+    loadAiStatus()
+  }
+}
+
+watch(tabIndex, loadForTab)
+
+onMounted(async () => {
+  /* 旧版 duty-admin.js 开头就是 requireAdmin()：无权访问 → 404（伪装），
+     不是「跳回值日页」 */
+  if (!(await requireAdmin())) return
+  loadSchedule()
+  loadStaff()
+  // 若通过 ?tab= 直接落在别的标签，补上该标签的数据
+  if (tabIndex.value !== 0) loadForTab(tabIndex.value)
+})
+</script>
+
+<style>
+.da-pivot {
+  margin-bottom: 16px;
+}
+.da-gap {
+  margin-top: 12px;
+}
+.da-cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  margin-top: 14px;
+}
+.da-cal-head {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding-bottom: 4px;
+}
+.da-cal-cell {
+  min-height: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 6px;
+  background: var(--card-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* 格子现在是 <button>，需要清掉浏览器默认按钮样式 */
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.da-cal-cell:hover {
+  border-color: var(--accent-base);
+}
+.da-cal-cell.is-set {
+  border-left: 3px solid var(--accent-base);
+}
+.da-cal-cell.is-today {
+  border-color: var(--accent-base);
+}
+.da-cal-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.da-cal-name {
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.da-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--stroke-divider);
+  font-size: 13px;
+}
+.da-row.is-cancelled {
+  opacity: 0.55;
+}
+.da-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 72px;
+}
+.da-score {
+  font-weight: 600;
+  min-width: 36px;
+}
+.da-plus {
+  color: #0f7b0f;
+}
+.da-minus {
+  color: #c42b1c;
+}
+html.theme-dark .da-plus {
+  color: #6ccb5f;
+}
+html.theme-dark .da-minus {
+  color: #ff99a4;
+}
+.da-reason {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.da-del {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+}
+.da-del:hover {
+  background: var(--subtle-tertiary);
+  color: var(--text-primary);
+}
+
+/* 时段配置编辑行 */
+.da-period {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--stroke-divider);
+  font-size: 13px;
+}
+.da-period-slot {
+  width: 132px;
+}
+.da-period-time {
+  width: 90px;
+}
+.da-period-min {
+  width: 92px;
+}
+.da-period-hint {
+  font-size: 12px;
+}
+.da-period .da-del {
+  margin-left: auto;
+}
+
+/* ── 导出标签 ──
+   表格与按钮都沿用页面既有的 token（--stroke-divider / --card-bg-secondary /
+   --text-*），跟排班、评分那两个标签视觉一致。 */
+.da-export-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.da-export-hint {
+  font-size: 12px;
+}
+.da-h {
+  margin: 20px 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+.da-tablewrap {
+  overflow-x: auto;
+}
+.da-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.da-table th,
+.da-table td {
+  border: 1px solid var(--stroke-divider);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+.da-table th {
+  background: var(--card-bg-secondary);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+/* 原因那一列可能很长，允许换行（其余列保持 nowrap 以免错位） */
+.da-table .da-cell-wrap {
+  white-space: normal;
+  min-width: 160px;
+}
+.da-ai-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.da-ai-text {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke-divider);
+  border-radius: 8px;
+  background: var(--card-bg-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .da-period {
+    flex-wrap: wrap;
+  }
+  .da-period-slot,
+  .da-period-time,
+  .da-period-min {
+    flex: 1 1 120px;
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .da-cal-cell {
+    min-height: 56px;
+    padding: 4px;
+  }
+  .da-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  /* 导出按钮在窄屏竖排铺满，避免四个按钮挤成一行各自半截 */
+  .da-export-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>

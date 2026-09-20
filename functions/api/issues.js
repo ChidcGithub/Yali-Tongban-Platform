@@ -1,19 +1,44 @@
 import { rateLimit, json, error, parseBody, verifyCaptcha, isValidImageUrl, isAdmin, insertChatSystemMessage, createNotification, getUserIdByName } from './_utils.js';
 
+// 列表瘦身：不返回 image_url 全文（单张可达数 MB），只返回 has_image 标记，
+// 图片走 /api/issues/images?ids= 批量按需取。与 announcements / finance 的做法一致。
+//
+// 字段可见性：
+// - 未登录：不含 submitted_by / contact
+// - 已登录成员：只多给 submitted_by（页面上本来就展示「提交人」）
+// - 联系方式 contact 属个人信息，仅管理员可见
+const BASE_COLS = `issues.id, issues.location, issues.status, issues.description, issues.notes,
+              issues.created_at, issues.updated_by, issues.updated_at`;
+const HAS_IMAGE_COL = `CASE WHEN issues.image_url IS NOT NULL AND issues.image_url != '' THEN 1 ELSE 0 END AS has_image,
+              COALESCE(c.cnt, 0) AS comment_count`;
+const ISSUE_JOIN = `FROM issues
+       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
+       ORDER BY issues.created_at DESC LIMIT 200`;
+
 export async function handleGetIssues(env, user) {
-  const isLoggedIn = !!user;
-  const rows = await env.DB.prepare(isLoggedIn
-    ? `SELECT issues.*, COALESCE(c.cnt, 0) AS comment_count
-       FROM issues
-       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
-       ORDER BY issues.created_at DESC LIMIT 200`
-    : `SELECT id, location, status, description, notes, created_at, updated_by, updated_at, image_url,
-              COALESCE(c.cnt, 0) AS comment_count
-       FROM issues
-       LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
-       ORDER BY issues.created_at DESC LIMIT 200`
+  let cols = BASE_COLS;
+  if (user && isAdmin(user)) cols += ', issues.submitted_by, issues.contact';
+  else if (user) cols += ', issues.submitted_by';
+  const rows = await env.DB.prepare(
+    `SELECT ${cols}, ${HAS_IMAGE_COL} ${ISSUE_JOIN}`
   ).all();
   return json(rows.results);
+}
+
+// 批量取报修图片（与列表同可见性：报修列表本就对外公开）
+export async function handleGetIssueImages(env, idsStr) {
+  try {
+    const ids = [...new Set(String(idsStr || '').split(',').map(s => Number(String(s).trim())).filter(n => Number.isInteger(n) && n > 0))];
+    if (ids.length === 0) return error('缺少报修 id');
+    if (ids.length > 50) return error('一次最多查询 50 条报修的图片');
+    const ph = ids.map(() => '?').join(',');
+    const rows = await env.DB.prepare(`SELECT id, image_url FROM issues WHERE id IN (${ph})`).bind(...ids).all();
+    const map = {};
+    for (const r of rows.results) if (r.image_url) map[r.id] = r.image_url;
+    return json(map);
+  } catch {
+    return error('获取图片失败', 500);
+  }
 }
 
 export async function handleCreateIssue(request, env) {
