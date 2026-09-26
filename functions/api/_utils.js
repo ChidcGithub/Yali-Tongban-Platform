@@ -149,37 +149,34 @@ export async function verifyToken(token, env) {
 
 export async function getUserFromRequest(request, env) {
   const auth = request.headers.get('Authorization');
-  if (auth && auth.startsWith('Bearer ')) {
-    try {
-      const user = await verifyToken(auth.slice(7), env);
-      if (user && user.token_version !== undefined) {
-        const dbUser = await env.DB.prepare('SELECT token_version FROM users WHERE id = ?').bind(user.userId).first();
-        if (!dbUser || (dbUser.token_version || 0) > (user.token_version || 0)) return null;
-      }
-      return user;
-    } catch {}
-  }
   const cookie = request.headers.get('Cookie');
-  if (cookie) {
-    const match = cookie.match(/(?:^|;\s*)token=([^;]+)/);
-    if (match) {
-      try {
-        const user = await verifyToken(match[1], env);
-        if (user && user.token_version !== undefined) {
-          const dbUser = await env.DB.prepare('SELECT token_version FROM users WHERE id = ?').bind(user.userId).first();
-          if (!dbUser || (dbUser.token_version || 0) > (user.token_version || 0)) return null;
-        }
-        return user;
-      } catch {}
-    }
+  const token = auth && auth.startsWith('Bearer ')
+    ? auth.slice(7)
+    : cookie?.match(/(?:^|;\s*)token=([^;]+)/)?.[1];
+  if (!token) return null;
+  try {
+    const payload = await verifyToken(token, env);
+    const dbUser = await env.DB.prepare(
+      'SELECT id, name, role, class_name, department, achievements, token_version FROM users WHERE id = ?'
+    ).bind(payload.userId).first();
+    if (!dbUser || dbUser.role === 'pending' || (dbUser.token_version || 0) !== (payload.token_version || 0)) return null;
+    return {
+      ...payload,
+      userId: dbUser.id,
+      name: dbUser.name,
+      role: dbUser.role,
+      class_name: dbUser.class_name || '',
+      department: dbUser.department || '',
+      achievements: dbUser.achievements || '[]',
+      token_version: dbUser.token_version || 0,
+    };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export async function requireMember(request, env) {
-  const user = await getUserFromRequest(request, env);
-  if (!user || user.role === 'pending') return null;
-  return user;
+  return getUserFromRequest(request, env);
 }
 
 export function isAdmin(user) {
@@ -396,7 +393,7 @@ export async function verifyTurnstile(token, env) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   自研图形验证码（HMAC 签名 token，无状态）
+   自研图形验证码（HMAC 签名 token，D1 防重放）
    - generateCaptcha(env) → { token, svg }
    - verifyCaptcha(token, code, env) → boolean
    ═══════════════════════════════════════════════════════ */
@@ -404,7 +401,31 @@ const CAPTCHA_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
 const CAPTCHA_TTL = 5 * 60 * 1000; // 5 分钟有效期
 
 function getCaptchaSecret(env) {
-  return env.CAPTCHA_SECRET || env.TURNSTILE_SECRET || 'captcha-default-fallback-secret';
+  const secret = env.CAPTCHA_SECRET || env.JWT_SECRET;
+  if (typeof secret !== 'string' || !secret) throw new Error('验证码密钥未配置');
+  return secret;
+}
+
+function secureRandomInt(max) {
+  const range = 0x100000000;
+  const limit = Math.floor(range / max) * max;
+  const value = new Uint32Array(1);
+  do { crypto.getRandomValues(value); } while (value[0] >= limit);
+  return value[0] % max;
+}
+
+function secureRandomFloat() {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return value[0] / 0x100000000;
+}
+
+function generateCaptchaNonce() {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 async function hmacHex(message, secret) {
@@ -420,57 +441,63 @@ function generateCaptchaSVG(code) {
   let chars = '';
   for (let i = 0; i < code.length; i++) {
     const x = 28 + i * 42;
-    const y = 48 + (Math.random() * 10 - 5);
-    const rotate = Math.random() * 30 - 15;
-    const color = palette[Math.floor(Math.random() * palette.length)];
-    const size = 36 + Math.random() * 6;
+    const y = 48 + (secureRandomFloat() * 10 - 5);
+    const rotate = secureRandomFloat() * 30 - 15;
+    const color = palette[secureRandomInt(palette.length)];
+    const size = 36 + secureRandomFloat() * 6;
     chars += `<text x="${x}" y="${y}" font-family="Georgia, 'Times New Roman', serif" font-size="${size.toFixed(1)}" font-weight="bold" fill="${color}" transform="rotate(${rotate.toFixed(1)} ${x} ${y})">${code[i]}</text>`;
   }
   let lines = '';
   for (let i = 0; i < 4; i++) {
-    const x1 = Math.random() * W, y1 = Math.random() * H;
-    const x2 = Math.random() * W, y2 = Math.random() * H;
-    const color = palette[Math.floor(Math.random() * palette.length)];
+    const x1 = secureRandomFloat() * W, y1 = secureRandomFloat() * H;
+    const x2 = secureRandomFloat() * W, y2 = secureRandomFloat() * H;
+    const color = palette[secureRandomInt(palette.length)];
     lines += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${color}" stroke-width="1" opacity="0.4"/>`;
   }
   let dots = '';
   for (let i = 0; i < 45; i++) {
-    const x = Math.random() * W, y = Math.random() * H;
-    const color = palette[Math.floor(Math.random() * palette.length)];
+    const x = secureRandomFloat() * W, y = secureRandomFloat() * H;
+    const color = palette[secureRandomInt(palette.length)];
     dots += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1" fill="${color}" opacity="0.5"/>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="#f4f4f4"/>${dots}${lines}${chars}</svg>`;
 }
 
 export async function generateCaptcha(env) {
+  const secret = getCaptchaSecret(env);
   let code = '';
-  for (let i = 0; i < 4; i++) code += CAPTCHA_CHARS[Math.floor(Math.random() * CAPTCHA_CHARS.length)];
+  for (let i = 0; i < 4; i++) code += CAPTCHA_CHARS[secureRandomInt(CAPTCHA_CHARS.length)];
   const expire = Date.now() + CAPTCHA_TTL;
-  const nonce = Math.random().toString(36).slice(2, 10);
+  const nonce = generateCaptchaNonce();
   const payload = `${code}:${expire}:${nonce}`;
-  const signature = await hmacHex(payload, getCaptchaSecret(env));
+  const signature = await hmacHex(payload, secret);
   return { token: btoa(payload + ':' + signature), svg: generateCaptchaSVG(code) };
 }
 
 export async function verifyCaptcha(token, code, env) {
-  if (env.CAPTCHA_BYPASS === 'true' || env.CAPTCHA_BYPASS === true) return true;
-  if (!token || !code) return false;
   try {
+    const secret = getCaptchaSecret(env);
+    if (env.CAPTCHA_BYPASS === 'true' || env.CAPTCHA_BYPASS === true) return true;
+    if (typeof token !== 'string' || !token || token.length > 512 || !code) return false;
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(token)) return false;
     const decoded = atob(token);
-    const lastColon = decoded.lastIndexOf(':');
-    if (lastColon < 0) return false;
-    const payload = decoded.slice(0, lastColon);
-    const signature = decoded.slice(lastColon + 1);
-    const expectedSig = await hmacHex(payload, getCaptchaSecret(env));
+    if (btoa(decoded) !== token) return false;
+    const parts = decoded.split(':');
+    if (parts.length !== 4) return false;
+    const [storedCode, expireStr, nonce, signature] = parts;
+    if (!new RegExp(`^[${CAPTCHA_CHARS}]{4}$`).test(storedCode)) return false;
+    if (!/^\d{13}$/.test(expireStr) || !/^(?:[a-z0-9]{8}|[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/.test(nonce)) return false;
+    if (!/^[0-9a-f]{64}$/.test(signature)) return false;
+    const expire = Number(expireStr);
+    if (!Number.isSafeInteger(expire) || Date.now() > expire) return false;
+    const payload = `${storedCode}:${expireStr}:${nonce}`;
+    const expectedSig = await hmacHex(payload, secret);
     if (signature !== expectedSig) return false;
-    const parts = payload.split(':');
-    if (parts.length < 3) return false;
-    const storedCode = parts[0];
-    const expire = Number(parts[1]);
-    if (!storedCode || !expire) return false;
-    if (Date.now() > expire) return false;
-    if (storedCode.toLowerCase() !== String(code).toLowerCase()) return false;
-    return true;
+    if (storedCode.toLowerCase() !== code.toLowerCase()) return false;
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS captcha_used (nonce TEXT PRIMARY KEY, expire INTEGER NOT NULL)').run();
+    await env.DB.prepare("DELETE FROM captcha_used WHERE expire < ?").bind(Date.now()).run();
+    const used = await env.DB.prepare('INSERT OR IGNORE INTO captcha_used (nonce, expire) VALUES (?, ?)').bind(nonce, expire).run();
+    return Number(used.meta?.changes || 0) === 1;
   } catch { return false; }
 }
 

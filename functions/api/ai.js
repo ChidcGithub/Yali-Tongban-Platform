@@ -25,7 +25,7 @@
  *   - 对话与记忆都按 user_id 隔离，只能读写自己的
  *   - 每用户每小时 40 条消息
  */
-import { json, error, parseBody, checkRateLimit } from './_utils.js';
+import { json, error, parseBody, checkRateLimit, isAdmin } from './_utils.js';
 
 /* ── 表（沿用站点「运行时建表」的惯例，零迁移） ── */
 async function ensureTables(env) {
@@ -273,7 +273,7 @@ async function toolGetMyNotifications(env, user, limit) {
 /* ═════════════════════════════════════════════════════════
    对话（SSE 流式 + 工具循环）
    ═════════════════════════════════════════════════════════ */
-function buildSystemPrompt(user, memories, cfg, useWeb) {
+function buildSystemPrompt(user, memories, cfg, useWeb, canQueryDatabase) {
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}（星期${'日一二三四五六'[now.getDay()]}）`;
   const lines = [
@@ -283,8 +283,11 @@ function buildSystemPrompt(user, memories, cfg, useWeb) {
     '站点功能：服务（报修与意见反馈）、公告、投票、活动（含志愿者报名）、值日（排班/签到/评分）、财务、动态、消息、个性化设置、管理面板（仅管理员）。',
     '',
     '你可以调用工具：',
-    '- query_database：只读查询站点数据库。数据库表结构（SQLite）：',
-    SCHEMA_HINT,
+  ];
+  if (canQueryDatabase) {
+    lines.push('- query_database：只读查询站点数据库。数据库表结构（SQLite）：', SCHEMA_HINT);
+  }
+  lines.push(
     '- get_my_notifications：查看当前用户自己的站内通知（最近的，含未读状态）。',
     '- save_memory：当用户表达长期偏好、或让你「记住」什么时，把要点存成一句独立、自包含的话（≤200 字）。保存前先对照下方记忆列表，别存重复内容。',
     '- forget_memory：记忆过时或用户要求忘掉时，按下方列表里的 #id 删除。',
@@ -297,7 +300,7 @@ function buildSystemPrompt(user, memories, cfg, useWeb) {
     '4. 查询结果带 truncated=true 时表示达到行数上限，总结时须注明「只统计了部分记录」，或加 WHERE / OFFSET 继续查。',
     '5. 不确定的信息就说不确定；不编造数据。',
     '6. 回复保持简短，用短段落或列表，不要长篇大论。'
-  ];
+  );
   if (memories.length) {
     lines.push('', '你记住的关于该用户的信息（#id 可供 forget_memory 使用，按时间新→旧）：');
     for (const m of memories) lines.push(`- [#${m.id}] ${m.content}`);
@@ -456,8 +459,14 @@ export async function handleAIChat(request, env, user) {
     .bind(user.userId)
     .all();
 
+  // 数据库工具仅面向管理角色开放（教师/管理员/站长）。
+  // 白名单里的表（finance、feedback、ai_memories、poll_responses 等）
+  // 并不区分行级权限，普通成员可借此绕过各模块接口的字段控制，
+  // 直接读出联系方式、他人投票答案与其他人的记忆。
+  const canQueryDatabase = isAdmin(user);
+
   const system =
-    buildSystemPrompt(user, memories.results || [], cfg, wantWeb) +
+    buildSystemPrompt(user, memories.results || [], cfg, wantWeb, canQueryDatabase) +
     (pageCtx ? `\n\n用户当前正在站点的「${pageCtx}」相关页面，回答优先贴近这个场景。` : '');
   // 历史按字符预算裁剪（而不再按条数）：近者优先，装不下就整条舍弃，
   // 避免长对话把上下文撑爆。最近一条无论如何都带上。
@@ -484,8 +493,9 @@ export async function handleAIChat(request, env, user) {
 
   // 工具清单按配置动态生成
   if (cfg.provider === 'openai') {
-    cfg.toolDefs = [
-      {
+    cfg.toolDefs = [];
+    if (canQueryDatabase) {
+      cfg.toolDefs.push({
         type: 'function',
         function: {
           name: 'query_database',
@@ -496,7 +506,9 @@ export async function handleAIChat(request, env, user) {
             required: ['sql']
           }
         }
-      },
+      });
+    }
+    cfg.toolDefs.push(
       {
         type: 'function',
         function: {
@@ -532,7 +544,7 @@ export async function handleAIChat(request, env, user) {
           }
         }
       }
-    ];
+    );
     if (wantWeb) {
       cfg.toolDefs.push({
         type: 'function',
@@ -617,7 +629,11 @@ export async function handleAIChat(request, env, user) {
             const t0 = Date.now();
             let result;
             try {
-              if (name === 'query_database') result = await toolQueryDatabase(env, args.sql);
+              if (name === 'query_database') {
+                result = canQueryDatabase
+                  ? await toolQueryDatabase(env, args.sql)
+                  : '无权使用：数据库查询仅对老师、管理员与站长开放';
+              }
               else if (name === 'web_search') result = await toolWebSearch(env, args.query);
               else if (name === 'save_memory') result = await toolSaveMemory(env, user, args.content);
               else if (name === 'forget_memory') result = await toolForgetMemory(env, user, args.id);

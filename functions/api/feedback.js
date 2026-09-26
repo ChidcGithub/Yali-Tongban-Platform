@@ -1,6 +1,7 @@
 import { rateLimit, json, error, parseBody, verifyCaptcha } from './_utils.js';
 
-export async function handleCreateFeedback(request, env) {
+export async function handleCreateFeedback(request, env, user) {
+  if (!user) return error('请先登录', 401);
   const rl = rateLimit(request, 'feedback', 5, 60000, '提交过于频繁，请稍后再试');
   if (rl) return rl;
   const body = await parseBody(request);

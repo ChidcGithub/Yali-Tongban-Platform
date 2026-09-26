@@ -41,7 +41,8 @@ export async function handleGetIssueImages(env, idsStr) {
   }
 }
 
-export async function handleCreateIssue(request, env) {
+export async function handleCreateIssue(request, env, user) {
+  if (!user) return error('请先登录', 401);
   const rl = rateLimit(request, 'issue', 10, 60000, '提交过于频繁，请稍后再试');
   if (rl) return rl;
 
@@ -53,6 +54,7 @@ export async function handleCreateIssue(request, env) {
   if (description.length > 2000) return error('问题描述不能超过2000字');
   if (contact && contact.length > 100) return error('联系方式不能超过100字');
   if (submitted_by && submitted_by.length > 50) return error('姓名不能超过50字');
+  if (user && submitted_by && submitted_by !== user.name) return error('提交人必须与当前账号一致', 403);
   if (notes && notes.length > 50) return error('备注不能超过50字');
   if (image_url && image_url.length > 2000000) return error('图片过大');
   if (image_url && !isValidImageUrl(image_url)) return error('无效图片格式');

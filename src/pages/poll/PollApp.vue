@@ -324,7 +324,11 @@ function initMulti() {
 }
 
 async function submitVote() {
-  if (!poll.value) return
+  if (!user.value) {
+    error.value = '请先登录后投票'
+    return
+  }
+  if (!poll.value || voted.value) return
   error.value = ''
   const answers: Array<{ question_id: number; answer: number | number[] | string }> = []
 

@@ -84,10 +84,14 @@
             <span class="yali-muted">{{ s.class || '—' }}</span>
             <span class="yali-chip">{{ s.department || '未分配' }}</span>
             <span v-if="!s.user_id" class="yali-chip yali-chip-warn" title="还未绑定平台账号">未映射</span>
+            <button class="da-del" type="button" title="重置考勤密码（会显示一次新密码）" @click="resetStaffPassword(s)">
+              <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" />
+            </button>
             <button class="da-del" type="button" title="删除" @click="removeStaff(s)">
               <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
             </button>
           </div>
+          <p class="yali-muted da-gap">重置考勤密码后新密码只显示一次，请抄好后交给干事。</p>
         </section>
       </template>
 
@@ -355,8 +359,7 @@
       </div>
     </ContentDialog>
 
-    <!-- 销分（后端要 score_record_id + reason + admin_id + password 四项，
-         其中 reason 是必填、admin_id 必须是一个真实管理员账号用于验密） -->
+    <!-- 销分（后端要求当前登录的管理员会话 + 本人密码二次确认） -->
     <ContentDialog :IsOpen="cancelDialog" Title="取消评分记录"
                    @update:IsOpen="cancelDialog = $event">
       <div class="yali-form">
@@ -365,18 +368,12 @@
           （{{ Number(cancelTarget?.score ?? 0) > 0 ? '+' : '' }}{{ cancelTarget?.score }} 分）
         </p>
         <label class="yali-field">
-          <span class="yali-field-label">销分人 <em>*</em></span>
-          <ComboBox :ItemsSource="adminNames" :SelectedIndex="cancelAdminIndex"
-                    @update:SelectedIndex="(i) => (cancelAdminIndex = i ?? -1)"
-                    PlaceholderText="选择管理员" />
-        </label>
-        <label class="yali-field">
           <span class="yali-field-label">取消原因 <em>*</em></span>
           <TextBox v-model:Text="cancelReason" PlaceholderText="如：录入有误" :MaxLength="200" />
         </label>
         <label class="yali-field">
-          <span class="yali-field-label">密码 <em>*</em></span>
-          <PasswordBox v-model:Password="cancelPassword" PlaceholderText="销分人账号密码" />
+          <span class="yali-field-label">本人账号密码 <em>*</em></span>
+          <PasswordBox v-model:Password="cancelPassword" PlaceholderText="输入你自己的登录密码确认" />
         </label>
         <div class="yali-form-actions">
           <Button :IsEnabled="!busy" @Click="cancelDialog = false">
@@ -435,17 +432,12 @@
       <div class="yali-form">
         <p class="yali-muted">将对所选的 {{ selectedScoreIds.length }} 条记录执行销分并回滚对应考勤得分。</p>
         <label class="yali-field">
-          <span class="yali-field-label">销分人 <em>*</em></span>
-          <ComboBox :ItemsSource="adminNames" v-model:SelectedIndex="batchAdminIndex"
-                    PlaceholderText="选择管理员" />
-        </label>
-        <label class="yali-field">
           <span class="yali-field-label">销分理由 <em>*</em></span>
           <TextBox v-model:Text="batchReason" PlaceholderText="如：排班调整，原扣分作废" :MaxLength="200" />
         </label>
         <label class="yali-field">
-          <span class="yali-field-label">销分人密码 <em>*</em></span>
-          <PasswordBox v-model:Password="batchPassword" PlaceholderText="输入销分人密码以确认" />
+          <span class="yali-field-label">本人账号密码 <em>*</em></span>
+          <PasswordBox v-model:Password="batchPassword" PlaceholderText="输入你自己的登录密码确认" />
         </label>
         <div class="yali-form-actions">
           <Button :IsEnabled="!busy" @Click="batchDialog = false">
@@ -492,7 +484,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog, alertDialog
 } from '../../shared/api'
 import { requireAdmin } from '../../shared/guard'
 import { streamChat } from '../../shared/ai-chat'
@@ -758,21 +750,45 @@ async function addStaff() {
   if (!staffDraft.name.trim()) return toast('请填写姓名', 'error')
   busy.value = true
   try {
-    await apiPost('/api/duty/staff', {
+    const res = await apiPost<{ message?: string; password?: string }>('/api/duty/staff', {
       name: staffDraft.name.trim(),
       class: staffDraft.class.trim(),
       department: staffDeptIndex.value >= 0 ? DEPARTMENTS[staffDeptIndex.value] : ''
     })
-    toast('已添加', 'success')
     staffDialog.value = false
     staffDraft.name = ''
     staffDraft.class = ''
     staffDeptIndex.value = -1
+    if (res?.password) {
+      await alertDialog({
+        title: '已添加干事',
+        message: `已添加并分配考勤密码：${res.password}\n\n这个密码只显示这一次，请抄好后交给干事；之后如需更换可在名册里点「重置」。`
+      })
+    } else {
+      toast('已添加', 'success')
+    }
     loadStaff()
   } catch (err) {
     toast((err as Error).message, 'error')
   } finally {
     busy.value = false
+  }
+}
+
+async function resetStaffPassword(s: Staff) {
+  if (!(await confirmDialog({ title: '重置考勤密码', message: `确定重置「${s.name}」的考勤密码吗？旧密码立即失效。`, danger: true }))) return
+  try {
+    const res = await apiPost<{ message?: string; password?: string }>(`/api/duty/staff/${s.id}/password`)
+    if (res?.password) {
+      await alertDialog({
+        title: '考勤密码已重置',
+        message: `「${s.name}」的新考勤密码：${res.password}\n\n请抄好后交给干事；这个密码只显示这一次。`
+      })
+    } else {
+      toast('已重置', 'success')
+    }
+  } catch (err) {
+    toast((err as Error).message, 'error')
   }
 }
 
@@ -850,7 +866,6 @@ const filteredScores = computed(() => {
 /* ── 批量销分 ── */
 const selectedScoreIds = ref<number[]>([])
 const batchDialog = ref(false)
-const batchAdminIndex = ref(-1)
 const batchReason = ref('')
 const batchPassword = ref('')
 
@@ -876,13 +891,10 @@ async function openBatchCancel() {
   if (!selectedScoreIds.value.length) return toast('请先选择记录', 'error')
   batchReason.value = ''
   batchPassword.value = ''
-  batchAdminIndex.value = -1
-  if (!admins.value.length) await loadAdmins()
   batchDialog.value = true
 }
 
 async function confirmBatchCancel() {
-  if (batchAdminIndex.value < 0) return toast('请选择销分人', 'error')
   if (!batchReason.value.trim()) return toast('请填写销分理由', 'error')
   if (!batchPassword.value) return toast('请输入密码', 'error')
   busy.value = true
@@ -890,7 +902,6 @@ async function confirmBatchCancel() {
     const res = await apiPost<{ cancelled?: number }>('/api/duty/scores/batch-cancel', {
       score_record_ids: selectedScoreIds.value,
       reason: batchReason.value.trim(),
-      admin_id: admins.value[batchAdminIndex.value]?.id,
       password: batchPassword.value
     })
     toast(`已销分 ${res?.cancelled ?? selectedScoreIds.value.length} 条`, 'success')
@@ -931,49 +942,28 @@ async function addScore() {
 }
 
 /* ── 销分 ── */
-interface AdminUser { id: number; name: string; role: string }
-
 const cancelDialog = ref(false)
 const cancelTarget = ref<ScoreRow | null>(null)
 const cancelReason = ref('')
 const cancelPassword = ref('')
-const cancelAdminIndex = ref(-1)
-const admins = ref<AdminUser[]>([])
-const adminNames = computed(() => admins.value.map((a) => `${a.name}（${a.role}）`))
-
-async function loadAdmins() {
-  try {
-    const data = await apiGet<AdminUser[]>('/api/duty/admins')
-    // 显式判数组：非数组会被下面的 adminNames.map 直接抛异常，
-    // 而调用方（销分/批量销分）是在「打开对话框」的路径上 —— 会连带把对话框也打不开
-    admins.value = Array.isArray(data) ? data : []
-  } catch {
-    admins.value = []
-  }
-}
 
 async function cancelScore(r: ScoreRow) {
   cancelTarget.value = r
   cancelReason.value = ''
   cancelPassword.value = ''
-  cancelAdminIndex.value = -1
-  if (!admins.value.length) await loadAdmins()
   cancelDialog.value = true
 }
 
 async function confirmCancelScore() {
   const r = cancelTarget.value
   if (!r) return
-  if (cancelAdminIndex.value < 0) return toast('请选择销分人', 'error')
   if (!cancelReason.value.trim()) return toast('请填写取消原因', 'error')
   if (!cancelPassword.value) return toast('请输入密码', 'error')
   busy.value = true
   try {
-    // 后端字段：score_record_id / reason / admin_id / password（不是 record_id）
     await apiPost('/api/duty/scores/cancel', {
       score_record_id: r.id,
       reason: cancelReason.value.trim(),
-      admin_id: admins.value[cancelAdminIndex.value]?.id,
       password: cancelPassword.value
     })
     r.is_cancelled = true
@@ -1110,18 +1100,23 @@ async function doImport() {
   if (!importRows.value.length || busy.value) return
   busy.value = true
   try {
-    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string }[] }>(
+    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string; password?: string }[] }>(
       '/api/duty/staff/upload',
       { staffList: importRows.value }
     )
     const n = Number(r?.inserted) || 0
     const w = r?.warnings ?? []
     /* 未在平台注册的人 user_id=0 → 进不了站内通知，名单上的「未映射」徽标就是这么来的。
-       （历史上这里会「分配初始密码」，但那个密码**全站没有任何地方会去校验**，
-       所以提示里不提它 —— 说了反而让人以为可以拿它登录。） */
+       同时为他们下发了独立的考勤密码（用于签到/签退），密码只在这一次返回里可见。 */
+    const pwdRows = w.filter((x) => x.password)
     importResult.value =
       `已导入 ${n} 人` +
-      (w.length ? `；其中 ${w.length} 人未在平台注册，名单里会标「未映射」，收不到站内通知。` : '')
+      (w.length
+        ? `；其中 ${w.length} 人未在平台注册（名单里会标「未映射」，收不到站内通知）` +
+          (pwdRows.length
+            ? `。已分配考勤密码：\n${pwdRows.map((x) => `${x.row} → ${x.password}`).join('\n')}\n\n请立即抄好分发，关闭本对话框后无法再次查看。`
+            : '')
+        : '')
     toast(`已导入 ${n} 人`, 'success')
     importText.value = ''
     await loadStaff()

@@ -8,7 +8,7 @@ export async function handleGetAnnouncements(env, id) {
       const row = await env.DB.prepare(`SELECT a.id, a.title, a.content, a.created_by, a.created_at, a.status, a.reject_reason, a.reviewed_by,
         COALESCE(c.cnt, 0) AS comment_count,
         CASE WHEN EXISTS(SELECT 1 FROM announcement_images ai WHERE ai.announcement_id = a.id) OR (a.image_url != '' AND a.image_url != '[]') THEN 1 ELSE 0 END AS has_image
-        FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.id = ?`).bind(id).first();
+        FROM announcements a LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type='announcement' GROUP BY target_id) c ON a.id = c.target_id WHERE a.id = ? AND (a.status IS NULL OR a.status != ?)`).bind(id, '已拒绝').first();
       if (!row) return error('公告不存在', 404);
       return json(row);
     }
@@ -45,14 +45,18 @@ export async function handleGetAnnouncementImages(env, idsStr) {
     const ph = ids.map(() => '?').join(',');
     const map = {};
     for (const id of ids) map[id] = [];
+    const allowedRows = await env.DB.prepare(`SELECT id FROM announcements WHERE id IN (${ph}) AND (status IS NULL OR status != ?)`).bind(...ids, '已拒绝').all();
+    const allowedIds = allowedRows.results.map(row => row.id);
+    if (allowedIds.length === 0) return json(map);
+    const allowedPh = allowedIds.map(() => '?').join(',');
     try {
-      const imgRows = await env.DB.prepare(`SELECT announcement_id, image_url FROM announcement_images WHERE announcement_id IN (${ph}) ORDER BY sort_order ASC`).bind(...ids).all();
+      const imgRows = await env.DB.prepare(`SELECT announcement_id, image_url FROM announcement_images WHERE announcement_id IN (${allowedPh}) ORDER BY sort_order ASC`).bind(...allowedIds).all();
       for (const ir of imgRows.results) {
         if (map[ir.announcement_id]) map[ir.announcement_id].push(ir.image_url);
       }
     } catch {}
     try {
-      const legacyRows = await env.DB.prepare(`SELECT id, image_url FROM announcements WHERE id IN (${ph}) AND image_url != '' AND image_url != '[]'`).bind(...ids).all();
+      const legacyRows = await env.DB.prepare(`SELECT id, image_url FROM announcements WHERE id IN (${allowedPh}) AND (status IS NULL OR status != ?) AND image_url != '' AND image_url != '[]'`).bind(...allowedIds, '已拒绝').all();
       for (const lr of legacyRows.results) {
         const parsed = safeParse(lr.image_url, []);
         const arr = Array.isArray(parsed) ? parsed : [lr.image_url];

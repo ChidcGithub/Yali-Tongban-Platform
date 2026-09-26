@@ -110,35 +110,14 @@
       </div>
     </ContentDialog>
 
-    <!-- 匿名报名 -->
-    <ContentDialog :IsOpen="signupOpen" Title="报名志愿者"
-                   @update:IsOpen="signupOpen = $event">
-      <div class="yali-form">
-        <label class="yali-field">
-          <span class="yali-field-label">你的姓名 <em>*</em></span>
-          <TextBox v-model:Text="volunteerName" PlaceholderText="请输入你的姓名" :MaxLength="50" />
-        </label>
-        <div class="yali-field">
-          <span class="yali-field-label">人机验证</span>
-          <div id="yaliVolunteerCaptcha"></div>
-        </div>
-        <div class="yali-form-actions">
-          <Button :IsEnabled="!saving" @Click="signupOpen = false">
-            <span class="yali-btn-inner"><span>取消</span></span>
-          </Button>
-          <Button :Style="'{StaticResource AccentButtonStyle}'" :IsEnabled="!saving"
-                  @Click="confirmAnonymous">
-            <span class="yali-btn-inner"><span>报名</span></span>
-          </Button>
-        </div>
-      </div>
-    </ContentDialog>
-
     <!-- 志愿者名单 -->
     <ContentDialog :IsOpen="listOpen" :Title="volTitle" CloseButtonText="关闭"
                    @update:IsOpen="listOpen = $event">
       <div class="vol-list">
         <p v-if="volLoading" class="yali-muted">加载中…</p>
+        <p v-else-if="volCount !== null" class="yali-muted">
+          已有 {{ volCount }} 人报名。登录后可查看名单。
+        </p>
         <p v-else-if="!volunteers.length" class="yali-muted">还没有人报名</p>
         <div v-for="(v, i) in volunteers" :key="v.id ?? i" class="vol-item">
           <span class="vol-idx">{{ i + 1 }}</span>
@@ -161,11 +140,11 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import HallSection from './HallSection.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, mountCaptcha, toast, confirmDialog} from '../../shared/api'
+import { apiDel, apiGet, apiPost, formatTime, getUser, isAdmin, legacy, toast, confirmDialog} from '../../shared/api'
 import { checkAuth } from '../../shared/guard'
 
 interface Activity {
@@ -223,49 +202,24 @@ async function load() {
   }
 }
 
-/* ── 报名 ── */
-const signupOpen = ref(false)
-const volunteerName = ref('')
-let signupTarget: Activity | null = null
-type Captcha = { getData: () => Record<string, string>; refresh: () => void }
-let captcha: Captcha | null = null
-
+/* ── 报名（仅登录用户；志愿者名单也对未登录只显示人数） ── */
 function signup(a: Activity) {
-  if (user.value) {
-    doSignup(a.id, undefined, a)
+  if (!user.value) {
+    toast('请先登录后报名', 'error')
     return
   }
-  signupTarget = a
-  volunteerName.value = ''
-  signupOpen.value = true
+  doSignup(a.id, a)
 }
 
-watch(signupOpen, async (open) => {
-  if (!open) return
-  await nextTick()
-  // 容器在 ContentDialog 里（v-if 开启后才 teleport 进 body）
-  captcha = mountCaptcha('yaliVolunteerCaptcha')
-})
-
-function confirmAnonymous() {
-  if (!volunteerName.value.trim()) return toast('请填写姓名', 'error')
-  if (signupTarget) doSignup(signupTarget.id, volunteerName.value.trim(), signupTarget)
-}
-
-async function doSignup(id: number, name: string | undefined, a: Activity) {
+async function doSignup(id: number, a: Activity) {
   try {
-    const body: Record<string, unknown> = {}
-    if (name) body.name = name
-    if (!user.value && captcha) Object.assign(body, captcha.getData())
-    await apiPost(`/api/activities/${id}/volunteer`, body)
+    await apiPost(`/api/activities/${id}/volunteer`, {})
     a._signedUp = true
     a.volunteer_count = (a.volunteer_count || 0) + 1
-    signupOpen.value = false
     toast('报名成功', 'success')
     legacy.checkNovice?.()
   } catch (err) {
     toast((err as Error).message, 'error')
-    captcha?.refresh()
   }
 }
 
@@ -281,19 +235,21 @@ interface Volunteer {
   created_at?: string
 }
 const volunteers = ref<Volunteer[]>([])
+const volCount = ref<number | null>(null) // 未登录时后端只回人数
 
 async function viewVolunteers(a: Activity) {
   listOpen.value = true
   volLoading.value = true
   volunteers.value = []
+  volCount.value = null
   volTitle.value = a.name + ' - 志愿者名单'
   try {
-    // 接口返回的是 { activity_name, volunteers }，不是裸数组 ——
-    // 早先直接把它当数组赋值，volunteers.length 恒为 undefined（永远显示「还没有人报名」）
-    const data = await apiGet<{ activity_name?: string; volunteers?: Volunteer[] }>(
+    // 接口返回的是 { activity_name, volunteers }（登录）或 { activity_name, count }（未登录）
+    const data = await apiGet<{ activity_name?: string; volunteers?: Volunteer[]; count?: number }>(
       `/api/activities/${a.id}/volunteers`
     )
     volunteers.value = data?.volunteers ?? []
+    if (data?.count !== undefined) volCount.value = data.count
     if (data?.activity_name) volTitle.value = data.activity_name + ' - 志愿者名单'
   } catch (err) {
     toast((err as Error).message, 'error')

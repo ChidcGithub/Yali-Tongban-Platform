@@ -15,7 +15,7 @@ import { handleGetMembers, handleGetRegistrations, handleApproveRegistration, ha
 import { handleSync } from './sync.js';
 import { handleGetBanner } from './banner.js';
 import { handleGetPublicSettings } from './settings.js';
-import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
+import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyStaffResetPassword, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
 import { handleAdminGetFeatures, handleAdminToggleFeature, handleAdminInvite, handleAdminResetUser, handleAdminGetInvitations, handleGetPendingFeatures, handleRespondFeature, handleGetEnabledFeatures } from './features.js';
 import { handleGetMessages, handleGetUnreadCount, handleMarkRead, handleMarkAllRead, handleDeleteMessage, handleClearRead } from './messages.js';
 import { handleAIStatus, handleAIMessagesGet, handleAIMessagesClear, handleAIMemoriesGet, handleAIMemoriesClear, handleAIChat } from './ai.js';
@@ -46,11 +46,11 @@ const routes = [
   // Issues
   { p: '/api/issues/images', m: 'GET', h: c => handleGetIssueImages(c.env, c.url.searchParams.get('ids')) },
   { p: '/api/issues', m: 'GET', h: c => handleGetIssues(c.env, c.user) },
-  { p: '/api/issues', m: 'POST', h: c => handleCreateIssue(c.request, c.env) },
+  { p: '/api/issues', m: 'POST', h: c => handleCreateIssue(c.request, c.env, c.user) },
   { p: /^\/api\/issues\/(\d+)\/status$/, m: 'PUT', h: c => handleUpdateIssueStatus(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/issues\/(\d+)$/, m: 'DELETE', h: c => handleDeleteIssue(c.request, c.env, c.m[1], c.user) },
   // Feedback
-  { p: '/api/feedback', m: 'POST', h: c => handleCreateFeedback(c.request, c.env) },
+  { p: '/api/feedback', m: 'POST', h: c => handleCreateFeedback(c.request, c.env, c.user) },
   // Announcements
   { p: '/api/announcements/images', m: 'GET', h: c => handleGetAnnouncementImages(c.env, c.url.searchParams.get('ids')) },
   { p: '/api/announcements', m: 'GET', h: c => handleGetAnnouncements(c.env) },
@@ -81,7 +81,7 @@ const routes = [
   { p: '/api/activities', m: 'POST', h: c => handleCreateActivity(c.request, c.env, c.user) },
   { p: /^\/api\/activities\/(\d+)\/volunteer$/, m: 'POST', h: c => handleSignupVolunteer(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/activities\/(\d+)\/volunteer$/, m: 'DELETE', h: c => handleUnsignupVolunteer(c.request, c.env, c.m[1], c.user) },
-  { p: /^\/api\/activities\/(\d+)\/volunteers$/, m: 'GET', h: c => handleGetActivityVolunteers(c.env, c.m[1]) },
+  { p: /^\/api\/activities\/(\d+)\/volunteers$/, m: 'GET', h: c => handleGetActivityVolunteers(c.env, c.m[1], c.user) },
   { p: /^\/api\/activities\/(\d+)$/, m: 'DELETE', h: c => handleDeleteActivity(c.request, c.env, c.m[1], c.user) },
   // Hall Bookings
   { p: '/api/hall/bookings', m: 'GET', h: c => handleGetHallBookings(c.env, c.user) },
@@ -140,7 +140,7 @@ const routes = [
   { p: '/api/ai/memories', m: 'DELETE', h: c => handleAIMemoriesClear(c.env, c.user) },
   { p: '/api/ai/chat', m: 'POST', h: c => handleAIChat(c.request, c.env, c.user) },
   // Comments
-  { p: /^\/api\/comments\/(announcement|issue|issue_note)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2]) },
+  { p: /^\/api\/comments\/(announcement|issue|issue_note)\/(\d+)$/, m: 'GET', h: c => handleGetComments(c.env, c.m[1], c.m[2], c.user) },
   { p: '/api/comments', m: 'POST', h: c => handleCreateComment(c.request, c.env, c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'PUT', h: c => handleUpdateComment(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/comments\/(\d+)$/, m: 'DELETE', h: c => handleDeleteComment(c.request, c.env, c.m[1], c.user) },
@@ -155,7 +155,7 @@ const routes = [
   { p: '/api/polls', m: 'GET', h: c => handleGetPolls(c.env) },
   { p: '/api/polls', m: 'POST', h: c => handleCreatePoll(c.request, c.env, c.user) },
   { p: /^\/api\/polls\/(\d+)$/, m: 'GET', h: c => handleGetPoll(c.env, c.m[1]) },
-  { p: /^\/api\/polls\/(\d+)\/vote$/, m: 'POST', h: c => handleVotePoll(c.request, c.env, c.m[1]) },
+  { p: /^\/api\/polls\/(\d+)\/vote$/, m: 'POST', h: c => handleVotePoll(c.request, c.env, c.m[1], c.user) },
   { p: /^\/api\/polls\/(\d+)\/results$/, m: 'GET', h: c => handleGetPollResults(c.env, c.m[1], c.user) },
   { p: /^\/api\/polls\/(\d+)\/export$/, m: 'GET', h: c => handleExportPollResults(c.env, c.m[1], c.user) },
   { p: /^\/api\/polls\/(\d+)\/my-vote$/, m: 'GET', h: c => handleGetMyVote(c.env, c.m[1], c.request) },
@@ -165,6 +165,7 @@ const routes = [
   { p: '/api/duty/staff', m: 'POST', h: c => handleDutyStaffCreate(c.request, c.env, c.user) },
   { p: '/api/duty/staff/upload', m: 'POST', h: c => handleDutyStaffUpload(c.request, c.env, c.user) },
   { p: /^\/api\/duty\/staff\/(\d+)$/, m: 'DELETE', h: c => handleDutyStaffDelete(c.request, c.env, c.user, c.m[1]) },
+  { p: /^\/api\/duty\/staff\/(\d+)\/password$/, m: 'POST', h: c => handleDutyStaffResetPassword(c.request, c.env, c.user, c.m[1]) },
   { p: '/api/duty/schedule/generate', m: 'POST', h: c => handleDutyScheduleGenerate(c.request, c.env, c.user) },
   { p: '/api/duty/schedule/today', m: 'GET', h: c => handleDutyAttendanceToday(c.env) },
   { p: '/api/duty/schedule', m: 'GET', h: c => handleDutyScheduleRange(c.env, c.url) },
@@ -172,10 +173,13 @@ const routes = [
   { p: '/api/duty/attendance/today', m: 'GET', h: c => handleDutyAttendanceToday(c.env) },
   { p: '/api/duty/attendance/sign-in', m: 'POST', h: c => handleDutySignIn(c.request, c.env, c.user) },
   { p: '/api/duty/attendance/sign-out', m: 'POST', h: c => handleDutySignOut(c.request, c.env, c.user) },
-  { p: '/api/duty/scores', m: 'GET', h: c => handleDutyScoresGet(c.env, c.url) },
+  { p: '/api/duty/scores', m: 'GET', h: c => {
+    if (!isAdmin(c.user)) return error('需要管理员权限', 403);
+    return handleDutyScoresGet(c.env, c.url);
+  } },
   { p: '/api/duty/scores/add', m: 'POST', h: c => handleDutyScoreAdd(c.request, c.env, c.user) },
   { p: '/api/duty/scores/modify', m: 'POST', h: c => handleDutyScoreModify(c.request, c.env, c.user) },
-  { p: '/api/duty/scores/cancel', m: 'POST', h: c => handleDutyScoreCancel(c.request, c.env) },
+  { p: '/api/duty/scores/cancel', m: 'POST', h: c => handleDutyScoreCancel(c.request, c.env, c.user) },
   { p: '/api/duty/scores/batch-cancel', m: 'POST', h: c => handleDutyScoreBatchCancel(c.request, c.env, c.user) },
   // 周报：导出标签的两张表格与全部导出按钮共用（管理员，无行数上限）
   { p: '/api/duty/report', m: 'GET', h: c => handleDutyReport(c.env, c.url, c.user) },

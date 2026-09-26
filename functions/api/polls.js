@@ -50,13 +50,13 @@ export async function handleCreatePoll(request, env, user) {
   return json({ id: pollId, message: '投票已创建' }, 201);
 }
 
-export async function handleVotePoll(request, env, id) {
+export async function handleVotePoll(request, env, id, user) {
   const rl = rateLimit(request, 'vote', 3, 3600000, '投票过于频繁，每小时最多提交3次');
   if (rl) return rl;
   const poll = await env.DB.prepare('SELECT * FROM polls WHERE id = ?').bind(Number(id)).first();
   if (!poll) return error('投票不存在', 404);
   if (poll.status !== 'open') return error('投票已结束', 400);
-  const user = await getUserFromRequest(request, env);
+  if (!user) return error('请先登录', 401);
   if (poll.min_role) {
     const roleWeight = { member: 2, admin: 3, owner: 4 };
     const userWeight = user ? (roleWeight[user.role] || 0) : 0;
@@ -224,6 +224,7 @@ export async function handleGetMyVote(env, id, request) {
     response = await env.DB.prepare("SELECT * FROM poll_responses WHERE poll_id = ? AND ip = ? AND user_id IS NULL ORDER BY created_at DESC LIMIT 1").bind(Number(id), ip).first();
   }
   if (!response) return json({ voted: false });
+  if (!user) return json({ voted: true });
   const answers = await env.DB.prepare('SELECT * FROM poll_answers WHERE response_id = ? ORDER BY id ASC').bind(response.id).all();
   return json({ voted: true, response, answers: answers.results.map(a => ({ ...a, answer: safeParse(a.answer) })) });
 }

@@ -709,6 +709,10 @@ function onPickImage(e: Event) {
 }
 
 async function submitIssue() {
+  if (!user.value) {
+    toast('请先登录后提交报修', 'error')
+    return
+  }
   if (!form.location.trim() || !form.description.trim()) {
     return toast('地点与报修问题为必填', 'error')
   }

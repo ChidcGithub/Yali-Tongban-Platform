@@ -1754,38 +1754,15 @@ async function smokeActivityAnonymousSignup() {
     if (!(await entry.count())) return
 
     await entry.click()
-    await page.waitForTimeout(700)
+    await page.waitForTimeout(500)
     const dlg = page.locator('.content-dialog')
-    check('活动报名（未登录）：弹出报名表单', (await dlg.count()) === 1, `${await dlg.count()} 个`)
-
-    const text = await dlg.first().innerText().catch(() => '')
-    check(
-      '活动报名（未登录）：要求填姓名与人机验证',
-      text.includes('你的姓名') && text.includes('人机验证'),
-      JSON.stringify(text.slice(0, 60))
-    )
-
-    const capInput = page.locator('#yaliVolunteerCaptcha .captcha-input')
-    check('活动报名（未登录）：验证码已挂载进对话框', (await capInput.count()) === 1, `${await capInput.count()} 个`)
-
-    /* 姓名框在验证码之前（DOM 顺序），取第一个 input 即姓名 */
-    await dlg.locator('input').first().fill('匿名测试同学')
-    await capInput.fill('ABCD')
-    await captureWrites(page)
-    await dlg.locator('button', { hasText: '报名' }).first().click()
-    await page.waitForTimeout(900)
-
-    const post = await page.evaluate(
-      () => window.__posted.filter((p) => /\/api\/activities\/\d+\/volunteer$/.test(p.url))[0] || null
-    )
-    check('活动报名（未登录）：请求打到 /api/activities/:id/volunteer', !!post, JSON.stringify(post?.url ?? null))
-    check(
-      '活动报名（未登录）：请求体字段与后端一致（name + captcha_token + captcha_code）',
-      !!post && !!post.body?.name && 'captcha_token' in post.body && 'captcha_code' in post.body,
-      JSON.stringify(post?.body ?? null)
-    )
-    check('活动报名（未登录）：报名成功后表单关闭', (await page.locator('.content-dialog').count()) === 0)
+    check('活动报名（未登录）：要求先登录', (await dlg.count()) === 0, `${await dlg.count()} 个弹窗`)
+    const bodyText = await page.locator('body').innerText().catch(() => '')
+    check('活动报名（未登录）：显示登录提示', bodyText.includes('请先登录后报名'), bodyText.slice(-120))
     check('活动报名（未登录）：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+    return
+
+    /* 旧版匿名报名流程已关闭：报名必须绑定当前登录用户。 */
   } finally {
     await page.close()
   }

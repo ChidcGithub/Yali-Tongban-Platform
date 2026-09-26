@@ -9,8 +9,14 @@ import { rateLimit, json, error, parseBody, isAdmin, createNotification, getUser
  */
 const COMMENT_TYPES = ['announcement', 'issue', 'issue_note'];
 
-export async function handleGetComments(env, type, id) {
+export async function handleGetComments(env, type, id, user) {
   if (!COMMENT_TYPES.includes(type)) return error('无效的类型');
+  if (type === 'issue_note' && !isAdmin(user)) {
+    if (!user) return error('需要登录', 401);
+    const issue = await env.DB.prepare('SELECT submitted_by FROM issues WHERE id = ?').bind(Number(id)).first();
+    if (!issue) return error('报修不存在', 404);
+    if (!issue.submitted_by || issue.submitted_by !== user.name) return error('无权查看此备注', 403);
+  }
   const rows = await env.DB.prepare(
     'SELECT * FROM comments WHERE target_type = ? AND target_id = ? ORDER BY created_at ASC'
   ).bind(type, Number(id)).all();

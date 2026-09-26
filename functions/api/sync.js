@@ -33,16 +33,16 @@ export async function handleSync(request, env) {
               LEFT JOIN (SELECT target_id, COUNT(*) AS cnt FROM comments WHERE target_type = 'issue' GROUP BY target_id) c ON issues.id = c.target_id
               ORDER BY issues.created_at DESC
             `).all();
-            data = rows.results;
+            data = isAdmin(user) ? rows.results : rows.results.map(({ contact, ...issue }) => issue);
             break;
           }
           case '/api/finance': {
             if (!user) return;
             let fSql = 'SELECT * FROM finance';
             const fParams = [];
-            if (user && !isAdmin(user) && user.department) {
+            if (user && !isAdmin(user)) {
               fSql += ' WHERE department = ?';
-              fParams.push(user.department);
+              fParams.push(user.department || '');
             }
             fSql += ' ORDER BY created_at DESC LIMIT 200';
             const fRows = await env.DB.prepare(fSql).bind(...fParams).all();
@@ -50,7 +50,7 @@ export async function handleSync(request, env) {
             break;
           }
           case '/api/reviews': {
-            if (!user) return;
+            if (!user || !isAdmin(user)) return;
             const rows = await env.DB.prepare('SELECT * FROM reviews ORDER BY created_at DESC LIMIT 200').all();
             data = rows.results;
             break;

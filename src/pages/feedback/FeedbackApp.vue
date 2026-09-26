@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, reactive, ref } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
-import { apiPost, mountCaptcha, toast } from '../../shared/api'
+import { apiPost, getUser, mountCaptcha, toast } from '../../shared/api'
 
 const SECTIONS = ['动态', '公告', '投票', '财务', '活动', '其它']
 const sectionIndex = ref(-1)
@@ -67,6 +67,10 @@ onMounted(async () => {
 })
 
 async function submit() {
+  if (!getUser()) {
+    toast('请先登录后提交反馈', 'error')
+    return
+  }
   if (!form.content.trim()) {
     toast('请填写反馈内容', 'error')
     return

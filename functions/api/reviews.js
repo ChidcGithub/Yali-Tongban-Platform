@@ -2,6 +2,7 @@ import { rateLimit, json, error, parseBody, isValidImageUrl, isAdmin, insertChat
 
 export async function handleGetReviews(env, user) {
   if (!user) return error('需要登录', 401);
+  if (!isAdmin(user)) return error('无权限', 403);
   // 列表瘦身：不返回 image_url 全文（每条都是一整张 base64 图，最多 200 条），
   // 只给 has_image 标记，图片走 /api/reviews/images?ids= 批量按需取。
   // 与 announcements / finance / issues 的做法保持一致。
@@ -16,6 +17,7 @@ export async function handleGetReviews(env, user) {
 /** 批量取审核图片（与列表同可见性：登录即可） */
 export async function handleGetReviewImages(env, idsStr, user) {
   if (!user) return error('需要登录', 401);
+  if (!isAdmin(user)) return error('无权限', 403);
   try {
     const ids = [...new Set(String(idsStr || '').split(',').map(s => Number(String(s).trim())).filter(n => Number.isInteger(n) && n > 0))];
     if (ids.length === 0) return error('缺少审核记录 id');

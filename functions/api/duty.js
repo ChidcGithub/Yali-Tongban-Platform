@@ -1,4 +1,4 @@
-import { json, error, isAdmin, parseBody, SALT_ROUNDS, createNotification } from './_utils.js';
+import { json, error, isAdmin, rateLimit, parseBody, checkRateLimit, getClientIP, SALT_ROUNDS, createNotification } from './_utils.js';
 import bcrypt from 'bcryptjs';
 
 // ========== Staff ==========
@@ -24,12 +24,22 @@ export async function handleDutyStaffCreate(request, env, user) {
   if (matched) {
     await env.DB.prepare("INSERT INTO duty_staff (user_id, department, class, name) VALUES (?,?,?,?)").bind(matched.id, department, cls, name).run();
   } else {
-    password = Math.random().toString(36).slice(2, 8);
+    password = randomDutyPassword();
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
     await env.DB.prepare("INSERT INTO duty_staff (user_id, department, class, name, password) VALUES (0,?,?,?,?)").bind(department, cls, name, hash).run();
   }
 
   return json({ message: '已添加', password: password || undefined });
+}
+
+/** 值日考勤密码：避免与登录密码同型，固定 8 位小写字母数字。
+    用 crypto 随机数而不是 Math.random，防止可预测序列。 */
+function randomDutyPassword() {
+  const chars = '23456789abcdefghjkmnpqrstuvwxyz';
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  let out = '';
+  for (const b of bytes) out += chars[b % chars.length];
+  return out;
 }
 
 export async function handleDutyStaffUpload(request, env, user) {
@@ -45,11 +55,11 @@ export async function handleDutyStaffUpload(request, env, user) {
       ops.push(env.DB.prepare("INSERT INTO duty_staff (user_id, department, class, name) VALUES (?,?,?,?)").bind(matched.id, s.department, s.class, s.name));
       result.inserted++;
     } else {
-      const password = Math.random().toString(36).slice(2, 8);
+      const password = randomDutyPassword();
       const hash = await bcrypt.hash(password, SALT_ROUNDS);
       ops.push(env.DB.prepare("INSERT INTO duty_staff (user_id, department, class, name, password) VALUES (0,?,?,?,?)").bind(s.department, s.class, s.name, hash));
       result.inserted++;
-      result.warnings.push({ row: `${s.class} ${s.name}`, reason: '未在平台注册，已分配初始密码' });
+      result.warnings.push({ row: `${s.class} ${s.name}`, reason: '未在平台注册，已分配初始考勤密码', password });
     }
   }
 
@@ -136,6 +146,29 @@ export async function handleDutyScheduleExport(env, url) {
 
 // ========== Attendance ==========
 
+/**
+ * 用值日干事自己的密码验证考勤操作。
+ *
+ * 设计口径：签到面板保持匿名可用（会议室平板场景），
+ * 但每次签到/签退都必须输入该干事在管理端导入/创建时
+ * 分发的独立密码。已绑定平台账号（duty_staff.user_id>0）
+ * 的干事同样要求这个密码 —— 管理员添加时不会下发密码，
+ * 需先由管理员在名册里重置一次。
+ *
+ * ⚠️ 不选 token/cookie 方案：值日平板不登录平台账号，
+ * 会话凭据也跨不住多天；一次性密码随每个操作验证，
+ * 即简单又覆盖所有考勤接口。
+ */
+async function verifyDutyStaffPassword(request, env, staffId, password) {
+  if (!password) return false;
+  if (!checkRateLimit(getClientIP(request) + ':' + staffId, 'dutyAttendance', 10, 600000)) return false;
+  const row = await env.DB.prepare(
+    "SELECT password FROM duty_staff WHERE id=? AND is_active=1"
+  ).bind(staffId).first();
+  if (!row || !row.password) return false;
+  return bcrypt.compare(String(password), row.password);
+}
+
 async function autoMarkAbsent(env, schedule, today, periods, now) {
   const ops = [];
   for (const p of (periods || [])) {
@@ -211,10 +244,14 @@ export async function handleDutySignIn(request, env, user) {
   const body = await parseBody(request);
   const { schedule_id, staff_id, period } = body;
   if (!schedule_id || !staff_id || !period) return error('缺少必填字段', 400);
+  if (!body.password) return error('请输入该值日生的签到密码', 403);
 
   const sch = await env.DB.prepare("SELECT staff_a_id, staff_b_id, date FROM duty_schedule WHERE id=?").bind(schedule_id).first();
   if (!sch) return error('排班不存在', 404);
   if (staff_id !== sch.staff_a_id && staff_id !== sch.staff_b_id) return error('你不在今日排班中', 403);
+  if (!await verifyDutyStaffPassword(request, env, staff_id, body.password)) {
+    return error('签到密码不正确', 403);
+  }
 
   // 未到签到时间无法签到：根据 duty_period_config.start_time（北京时间）判断
   const periodCfg = await env.DB.prepare("SELECT start_time, slot_type FROM duty_period_config WHERE label=?").bind(period).first();
@@ -243,11 +280,15 @@ export async function handleDutySignOut(request, env, user) {
   const body = await parseBody(request);
   const { attendance_id } = body;
   if (!attendance_id) return error('缺少 attendance_id', 400);
+  if (!body.password) return error('请输入该值日生的签到密码', 403);
 
   const att = await env.DB.prepare("SELECT * FROM duty_attendance WHERE id=?").bind(attendance_id).first();
   if (!att) return error('记录不存在', 404);
   if (att.status !== 'signed_in') return error('未在签到状态', 400);
   if (!att.sign_in_time) return error('签到时间异常', 500);
+  if (!await verifyDutyStaffPassword(request, env, att.staff_id, body.password)) {
+    return error('签到密码不正确', 403);
+  }
 
   const signIn = new Date(att.sign_in_time.includes('T') ? att.sign_in_time : att.sign_in_time.replace(' ', 'T') + 'Z');
   if (isNaN(signIn.getTime())) return error('签到时间格式异常', 500);
@@ -315,13 +356,16 @@ export async function handleDutyScoreModify(request, env, user) {
   return json({ message: '已修改' });
 }
 
-export async function handleDutyScoreCancel(request, env) {
+export async function handleDutyScoreCancel(request, env, user) {
+  const rl = rateLimit(request, 'dutyScoreCancel', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
+  if (!isAdmin(user)) return error('需要管理员权限', 403);
   const body = await parseBody(request);
-  const { score_record_id, reason, admin_id, password } = body;
+  const { score_record_id, reason, password } = body;
   if (!score_record_id || !reason) return error('缺少必填字段', 400);
 
-  if (!admin_id || !password) return error('需要销分人验证', 403);
-  const admin = await env.DB.prepare("SELECT id, name, role, password_hash FROM users WHERE id=?").bind(admin_id).first();
+  if (!password) return error('需要销分人验证', 403);
+  const admin = await env.DB.prepare("SELECT id, name, role, password_hash FROM users WHERE id=?").bind(user.userId).first();
   if (!admin || !['admin','owner','teacher'].includes(admin.role)) return error('销分人不是管理员', 403);
   if (!await bcrypt.compare(password, admin.password_hash)) return error('密码错误', 403);
 
@@ -369,13 +413,15 @@ export async function handleDutyScoreAdd(request, env, user) {
 
 export async function handleDutyScoreBatchCancel(request, env, user) {
   if (!isAdmin(user)) return error('需要管理员权限', 403);
+  const rl = rateLimit(request, 'dutyScoreBatchCancel', 10, 60000, '操作过于频繁，请稍后再试');
+  if (rl) return rl;
   const body = await parseBody(request);
-  const { score_record_ids, reason, admin_id, password } = body;
+  const { score_record_ids, reason, password } = body;
   if (!Array.isArray(score_record_ids) || score_record_ids.length === 0) return error('未选择记录', 400);
   if (!reason) return error('缺少销分理由', 400);
-  if (!admin_id || !password) return error('需要销分人验证', 403);
+  if (!password) return error('需要销分人验证', 403);
 
-  const admin = await env.DB.prepare("SELECT id, name, role, password_hash FROM users WHERE id=?").bind(admin_id).first();
+  const admin = await env.DB.prepare("SELECT id, name, role, password_hash FROM users WHERE id=?").bind(user.userId).first();
   if (!admin || !['admin','owner','teacher'].includes(admin.role)) return error('销分人不是管理员', 403);
   if (!await bcrypt.compare(password, admin.password_hash)) return error('密码错误', 403);
 
@@ -468,6 +514,17 @@ export async function handleDutyReport(env, url, user) {
 }
 
 // ========== Admin Users ==========
+
+/** 管理端重置某名干事的考勤密码（密码只显示这一次）。 */
+export async function handleDutyStaffResetPassword(request, env, user, id) {
+  if (!isAdmin(user)) return error('需要管理员权限', 403);
+  const staff = await env.DB.prepare("SELECT id, name FROM duty_staff WHERE id=?").bind(id).first();
+  if (!staff) return error('干事不存在', 404);
+  const password = randomDutyPassword();
+  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+  await env.DB.prepare("UPDATE duty_staff SET password=? WHERE id=?").bind(hash, id).run();
+  return json({ message: `已重置「${staff.name}」的考勤密码`, password });
+}
 
 export async function handleDutyAdminsList(env) {
   const rows = await env.DB.prepare(

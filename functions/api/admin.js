@@ -123,7 +123,7 @@ export async function handleUpdateRole(request, env, id, user) {
     const existing = await env.DB.prepare("SELECT id FROM users WHERE role='public' AND id != ?").bind(id).first();
     if (existing) return error('已存在公共账号', 400);
   }
-  await env.DB.prepare('UPDATE users SET role = ? WHERE id = ?').bind(role, id).run();
+  await env.DB.prepare('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?').bind(role, id).run();
   const roleLabels = { admin: '管理员', teacher: '老师', member: '成员', owner: '站长', public: '公共' };
   const adminPrefix = user.department ? user.department + '的' : '';
   const targetPrefix = target.department ? target.department + '的' : '';
@@ -160,7 +160,7 @@ export async function handleResetPassword(request, env, id) {
   if (!row) return error('用户不存在', 404);
   if (row.role === 'owner') return error('不能重置站长密码', 403);
   const hash = await bcrypt.hash(password, SALT_ROUNDS);
-  await env.DB.prepare('UPDATE users SET password_hash = ?, password_reset = 1 WHERE id = ?').bind(hash, id).run();
+  await env.DB.prepare('UPDATE users SET password_hash = ?, password_reset = 1, token_version = token_version + 1 WHERE id = ?').bind(hash, id).run();
   return json({ message: '密码已重置' });
 }
 

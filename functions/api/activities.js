@@ -1,4 +1,4 @@
-import { rateLimit, json, error, parseBody, getClientIP, verifyCaptcha, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS, checkRateLimit } from './_utils.js';
+import { rateLimit, json, error, parseBody, isAdmin, insertChatSystemMessage, createNotificationBatch, DEPARTMENTS } from './_utils.js';
 
 export async function handleGetActivities(env, user) {
   let sql = "SELECT a.*, (SELECT COUNT(*) FROM activity_volunteers WHERE activity_id = a.id) AS volunteer_count";
@@ -56,20 +56,9 @@ export async function handleCreateActivity(request, env, user) {
 }
 
 export async function handleSignupVolunteer(request, env, id, user) {
-  const ip = getClientIP(request);
-  const body = await parseBody(request);
-  let memberName, memberDept;
-  if (user) {
-    memberName = user.name;
-    memberDept = user.department || '';
-  } else {
-    if (!checkRateLimit(ip, 'volunteerSignup', 3, 1800000)) return error('操作过于频繁，每30分钟最多报名3次', 429);
-    if (!body || !body.name) return error('请填写姓名', 400);
-    if (!body.captcha_token) return error('请完成人机验证', 400);
-    if (!await verifyCaptcha(body.captcha_token, body.captcha_code, env)) return error('人机验证失败，请刷新后重试', 403);
-    memberName = body.name;
-    memberDept = '';
-  }
+  if (!user) return error('请先登录', 401);
+  const memberName = user.name;
+  const memberDept = user.department || '';
   const activity = await env.DB.prepare('SELECT id, need_volunteers FROM activities WHERE id = ?').bind(id).first();
   if (!activity) return error('活动不存在', 404);
   if (!activity.need_volunteers) return error('该活动不需要志愿者', 400);
@@ -94,11 +83,15 @@ export async function handleUnsignupVolunteer(request, env, id, user) {
   return json({ message: '已取消报名' });
 }
 
-export async function handleGetActivityVolunteers(env, id) {
+export async function handleGetActivityVolunteers(env, id, user) {
   const activity = await env.DB.prepare('SELECT name FROM activities WHERE id = ?').bind(id).first();
   if (!activity) return error('活动不存在', 404);
   const rows = await env.DB.prepare(
     'SELECT id, member_name, department, created_at FROM activity_volunteers WHERE activity_id = ? ORDER BY created_at ASC'
   ).bind(id).all();
+  // 名单不对外公开：已登录成员可看完整名单；未登录只回人数
+  if (!user) {
+    return json({ activity_name: activity.name, count: rows.results.length });
+  }
   return json({ activity_name: activity.name, volunteers: rows.results });
 }
