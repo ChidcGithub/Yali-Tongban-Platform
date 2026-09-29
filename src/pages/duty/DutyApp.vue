@@ -69,7 +69,7 @@
                         @Click="signIn(p, 'a')">
                   <span class="yali-btn-inner"><span>签到</span></span>
                 </Button>
-                <Button v-else-if="p.a.status === 'signed_in'" @Click="signOut(p.a, 'a')">
+                <Button v-else-if="p.a.status === 'signed_in'" @Click="signOut(p.a)">
                   <span class="yali-btn-inner">
                     <FontIcon :Glyph="GLYPH.duty" :FontSize="13" />
                     <span>{{ elapsed(p.a) }} 签退</span>
@@ -85,7 +85,7 @@
                         @Click="signIn(p, 'b')">
                   <span class="yali-btn-inner"><span>签到</span></span>
                 </Button>
-                <Button v-else-if="p.b.status === 'signed_in'" @Click="signOut(p.b, 'b')">
+                <Button v-else-if="p.b.status === 'signed_in'" @Click="signOut(p.b)">
                   <span class="yali-btn-inner">
                     <FontIcon :Glyph="GLYPH.duty" :FontSize="13" />
                     <span>{{ elapsed(p.b) }} 签退</span>
@@ -103,7 +103,7 @@
             </div>
           </div>
           <p class="yali-muted duty-tip">
-            各时段在结束后按各自的宽限分钟数自动标记缺岗；具体分钟数见表内提示。签到/签退需输入该值日生的考勤密码。
+            各时段在结束后按各自的宽限分钟数自动标记缺岗；具体分钟数见表内提示。签到/签退需先登录（公共账号亦可）。
           </p>
         </section>
 
@@ -138,8 +138,7 @@ const AI_QUICK = [
 ]
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiGet, apiPost, isAdmin, toast } from '../../shared/api'
-import { promptDialog } from '../../shared/confirm'
+import { apiGet, apiPost, getUser, isAdmin, toast } from '../../shared/api'
 
 interface Attendance {
   status: 'pending' | 'signed_in' | 'completed' | 'absent'
@@ -254,20 +253,16 @@ async function loadStats() {
   }
 }
 
-/** 弹一次密码输入框；取消返回 null。提示语里写明「这是考勤密码，不是登录密码」。 */
-async function askDutyPassword(staffName: string, action: string) {
-  return promptDialog({
-    title: `${action}验证`,
-    message: `${action}前请输入 ${staffName} 的考勤密码（不是登录密码）。`,
-    placeholder: '8 位考勤密码',
-    maxLength: 32,
-    confirmText: action,
-    validate: (v) => (v.trim() ? null : '请输入考勤密码')
-  })
+/** 签到/签退只需登录（成员或公共账号均可），不校验账号与干事是否匹配 */
+function requireLogin(action: string) {
+  if (getUser()) return true
+  toast(`请先登录后${action}`, 'error')
+  return false
 }
 
 async function signIn(p: Period, side: 'a' | 'b') {
   if (!data.value) return
+  if (!requireLogin('签到')) return
   // staff_a/staff_b 是对象（{id, name, ...}），之前误取不存在的 staff_a_id，
   // 导致 staff_id 恒为 undefined、后端直接以「缺少必填字段」拒绝
   const staff = side === 'a' ? data.value.staff_a : data.value.staff_b
@@ -276,12 +271,10 @@ async function signIn(p: Period, side: 'a' | 'b') {
     toast('未取到该值日生信息，请刷新后重试', 'error')
     return
   }
-  const password = await askDutyPassword(staff.name, '签到')
-  if (password === null) return
   try {
     const res = await apiPost<{ attendance_id: number; sign_in_time: string; score?: number }>(
       '/api/duty/attendance/sign-in',
-      { schedule_id: data.value.schedule_id, staff_id: staffId, period: p.label, password }
+      { schedule_id: data.value.schedule_id, staff_id: staffId, period: p.label }
     )
     const st = side === 'a' ? p.a : p.b
     st.status = 'signed_in'
@@ -293,15 +286,13 @@ async function signIn(p: Period, side: 'a' | 'b') {
   }
 }
 
-async function signOut(st: Attendance, side: 'a' | 'b') {
-  if (!st.attendance_id || !data.value) return
-  const staff = side === 'a' ? data.value.staff_a : data.value.staff_b
-  const password = await askDutyPassword(staff?.name || '该值日生', '签退')
-  if (password === null) return
+async function signOut(st: Attendance) {
+  if (!st.attendance_id) return
+  if (!requireLogin('签退')) return
   try {
     const res = await apiPost<{ score?: number; total?: number }>(
       '/api/duty/attendance/sign-out',
-      { attendance_id: st.attendance_id, password }
+      { attendance_id: st.attendance_id }
     )
     st.status = 'completed'
     st.total = res?.total ?? res?.score ?? 0

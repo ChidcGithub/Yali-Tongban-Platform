@@ -84,14 +84,10 @@
             <span class="yali-muted">{{ s.class || '—' }}</span>
             <span class="yali-chip">{{ s.department || '未分配' }}</span>
             <span v-if="!s.user_id" class="yali-chip yali-chip-warn" title="还未绑定平台账号">未映射</span>
-            <button class="da-del" type="button" title="重置考勤密码（会显示一次新密码）" @click="resetStaffPassword(s)">
-              <FontIcon :Glyph="GLYPH.refresh" :FontSize="13" />
-            </button>
             <button class="da-del" type="button" title="删除" @click="removeStaff(s)">
               <FontIcon :Glyph="GLYPH.delete" :FontSize="13" />
             </button>
           </div>
-          <p class="yali-muted da-gap">重置考勤密码后新密码只显示一次，请抄好后交给干事。</p>
         </section>
       </template>
 
@@ -484,7 +480,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import YaliShell from '../../components/YaliShell.vue'
 import { GLYPH } from '../../shared/icons'
-import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog, alertDialog
+import { apiDel, apiGet, apiPost, apiPut, isAdmin, toast, confirmDialog
 } from '../../shared/api'
 import { requireAdmin } from '../../shared/guard'
 import { streamChat } from '../../shared/ai-chat'
@@ -750,45 +746,21 @@ async function addStaff() {
   if (!staffDraft.name.trim()) return toast('请填写姓名', 'error')
   busy.value = true
   try {
-    const res = await apiPost<{ message?: string; password?: string }>('/api/duty/staff', {
+    await apiPost('/api/duty/staff', {
       name: staffDraft.name.trim(),
       class: staffDraft.class.trim(),
       department: staffDeptIndex.value >= 0 ? DEPARTMENTS[staffDeptIndex.value] : ''
     })
+    toast('已添加', 'success')
     staffDialog.value = false
     staffDraft.name = ''
     staffDraft.class = ''
     staffDeptIndex.value = -1
-    if (res?.password) {
-      await alertDialog({
-        title: '已添加干事',
-        message: `已添加并分配考勤密码：${res.password}\n\n这个密码只显示这一次，请抄好后交给干事；之后如需更换可在名册里点「重置」。`
-      })
-    } else {
-      toast('已添加', 'success')
-    }
     loadStaff()
   } catch (err) {
     toast((err as Error).message, 'error')
   } finally {
     busy.value = false
-  }
-}
-
-async function resetStaffPassword(s: Staff) {
-  if (!(await confirmDialog({ title: '重置考勤密码', message: `确定重置「${s.name}」的考勤密码吗？旧密码立即失效。`, danger: true }))) return
-  try {
-    const res = await apiPost<{ message?: string; password?: string }>(`/api/duty/staff/${s.id}/password`)
-    if (res?.password) {
-      await alertDialog({
-        title: '考勤密码已重置',
-        message: `「${s.name}」的新考勤密码：${res.password}\n\n请抄好后交给干事；这个密码只显示这一次。`
-      })
-    } else {
-      toast('已重置', 'success')
-    }
-  } catch (err) {
-    toast((err as Error).message, 'error')
   }
 }
 
@@ -1100,23 +1072,18 @@ async function doImport() {
   if (!importRows.value.length || busy.value) return
   busy.value = true
   try {
-    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string; password?: string }[] }>(
+    const r = await apiPost<{ inserted?: number; warnings?: { row: string; reason?: string }[] }>(
       '/api/duty/staff/upload',
       { staffList: importRows.value }
     )
     const n = Number(r?.inserted) || 0
     const w = r?.warnings ?? []
     /* 未在平台注册的人 user_id=0 → 进不了站内通知，名单上的「未映射」徽标就是这么来的。
-       同时为他们下发了独立的考勤密码（用于签到/签退），密码只在这一次返回里可见。 */
-    const pwdRows = w.filter((x) => x.password)
+       （历史上这里会「分配初始密码」，但那个密码**全站没有任何地方会去校验**，
+       所以提示里不提它 —— 说了反而让人以为可以拿它登录。） */
     importResult.value =
       `已导入 ${n} 人` +
-      (w.length
-        ? `；其中 ${w.length} 人未在平台注册（名单里会标「未映射」，收不到站内通知）` +
-          (pwdRows.length
-            ? `。已分配考勤密码：\n${pwdRows.map((x) => `${x.row} → ${x.password}`).join('\n')}\n\n请立即抄好分发，关闭本对话框后无法再次查看。`
-            : '')
-        : '')
+      (w.length ? `；其中 ${w.length} 人未在平台注册，名单里会标「未映射」，收不到站内通知。` : '')
     toast(`已导入 ${n} 人`, 'success')
     importText.value = ''
     await loadStaff()

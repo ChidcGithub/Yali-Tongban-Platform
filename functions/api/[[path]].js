@@ -15,7 +15,7 @@ import { handleGetMembers, handleGetRegistrations, handleApproveRegistration, ha
 import { handleSync } from './sync.js';
 import { handleGetBanner } from './banner.js';
 import { handleGetPublicSettings } from './settings.js';
-import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyStaffResetPassword, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
+import { handleDutyStaffGet, handleDutyStaffCreate, handleDutyStaffUpload, handleDutyStaffDelete, handleDutyScheduleGenerate, handleDutyScheduleRange, handleDutyScheduleExport, handleDutyAttendanceToday, handleDutySignIn, handleDutySignOut, handleDutyScoresGet, handleDutyScoreModify, handleDutyScoreCancel, handleDutyScoreAdd, handleDutyScoreBatchCancel, handleDutyAdminsList, handleDutyPeriodsGet, handleDutyPeriodsUpdate, handleDutyScheduleManual, handleDutyScheduleManualDelete, handleDutyScheduleClearAll, handleDutyDepartmentStats, handleDutyReport } from './duty.js';
 import { handleAdminGetFeatures, handleAdminToggleFeature, handleAdminInvite, handleAdminResetUser, handleAdminGetInvitations, handleGetPendingFeatures, handleRespondFeature, handleGetEnabledFeatures } from './features.js';
 import { handleGetMessages, handleGetUnreadCount, handleMarkRead, handleMarkAllRead, handleDeleteMessage, handleClearRead } from './messages.js';
 import { handleAIStatus, handleAIMessagesGet, handleAIMessagesClear, handleAIMemoriesGet, handleAIMemoriesClear, handleAIChat } from './ai.js';
@@ -165,7 +165,6 @@ const routes = [
   { p: '/api/duty/staff', m: 'POST', h: c => handleDutyStaffCreate(c.request, c.env, c.user) },
   { p: '/api/duty/staff/upload', m: 'POST', h: c => handleDutyStaffUpload(c.request, c.env, c.user) },
   { p: /^\/api\/duty\/staff\/(\d+)$/, m: 'DELETE', h: c => handleDutyStaffDelete(c.request, c.env, c.user, c.m[1]) },
-  { p: /^\/api\/duty\/staff\/(\d+)\/password$/, m: 'POST', h: c => handleDutyStaffResetPassword(c.request, c.env, c.user, c.m[1]) },
   { p: '/api/duty/schedule/generate', m: 'POST', h: c => handleDutyScheduleGenerate(c.request, c.env, c.user) },
   { p: '/api/duty/schedule/today', m: 'GET', h: c => handleDutyAttendanceToday(c.env) },
   { p: '/api/duty/schedule', m: 'GET', h: c => handleDutyScheduleRange(c.env, c.url) },
