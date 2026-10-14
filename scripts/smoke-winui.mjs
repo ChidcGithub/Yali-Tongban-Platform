@@ -639,17 +639,19 @@ async function smokeDialogCaptchas() {
     }
   }
 
-  // 活动：登录后报名走的是「直接报名」分支（不出验证码），
-  // 要验匿名报名表单必须用 anon=1 切到未登录态
+  // 活动：bc461ce 起报名必须登录（匿名报名已下线）——
+  // 未登录点「报名」只出提示，不弹表单、不出验证码
   {
     const { page, pageErrors } = await openPage('activities', '?anon=1')
     try {
       await page.locator('.yali-item-actions button').first().click()
       await page.waitForTimeout(700)
       const c = await page.locator('#yaliVolunteerCaptcha .captcha-input').count()
-      check('activities：匿名报名表单的验证码已挂载', c === 1, `${c} 个`)
-      const warns = await page.evaluate(() => (window.__warns || []).join(' | '))
-      check('activities：无验证码挂载告警', warns.indexOf('CAPTCHA_WIDGET_NOT_MOUNTED') < 0, warns.slice(0, 100))
+      check('activities：未登录点报名不再出现报名表单', c === 0, `${c} 个`)
+      const dlg = await page.locator('.content-dialog').count()
+      check('activities：未登录点报名不弹对话框', dlg === 0, `${dlg} 个`)
+      const bodyText = await page.locator('body').innerText().catch(() => '')
+      check('activities：显示登录提示', bodyText.includes('请先登录后报名'), bodyText.slice(-120))
       check('activities：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 100))
     } finally {
       await page.close()
@@ -744,13 +746,10 @@ async function smokeDutyAdminBatchCancel() {
     await page.locator('button', { hasText: '批量销分' }).first().click()
     await page.waitForTimeout(600)
     const dlg = page.locator('.content-dialog').last()
-    await dlg.locator(SEL.comboRoot).first().locator(SEL.comboBtn).first().click()
-    await page.waitForTimeout(300)
-    const adminOpts = page.locator(`${SEL.comboItem}:visible`)
-    if ((await adminOpts.count()) > 0) await adminOpts.first().click()
+    /* bc461ce 起销分改为「本人密码」确认：对话框里不再有管理员 ComboBox，
+       请求体也不再带 admin_id（后端从当前会话取身份） */
     await dlg.locator('.win-textbox-field').first().fill('排班调整，原扣分作废')
-    const pwd = dlg.locator('.win-password-box .win-textbox-field').first()
-    if (await pwd.count()) await pwd.fill('Yali@1234')
+    await dlg.locator('.win-password-box .win-textbox-field').first().fill('Yali@1234')
     await dlg.locator('button', { hasText: '确认销分' }).first().click()
     await page.waitForTimeout(700)
 
@@ -758,12 +757,12 @@ async function smokeDutyAdminBatchCancel() {
       () => window.__posted.filter((p) => p.url.indexOf('/scores/batch-cancel') >= 0)[0] || null
     )
     check(
-      'duty-admin：批量销分请求体字段正确（score_record_ids + reason + admin_id + password）',
+      'duty-admin：批量销分请求体字段正确（score_record_ids + reason + password）',
       !!post &&
         Array.isArray(post.body?.score_record_ids) &&
         post.body.score_record_ids.length > 0 &&
         typeof post.body?.reason === 'string' &&
-        !!post.body?.admin_id &&
+        post.body.reason.length > 0 &&
         !!post.body?.password,
       JSON.stringify(post?.body ?? null)
     )
@@ -2321,6 +2320,54 @@ async function smokeDutyStaffImport() {
   }
 }
 
+/**
+ * 百廿校庆限定成就「百廿相逢」（yali120）
+ *
+ * 按北京时间 2026-10-17 全天判定。三个边界（前一天 23:59 / 当天 00:00:30 /
+ * 次日 00:00:30）都用注入日期驱动，不依赖用例运行的真实日期 ——
+ * 否则这套测试在校庆日当天自己会红。
+ * 桩没有 /api/achievements/unlock 端点 → 真实 fetch 打到静态服务 404 →
+ * unlockAchievement 走 localStorage 兜底并返回 true —— 这正是生产失败
+ * （接口抽风）时的降级路径，顺带一起验了。
+ */
+async function smokeAnniversary120() {
+  const { page, pageErrors } = await openPage('settings')
+  try {
+    /* ⚠️ 未解锁的成就标题显示「？？？」，只有 desc 可见 —— 用描述里的日期定位 */
+    const def = page.locator('.set-ach', { hasText: '2026年10月17日' })
+    await def.waitFor({ state: 'attached', timeout: 8000 })
+    check('百廿相逢：设置页成就墙收录', (await def.count()) === 1, `命中 ${await def.count()} 张卡片`)
+
+    /* 清掉同上下文里之前用例可能留下的解锁记录，保证后续断言只反映本次注入 */
+    await page.evaluate(() => localStorage.removeItem('achievements'))
+
+    const evalCheck = (iso) =>
+      page.evaluate(async (iso) => {
+        const p = checkAnniversary120(new Date(iso))
+        /* 解锁走 fetch 兜底（桩无此端点）→ 必须等 promise 落地再读状态，否则是竞态 */
+        if (p && typeof p.then === 'function') await p
+        return {
+          list: JSON.parse(localStorage.getItem('achievements') || '[]'),
+          toast: !!document.querySelector('.ach-toast')
+        }
+      }, iso)
+
+    const next = await evalCheck('2026-10-18T00:00:30+08:00')
+    check('百廿相逢：次日（10-18）不解锁', !next.list.includes('yali120'), `解锁表：${next.list.join(',') || '（空）'}`)
+
+    const prev = await evalCheck('2026-10-16T23:59:00+08:00')
+    check('百廿相逢：前一天（10-16）不解锁', !prev.list.includes('yali120'))
+
+    const day = await evalCheck('2026-10-17T00:00:30+08:00')
+    check('百廿相逢：校庆日（北京时间 2026-10-17）解锁', day.list.includes('yali120'))
+    check('百廿相逢：解锁弹出成就 toast', day.toast)
+
+    check('百廿相逢：无 JS 错误', noErrors(pageErrors), pageErrors.join(' | ').slice(0, 120))
+  } finally {
+    await page.close()
+  }
+}
+
 const CASES = [
   ['登录页：验证码挂载 + 单次提交', smokeLogin],
   ['对话框内验证码（报修 / 财务 / 活动报名）', smokeDialogCaptchas],
@@ -2357,7 +2404,8 @@ const CASES = [
   ['活动报名（未登录）：姓名 + 人机验证', smokeActivityAnonymousSignup],
   ['欢迎引导：首次访问主页', smokeWelcome],
   ['AI 助手：对话 / 工具 / 记忆 / 未配置态', smokeAiAssistant],
-  ['值日页 AI 浮窗', smokeDutyAiWidget]
+  ['值日页 AI 浮窗', smokeDutyAiWidget],
+  ['百廿校庆：限定成就按日期解锁', smokeAnniversary120]
 ]
 
 console.log(`产物目录：${distName}   地址：${base}`)
