@@ -792,6 +792,7 @@ const ACHIEVEMENT_DEFS = [
   { id: 'feedback_first', title: '我有话要说', desc: '首次提交反馈', icon: 'message-square' },
   { id: 'feedback_tenth', title: '反馈反馈反馈反馈！', desc: '累计提交10次反馈', icon: 'message-square' },
   { id: 'green_bubble', title: '你也要学绿泡泡吗', desc: '点击更新日志 v3.0.0 中的神秘句子', icon: 'message-circle' },
+  { id: 'yali120', title: '百廿相逢', desc: '在雅礼百廿校庆日（2026年10月17日）登录', icon: 'heart' },
 ];
 function getAchievements() {
   const u = getUser();
@@ -842,6 +843,7 @@ function showAchievementToast(id) {
 }
 function checkTimeAchievements() {
   if (!getUser()) return;
+  checkAnniversary120();
   const h = new Date().getHours();
   if (h >= 0 && h < 6) {
     unlockAchievement('night_owl').then(d => { if (d) showAchievementToast('night_owl'); });
@@ -864,6 +866,17 @@ function checkTimeAchievements() {
     }
   }
   if (h >= 6 && h < 9) unlockAchievement('early_bird').then(d => { if (d) showAchievementToast('early_bird'); });
+}
+
+/** 校庆限定：北京时间 2026-10-17 全天登录即解锁（带日期参数便于测试注入；返回解锁 promise） */
+function checkAnniversary120(now) {
+  if (!getUser()) return;
+  let bj;
+  try {
+    bj = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(now || new Date());
+  } catch { return; }
+  if (bj !== '2026-10-17') return;
+  return unlockAchievement('yali120').then(d => { if (d) showAchievementToast('yali120'); });
 }
 function checkCollector() {
   const total = ACHIEVEMENT_DEFS.length;

@@ -68,7 +68,7 @@ public URL stayed unchanged.
 | **Backend** | 22 modules · **134 routes** on Cloudflare Pages Functions |
 | **Database** | Cloudflare D1 (SQLite) · 27 tables declared + 2 created on demand |
 | **Frontend** | Vue 3.5 SFC + Vite 7 — ~12.4k lines of page code on a 43.9k-line vendored control library |
-| **Achievements** | 35 hidden achievements, detected client-side and verified server-side |
+| **Achievements** | 36 hidden achievements, detected client-side and verified server-side |
 | **Quality** | 6 build-time guards · 24-page render regression · 303 interaction assertions |
 
 <details>
@@ -104,7 +104,7 @@ public URL stayed unchanged.
 | **Membership** | Six-tier roles, registration approval, three-stage bulk import with concurrent bcrypt hashing, password resets |
 | **Notification centre** | Per-user notifications with unread badges, feature-gated behind an invitation system |
 | **AI assistant** | Streaming chat over SSE with tool calling — queries the site database, searches the web, and remembers long-term preferences |
-| **Achievements** | 35 hidden achievements spanning exploration, interaction, data accumulation and easter eggs |
+| **Achievements** | 36 hidden achievements spanning exploration, interaction, data accumulation and easter eggs |
 | **Personalisation** | Light/dark/system theme, accent colours, font scaling and an optional particle/animation layer |
 | **Feedback** | User suggestions with an administrator inbox |
 | **Site operations** | Maintenance overlay, feature flags, storage statistics, owner-only bulk reset |

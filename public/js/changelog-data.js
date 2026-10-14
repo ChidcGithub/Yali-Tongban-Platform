@@ -1,5 +1,12 @@
 var CHANGELOG_ENTRIES = [
   {
+    date: '2026-10-14',
+    version: 'v4.0.2-1014',
+    items: [
+      { type: 'add', text: '百廿校庆限定成就「百廿相逢」：10 月 17 日校庆日当天登录即可解锁' },
+    ]
+  },
+  {
     date: '2026-09-18',
     version: 'v4.0.1.823-0918',
     items: [
